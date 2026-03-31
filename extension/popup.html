@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Climb Analyzer</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+
+    <header class="popup-header">
+      <div class="header-top">
+        <div class="header-title">
+          <svg class="header-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="3 17 9 11 13 15 21 7"/>
+            <polyline points="14 7 21 7 21 14"/>
+          </svg>
+          <h1>Climb Analyzer</h1>
+        </div>
+        <div id="capture-badge" class="capture-badge" style="display:none">
+          <span class="badge-dot"></span> GPX captured
+        </div>
+      </div>
+
+      <div class="gradient-legend">
+        <span class="legend-item"><span class="legend-swatch" style="background:#44aa88"></span>&lt;3%</span>
+        <span class="legend-item"><span class="legend-swatch" style="background:#cccc55"></span>3–6%</span>
+        <span class="legend-item"><span class="legend-swatch" style="background:#ff8833"></span>6–9%</span>
+        <span class="legend-item"><span class="legend-swatch" style="background:#ee3333"></span>9–12%</span>
+        <span class="legend-item"><span class="legend-swatch" style="background:#880000"></span>&gt;12%</span>
+      </div>
+    </header>
+
+    <div class="popup-content">
+
+      <div id="upload-section" class="upload-section">
+        <label class="upload-box" for="gpx-file-input">
+          <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          <p class="upload-label">Drop GPX file or click to browse</p>
+          <p class="upload-hint">Export a route from Mapy.cz → GPX, then upload here</p>
+          <input type="file" id="gpx-file-input" accept=".gpx" class="file-input">
+        </label>
+      </div>
+
+      <div id="status-info" class="status-info" style="display:none">
+        <div class="spinner"></div>
+        <p class="status-message">Analyzing route…</p>
+      </div>
+
+      <div id="climbs-list" class="climbs-list" style="display:none">
+        <!-- populated by popup.js -->
+      </div>
+
+      <div id="no-data" class="no-data" style="display:none">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="40" height="40">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="8" x2="12" y2="12"/>
+          <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        <p>No climbs detected</p>
+        <p class="no-data-hint">Route may be too flat or too short.<br>Minimum: 300 m at ≥2% average grade.</p>
+      </div>
+
+      <div id="error-message" class="error-message" style="display:none"></div>
+
+    </div>
+
+    <footer class="popup-footer">
+      <button id="copy-btn"    class="btn btn-ghost">⎘ Copy</button>
+      <button id="analyze-btn" class="btn btn-primary">Analyze</button>
+      <button id="clear-btn"   class="btn btn-ghost">✕ Clear</button>
+    </footer>
+
+  </div>
+
+  <script src="gpx-parser.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

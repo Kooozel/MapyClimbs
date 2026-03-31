@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <rect width="128" height="128" fill="#1a1a1a"/>
+  <defs>
+    <linearGradient id="climbGradientLarge" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" style="stop-color:#4a9;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#ff9;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#f44;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Elevation profile polyline -->
+  <polyline points="16,112 28,86 44,96 64,48 84,80 100,32 112,10" stroke="url(#climbGradientLarge)" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <!-- Filled area under the curve -->
+  <polygon points="16,112 28,86 44,96 64,48 84,80 100,32 112,10 112,128 16,128" fill="url(#climbGradientLarge)" opacity="0.2"/>
+  
+  <!-- Start and end points -->
+  <circle cx="16" cy="112" r="5" fill="#4a9"/>
+  <circle cx="112" cy="10" r="5" fill="#f44"/>
+  
+  <!-- Flag at peak -->
+  <line x1="64" y1="48" x2="64" y2="20" stroke="#fff" stroke-width="2"/>
+  <polygon points="64,20 64,32 76,26" fill="#f44"/>
+</svg>
