@@ -22,7 +22,8 @@
     }
   },
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "type": "module"
   },
   "content_scripts": [
     {
@@ -46,6 +47,8 @@
       ],
       "js": [
         "gpx-parser.js",
+        "map-inject-chart.js",
+        "map-inject-panel.js",
         "map-inject.js"
       ],
       "css": [

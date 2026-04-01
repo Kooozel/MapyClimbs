@@ -25,7 +25,6 @@
   HTMLAnchorElement.prototype.click = function () {
     if (_suppressNextDownload && this.download && this.href.startsWith('blob:')) {
       _suppressNextDownload = false;
-      console.log('[GPX Interceptor] Download suppressed — data captured by extension');
       return;
     }
     return _origAnchorClick.call(this);
@@ -39,7 +38,6 @@
     
     // Check if this is a GPX export request
     if (url.includes('tplannerexport') && url.includes('export=gpx')) {
-      console.log('[GPX Interceptor] ✓ FETCH intercepted - GPX export detected:', url);
       
       const fetchPromise = originalFetch.apply(this, args);
       
@@ -56,7 +54,6 @@
               return blob.text();
             }).then((gpxContent) => {
               if (gpxContent && gpxContent.length > 0) {
-                console.log('[GPX Interceptor] ✓ GPX content captured via FETCH (blob), length:', gpxContent.length);
                 window.postMessage({
                   type: 'GPX_FETCHED',
                   gpxContent: gpxContent,
@@ -64,14 +61,11 @@
                   timestamp: Date.now()
                 }, '*');
               }
-            }).catch((error) => {
-              console.error('[GPX Interceptor] Error reading blob:', error);
-            });
+            }).catch(() => {});
           } else {
             // Text response
             clonedResponse.text().then((gpxContent) => {
               if (gpxContent && gpxContent.length > 0) {
-                console.log('[GPX Interceptor] ✓ GPX content captured via FETCH (text), length:', gpxContent.length);
                 window.postMessage({
                   type: 'GPX_FETCHED',
                   gpxContent: gpxContent,
@@ -79,16 +73,12 @@
                   timestamp: Date.now()
                 }, '*');
               }
-            }).catch((error) => {
-              console.error('[GPX Interceptor] Error reading fetch response:', error);
-            });
+            }).catch(() => {});
           }
           
           return response;
         })
-        .catch((error) => {
-          console.error('[GPX Interceptor] Fetch error:', error);
-        });
+        .catch(() => {});
       
       return fetchPromise;
     }
@@ -99,13 +89,10 @@
   // === XHR INTERCEPTOR ===
   const originalXHROpen = XMLHttpRequest.prototype.open;
   const originalXHRSend = XMLHttpRequest.prototype.send;
-  let xhrGPXUrl = null;
 
   XMLHttpRequest.prototype.open = function(method, url, ...rest) {
     // Check if this is a GPX request
     if (typeof url === 'string' && url.includes('tplannerexport') && url.includes('export=gpx')) {
-      console.log('[GPX Interceptor] ✓ XHR intercepted - GPX export detected:', url);
-      xhrGPXUrl = url;
       this._isGPXRequest = true;
     }
     return originalXHROpen.apply(this, [method, url, ...rest]);
@@ -123,7 +110,6 @@
             // Response is a blob - read it as text
             this.response.text().then((text) => {
               if (text && text.length > 0) {
-                console.log('[GPX Interceptor] ✓ GPX content captured via XHR (blob), length:', text.length);
                 window.postMessage({
                   type: 'GPX_FETCHED',
                   gpxContent: text,
@@ -131,14 +117,11 @@
                   timestamp: Date.now()
                 }, '*');
               }
-            }).catch((error) => {
-              console.error('[GPX Interceptor] Error reading blob:', error);
-            });
+            }).catch(() => {});
           } else if (this.responseType === '' || this.responseType === 'text') {
             // Response is text
             gpxContent = this.responseText || this.response;
             if (gpxContent && gpxContent.length > 0) {
-              console.log('[GPX Interceptor] ✓ GPX content captured via XHR (text), length:', gpxContent.length);
               window.postMessage({
                 type: 'GPX_FETCHED',
                 gpxContent: gpxContent,
@@ -149,7 +132,6 @@
           } else {
             // Try response property as fallback
             if (typeof this.response === 'string' && this.response.length > 0) {
-              console.log('[GPX Interceptor] ✓ GPX content captured via XHR (response property), length:', this.response.length);
               window.postMessage({
                 type: 'GPX_FETCHED',
                 gpxContent: this.response,
@@ -167,7 +149,6 @@
     return originalXHRSend.apply(this, args);
   };
 
-  console.log('[GPX Interceptor - Injected] ✓ Ready - Monitoring for GPX exports via FETCH and XHR');
 
   // === SMAP INSTANCE CAPTURE ===
   //
@@ -186,7 +167,6 @@
         typeof inst.addLayer === 'function' &&
         typeof inst.getCenter === 'function') {
       window.__climbMap = inst;
-      console.log('[GPX Interceptor] ✓ SMap instance captured');
       clearInterval(_smapPoll);
     }
   }
@@ -228,8 +208,7 @@
       },
       configurable: true
     });
-  } catch (e) {
-    console.warn('[GPX Interceptor] defineProperty failed:', e.message);
+  } catch (_) {
   }
 
   // Poll for SMap in case setter trap missed it (e.g. loaded via async module)
@@ -268,7 +247,6 @@
               typeof v.getCenter === 'function') {
             captureInstance(v);
             if (window.__climbMap) {
-              console.log('[GPX Interceptor] ✓ SMap found via DOM scan (el.' + prop + ')');
               return window.__climbMap;
             }
           }
@@ -293,10 +271,7 @@
         if (attemptsLeft > 0) {
           // On first attempt also try hooking SMap in case it appeared asynchronously
           if (S && !S._climbHooked) applySMapHooks(S);
-          console.log('[GPX Interceptor] Map not ready, retrying... (' + attemptsLeft + ' left)');
           setTimeout(() => tryInject(attemptsLeft - 1), 1000);
-        } else {
-          console.warn('[GPX Interceptor] Could not find SMap instance — markers skipped');
         }
         return;
       }
@@ -323,7 +298,6 @@
         HC: '#d42b2b', '1': '#e85d17', '2': '#e8a117', '3': '#c8c022', '4': '#6b7280'
       };
 
-      let injected = 0;
       climbs.forEach((climb, i) => {
         if (!climb.markerCoords) return;
         const { lat, lon } = climb.markerCoords;
@@ -348,12 +322,9 @@
           title: 'Climb ' + num + ' · Cat ' + climb.category + ' · ' + (climb.distance / 1000).toFixed(1) + ' km +' + Math.round(climb.elevation) + ' m'
         });
         layer.addMarker(marker);
-        injected++;
       });
 
-      console.log('[GPX Interceptor] ✓ Injected ' + injected + ' climb markers');
-    } catch (err) {
-      console.error('[GPX Interceptor] Marker injection failed:', err);
+    } catch (_) {
     }
   }
 })();

@@ -1,5 +1,4 @@
 /* map-inject.css — Climb Analyzer injected panel (mirrors popup design, scoped) */
-/* .css — Climb Analyzer injected panel (mirrors popup design, scoped) */
 #climb-inject-button {
 	display: flex;
 	cursor: pointer;
@@ -8,7 +7,7 @@
 	align-items: flex-start;
 	flex: 0 0 90px;
 
-	& > *, & > *:hover, & > *:active, & > *:focus {
+	& > *, & > *:active, & > *:focus {
 		display: flex;
 		width: 100%;
 		border: none;
@@ -98,8 +97,8 @@
   gap: 8px;
   padding: 10px 14px;
   background: var(--bg0);
-  border-bottom: 1px solid var(--border);
   border: none;
+  border-bottom: 1px solid var(--border);
   width: 100%;
   text-align: left;
   cursor: pointer;
@@ -376,7 +375,6 @@
   border-radius: 5px;
   shape-rendering: geometricPrecision;
   text-rendering: optimizeSpeed;
-  image-rendering: optimizeQuality;
   vector-effect: non-scaling-stroke;
 }
 

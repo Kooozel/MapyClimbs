@@ -9,7 +9,6 @@
  * @returns {Array} Elevation profile: [[cumulative_distance, elevation], ...]
  */
 function parseGPX(gpxContent) {
-  console.log('[GPX Parser] Parsing GPX file...');
   
   try {
     const parser = new DOMParser();
@@ -39,7 +38,6 @@ function parseGPX(gpxContent) {
       if (trkpts.length > 0) break;
     }
 
-    console.log(`[GPX Parser] Found ${trkpts.length} track points`);
 
     // Extract coordinates and elevation
     for (let i = 0; i < trkpts.length; i++) {
@@ -58,12 +56,7 @@ function parseGPX(gpxContent) {
       }
 
       if (!isNaN(lat) && !isNaN(lon)) {
-        trackPoints.push({
-          lat: lat,
-          lon: lon,
-          ele: ele || 0,
-          index: i
-        });
+        trackPoints.push({ lat, lon, ele: ele || 0 });
       }
     }
 
@@ -71,7 +64,6 @@ function parseGPX(gpxContent) {
       throw new Error('No track points found in GPX file');
     }
 
-    console.log(`[GPX Parser] Extracted ${trackPoints.length} track points with coordinates`);
 
     // Calculate cumulative distance and build elevation profile
     const elevationProfile = [];
@@ -99,13 +91,9 @@ function parseGPX(gpxContent) {
       ]);
     }
 
-    console.log(`[GPX Parser] Built elevation profile with ${elevationProfile.length} points`);
-    console.log(`[GPX Parser] Total distance: ${(cumulativeDistance / 1000).toFixed(2)} km`);
-    console.log(`[GPX Parser] Elevation range: ${Math.min(...elevationProfile.map(ep => ep[1])).toFixed(0)}m - ${Math.max(...elevationProfile.map(ep => ep[1])).toFixed(0)}m`);
 
     return elevationProfile;
   } catch (error) {
-    console.error('[GPX Parser] Error parsing GPX:', error);
     throw error;
   }
 }

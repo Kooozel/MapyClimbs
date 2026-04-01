@@ -2,251 +2,128 @@
 
 All notable changes to the Climb Analyzer extension are documented here.
 
-## [0.5.3] — 2026-04-02 (Chart UI: The Segmented Aura)
+## [0.5.5] — 2026-04-01 (CSS Cleanup)
 
-### ✨ Features
+### Changed
 
-#### Elevation Profile Chart — Segmented Aura with Smooth Bezier Curves
-
-**Data Processing: Savitzky-Golay Smoothing**
-
-- **Moderate Elevation Filtering**: Applies Savitzky-Golay smoothing (window 101, order 3) to elevation data
-- **Preserves Real Climbs**: Removes GPS jitter and micro-stepping while keeping actual steep sections intact
-- **Visual Rounding**: Peaks and valleys are visually smoothed without losing gradient accuracy
-
-**The Path & Stroke: Smooth Bezier Curves**
-
-- **Cubic Bezier Interpolation**: Converts jagged polyline to flowing `C` path commands for professional appearance
-- **Vibrant Category Stroke**: 2px solid stroke uses the climb's category color (e.g., orange for C2, red for C1)
-- **Smooth Joins**: `stroke-linejoin: round` and `stroke-linecap: round` for polished appearance
-- **High Opacity**: 0.95 opacity for prominent edge visibility
-
-**Visual Fill (The "Aura"): Segmented Vertical Zones**
-
-- **Distinct Colored Segments**: Instead of horizontal blending, creates vertical gradient zones (Green < 3%, Orange 3-9%, Red > 9%)
-- **No Horizontal Blending**: Each segment maintains its own vertical gradient that fades downward
-- **Per-segment Vertical Fade**: Each zone has linear vertical gradient:
-  - **Top**: Segment color at 0.9 opacity
-  - **Bottom**: Segment color at 0.0 opacity (transparent)
-- **Category Color Aura Overlay**: Topmost fade uses the climb's category color for additional visual emphasis
-  - **Top**: Category color at 0.8 opacity
-  - **Bottom**: Category color at 0.0 opacity
-
-**Contextual Annotations: Max Grade Tag**
-
-- **Intelligent Detection**: Identifies the steepest gradient in the climb profile
-- **Precise Placement**: Positioned at the highest point of the steepest segment
-- **Category-Colored Badge**: Rounded pill (rx="8") using climb's category color background
-- **Display Format**: Shows grade as "X.X%" with white text, white border, 95% opacity
-
-**Grid & Scaling: Subtle Reference Guides**
-
-- **Soft Grid Lines**: Horizontal guides use `stroke: rgba(255,255,255,0.1)` — barely visible (10% opacity)
-- **Y-Axis Scaling**: Maintained tight range (elevation−5m to elevation+10m) for maximum climb detail visibility
-- **Refined Labels**: Y-axis #888, X-axis #777 for improved contrast against dark background
-
-### 🔧 Technical Changes
-
-- **Added `savitzkyGolay()` function** — Smooths elevation data to remove GPS artifacts
-  - Window size: 101 samples
-  - Polynomial order: 3
-  - Preserves steep sections while removing micro-jitter
-
-- **Updated `generateElevationChart()` function** — Now accepts climb category parameter
-  - Applies smoothing before profile simplification
-  - Passes category to rendering function
-
-- **Complete rewrite of `renderElevationSVG()` function**:
-  - **Cubic Bezier Path**: Generates smooth curve through all elevation points
-  - **Segmented Gradients**: Creates individual vertical fade gradients for each segment (Green/Orange/Red zones)
-  - **Category-Color Stroke**: Uses climb category color for vibrant 2px polyline edge
-  - **Category Aura**: Overlaid category-color gradient for additional visual pop
-  - **SVG Rendering Order**: Background → segment fills → category aura → grid → Bezier stroke → tag
-
-- **Category Color Mapping**:
-  - HC: #800020 (Burgundy)
-  - C1: #D32F2F (Red)
-  - C2: #F57C00 (Orange)
-  - C3: #FBC02D (Yellow)
-  - C4: #4CAF50 (Green)
-
-### Files Modified
-
-- `extension/map-inject.js` — Complete chart rendering refactor with Savitzky-Golay smoothing, Bezier curves, and segmented aura
-
-### ✅ Status
-
-- [x] Savitzky-Golay filtering implemented for elevation smoothing
-- [x] Cubic Bezier curve path generation implemented
-- [x] Category color extraction and mapping
-- [x] Segmented vertical gradient zones (Green/Orange/Red classification)
-- [x] Category color aura overlay with vertical fade
-- [x] Vibrant category-colored polyline stroke
-- [x] Smart max grade tag positioning and styling
-- [x] Soft grid lines maintained
-- [x] Complete "Segmented Aura" aesthetic achieved
+- `map-inject.css`: removed duplicate header comment; fixed `.cip-header-bar` border order (was overwritten by `border: none`); removed redundant `:hover` from `#climb-inject-button` outer compound selector; removed non-standard `image-rendering: optimizeQuality` from `.profile-svg`
+- `popup.css`: removed ~110 lines of dead chart/tooltip/legend CSS left over from when the elevation chart lived in the popup (`.climb-chart`, `.hover-line`, `.hover-tooltip`, `.tooltip-row`, `svg path.climb-fill`, `.chart-legend`)
 
 ---
 
-## [0.5.2] — 2026-04-02 ("The Peak" Map Icons — Sport Style)
+## [0.5.4] — 2026-04-01 (Refactor & Bug Fixes)
 
-### ✨ Features
+### Added
 
-#### "The Peak" Map Icons — Custom SVG Markers
+- `climb-engine.js` — extracted all climb-detection logic from `background.js` into a standalone pure ES module; `background.js` now imports `detectClimbs` from it
 
-**Start Pin: "The Pulse"**
+### Fixed
 
-- Circle marker, 32×52px display size
-- Fill = Category Color, Stroke = 2.2px white
-- Prominent 8px radius circle with 4px drop shadow
-- Label: Climb index (1, 2, 3...) centered above circle, bold sans-serif font
-- Lightweight and clean, easily visible on map
+- `climb-engine.js` — `filterNoiseSpikes` read from the already-mutated result array, causing cascade over-smoothing; now reads from an immutable copy of the original
+- `climb-engine.js` — `splitAntiGreenClimbs` copied the parent climb's `markerCoords`/`endCoords` to sub-climbs instead of stamping from the sub-climb's own first/last segment (wrong map pins)
+- `climb-engine.js` — `smoothElevationProfile` had an O(n²) double full-array scan; replaced with O(n) two-pointer sliding windows
+- `map-inject.css` — fixed `.cip-header-bar` where `border: none` was declared before `border-bottom`, causing it to silently overwrite the separator
 
-**End Pin: "The Summit"**
+### Changed
 
-- Alpine mountain icon (triangle pointing upward), 38×38px display size
-- Fill = Category Color, Border = 1.2px white thin line
-- Snow-cap feature: Sharp, pointed white triangular detail at peak apex
-- Flat design (no shadows)
-- Label: Category name ("HC", "C1", "C2", "C3", "C4") positioned next to icon
-- Professional Alpine aesthetics
-
-**Color Mapping (Heat Scale — High-contrast against green terrain)**
-
-- HC: #660000 (Deep Burgundy) — Mountain Hell
-- C1: #B30000 (Vibrant Red) — Very Hard
-- C2: #E65100 (Deep Orange) — Hard
-- C3: #FF9100 (Amber/Dark Yellow) — Moderate
-- C4: #FFD600 (Electric Yellow) — Easier
-
-### 🔧 Technical Changes
-
-- **Replaced teardrop map pins** with custom SVG icons
-- **"The Pulse" Start Pin**: 32×52px SVG with 8px circle and drop shadow
-- **"The Summit" End Pin**: 38×38px mountain triangle with sharp snow-cap detail and adjacent category label
-- **Visibility enhancements**: All markers feature 2px solid white stroke + black drop-shadow (0 2px 4px) for separation from green terrain
-- **Flat design philosophy**: No complex filters or gradients, pure SVG simplicity
-- **Heat Scale Color Palette**: Optimized high-contrast colors for terrain visibility (Deep Burgundy → Electric Yellow)
-- Updated `renderPeakPins()` function to generate both pin types with enhanced sizing
-
-### Files Modified
-
-- `extension/map-inject.js` — Updated pin SVG rendering logic for start and end markers, enhanced sizing, sharpened geometry
-- `CHANGELOG.md` — Documented v0.5.2 release with refinements
-
-### ✅ Status
-
-- [x] "The Pulse" start pin implemented and sized
-- [x] "The Summit" end pin with sharp snow-cap detail implemented and sized
-- [x] Category labels integrated with icons
-- [x] Color palette updated to warm red-based palette
-- [x] Pin sizes increased for better visibility
-- [x] Color palette verified (HC, C1-C4 standards)
-- [x] Flat design aesthetic applied (no shadows, clean rendering)
+- Removed all `console.log` / `console.*` calls from `climb-engine.js`, `gpx-parser.js`, `gpx-interceptor.js`, `gpx-interceptor-injected.js`
+- `gpx-interceptor.js`: added `event.data?.type` null guard (prevented crash on bare `postMessage` events); removed dead `sessionStorage` dual-write block; replaced empty storage callbacks with `() => { void chrome.runtime.lastError; }`
+- `gpx-interceptor-injected.js`: removed unused `xhrGPXUrl` variable and `injected` counter; renamed unused catch params to `_`
+- `map-inject.js`: split 900-line monolithic IIFE into three files — `map-inject-chart.js` (SVG chart renderer), `map-inject-panel.js` (sidebar DOM builder), `map-inject.js` (SPA lifecycle controller only); removed fake `savitzkyGolay` implementation (built a polynomial design matrix then ignored it and did a plain moving average)
+- `manifest.json`: content-script `js` array updated to load `map-inject-chart.js` and `map-inject-panel.js` before `map-inject.js`
+- Removed `'use strict'` from ES modules (redundant)
 
 ---
 
-## [0.5.1] — 2026-04-01 (The "Action Only" & Smoothing Patch)
+## [0.5.3] — 2026-04-01 (Segmented Aura Charts)
 
-### ✨ Features
+### Changed
 
-#### Graph Presentation & Visual Improvements
-
-- **Point Resampling**: Eliminate micro-jitter from GPS data (merges points < 10-15m) to remove vertical "stripes" in elevation charts
-- **Smart Climb Start Trimming**: Discard leading flat/shallow sections (<3% gradient) from climb profiles, focusing visual attention on the actual ascent
-- **Peak Detection**: Climb profiles now end exactly at the highest elevation point, removing trailing flat/downhill sections
-- **Anti-Green Splitting**: Automatically split climbs containing large flat sections (>400m < 2% gradient) to avoid visual "green voids" in the UI
-- **Optional Savitzky-Golay Filter**: Available as an opt-in enhancement for even cleaner elevation curves while preserving steep ramp character
-- **Gradient Capping Note**: Display layer can cap gradient visualization at 25% to prevent extreme "40% glitch" Y-axis breaks
-
-### 🔧 Technical Changes
-
-- Added `resamplePoints()` function — eliminates micro-jitter before gradient calculation
-- Added `smartTrimClimbStart()` — removes leading <3% sections (display-focused, post-merge)
-- Added `splitAntiGreenClimbs()` — splits climbs with large flat middle sections
-- Added `savitzkyGolaySmooth()` — optional polynomial smoothing (currently disabled by default)
-- Integrated v0.5.1 helpers into post-merge pipeline
-- Updated algorithm documentation with v0.5.1 pipeline details
-
-### ✅ Safety Guarantees
-
-- ✅ **No merge function changes** — point resampling & trimming happen outside merge logic
-- ✅ **Backward compatible** — all v0.5.0 data remains valid
-- ✅ **Optional enhancements** — Savitzky-Golay can be toggled per-route in future UI
-- ✅ **Display-only changes** — gradient capping is UI presentation, not mathematical
-
-### 🐛 Improvements
-
-- Better visual clarity for cyclists viewing climb profiles
-- Eliminated visual artifacts from DEM noise
-- Cleaner climb categorization (no inflated grades from jitter)
-- More intuitive climb start/end points for riders
+- `map-inject.js` — rewrote `renderElevationSVG()`: Catmull-Rom Bézier curves replace jagged polyline; fill uses per-segment vertical gradients (green < 3%, orange 3–9%, red > 9%) plus a category-colour aura overlay; 2px category-colour stroke; max-grade badge positioned at the steepest point; soft grid lines at 10% opacity
+- Category colour palette updated: HC `#800020`, C1 `#D32F2F`, C2 `#F57C00`, C3 `#FBC02D`, C4 `#4CAF50`
 
 ---
 
-## [0.5.0] — 2026-04-01
+## [0.5.2] — 2026-04-01 (Map Pins Redesign)
 
-### ✨ Features
+### Changed
 
-#### Algorithm Improvements
-
-- **Adaptive Smoothing Window**: Gradient-magnitude-weighted elevation smoothing (50-250m window) to preserve sharp climb ramps while filtering noise on flat terrain
-- **Noise Filtering**: Automatic detection and interpolation of unrealistic elevation spikes (>12% single-segment anomalies)
-- **Elevation Gain Gate**: Minimum 30m elevation gain threshold to filter micro-bumps
-- **Re-entry Merge**: Intelligent merging of nearby climbs separated by small valleys using relative drop thresholds
-- **Enhanced Descent Logic**: Tuned descent thresholds (150m early stop, category-aware tolerance)
-
-#### User Interface
-
-- **Loading Spinner**: Animated indicator during GPX analysis
-- **Climb Statistics**: Display climb count and total route distance in popup
-- **Retry Button**: Quick re-analysis for cases with no detected climbs
-- **Persistent Stats**: Climb results cached for quick reference
-
-#### Data & Infrastructure
-
-- **Storage Versioning**: Automatic cache validation and migration on schema changes
-- **Improved Logging**: Better console diagnostics for climb categorization
-
-### 🔧 Technical Changes
-
-- Updated minimum climb elevation threshold from 10m → 30m
-- Descent distance threshold optimized to 150m for better climb separation
-- Storage versioning system prevents stale cache issues
-- Simplified popup.js to eliminate redundant storage queries
-
-### 📚 Documentation
-
-- Updated extension version to 0.5.0 in manifest.json
-- Enhanced popup UI with v0.5 branding
-- Added technical details for new smoothing algorithm
-
-### 🐛 Fixes
-
-- Prevents false merge of very short climbs (<500m) with high descents
-- Better handling of descending-only segments in climb detection
-- Improved DEM noise robustness on low-quality elevation data
+- `map-inject.js` — replaced teardrop start pins with a numbered circle ("The Pulse", 32×52 px) and mountain silhouette end pins ("The Summit") bearing the category label; heat-scale palette HC `#660000` → C4 `#FFD600`; drop-shadow filter for terrain contrast
 
 ---
 
-## [0.4.1] — 2026-03-15
+## [0.5.1] — 2026-04-01 (Smoothing & Trimming)
 
-### ✨ Features
+### Added
 
-- Initial v0.4 climb detection algorithm
-- ProCyclingStats difficulty scoring (HC, Cat 1-4)
-- Real-time gradient-colored visualization
-- GPX import from Mapy.cz route planner
+- `climb-engine.js` — `resamplePoints()`: merges GPS points < 12 m apart, eliminating elevation-chart stripes
+- `climb-engine.js` — `splitAntiGreenClimbs()`: splits climbs that contain > 400 m of < 2% grade in the middle
+- `climb-engine.js` — `trimClimbEndpoints()`: strips flat (< 1.5%) lead-in and tail from each climb
 
-### 🔧 Technical Changes
+### Fixed
 
-- Established climb detection baseline
-- Implemented category thresholds
+- Climb profiles ending past the summit (trailing flat/downhill sections) now trimmed correctly
 
 ---
 
-## Version Numbering
+## [0.5.0] — 2026-04-01 (Algorithm Overhaul)
 
-- **Major (0.x.0)**: Algorithm overhauls or significant feature additions
-- **Minor (0.x.Y)**: Bug fixes and UI refinements
-- Versions track climb detection accuracy improvements and user experience enhancements
+### Added
+
+- `climb-engine.js` — `smoothElevationProfile()`: adaptive rolling average (50–250 m window, weighted by terrain gradient)
+- `climb-engine.js` — `filterNoiseSpikes()`: interpolates single-segment DEM spikes (> 12% asymmetric)
+- `climb-engine.js` — `mergeNearbyClimbs()`: joins climbs separated by valleys ≤ 2 km / ≤ 15% relative gain drop
+- Popup: loading spinner, climb-count + total-distance display, retry button
+- `background.js`: storage versioning — clears stale cache on schema change
+
+### Changed
+
+- Minimum elevation gain threshold raised from 10 m → 30 m
+- Descent confirmation distance tightened to 150 m
+
+---
+
+## [0.4.1] — 2026-03-31 (UX Polish & Lifecycle Fixes)
+
+### Added
+
+- Info popup (`popup.html` / `popup.css` / `popup.js`): status dot, usage guide, category scoring table
+- One-click analysis: injected _Climb Analyzer_ button silently triggers and confirms the Mapy.cz Export modal
+- `gpx-interceptor-injected.js`: intercepts `HTMLAnchorElement.click` to suppress blob download when triggered by the extension
+
+### Changed
+
+- `isRoutePlannerActive()`: now also checks that `.route-actions` or `.route-modules` is present and visible (`offsetParent !== null`)
+- 150 ms poll: tracks `_lastRoutePlannerVisible` — clears overlay and storage the moment the route-planner DOM disappears
+- Export modal: switched to `MutationObserver` (fires before first paint) + `opacity:0` hide — never visible to the user
+- `findGPXExportButton()`: primary selector updated to `.icon-action[title="Export"] button`
+
+### Fixed
+
+- Panel and map pins left visible after navigating away from the route planner
+- Stale climb result from a previous route reappearing on re-open
+
+---
+
+## [0.4.0] — 2026-03-31 (Sidebar Panel & Map Overlay)
+
+### Added
+
+- `map-inject.js` + `map-inject.css`: sidebar climb panel injected into `.route-modules`; route overview strip; per-climb stat cards (VAM, estimated time, Fiets index); SVG elevation charts; hover chart expand (600×220 overlay)
+- Map overlay: start (numbered teardrop) and end (mountain + category badge) SVG pins positioned with Web Mercator math from URL `x`/`y`/`z` params; 150 ms re-render on pan/zoom
+
+### Changed
+
+- `background.js` now returns `totalDistance` alongside `climbs`; cached as `lastTotalDistance`
+- GPX parser preserves `lat`/`lon` through smoothing so `markerCoords`/`endCoords` are always populated
+
+---
+
+## [0.3.0] — 2026-03-31 (Formula & Threshold Overhaul)
+
+### Changed
+
+- Difficulty formula changed from `distance × grade × 2` to `distance × grade × 100` (ProCyclingStats standard)
+- Category thresholds updated to match ProCyclingStats: Cat 3 ≥ 3 000, Cat 2 ≥ 8 000, Cat 1 ≥ 16 000, HC ≥ 40 000
+- GPX interceptor refactored into two-layer architecture (page context + content script) for reliable fetch/XHR capture
+- Removed `downloads` permission (not needed)
