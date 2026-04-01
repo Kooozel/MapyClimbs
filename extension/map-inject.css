@@ -1,4 +1,64 @@
 /* map-inject.css — Climb Analyzer injected panel (mirrors popup design, scoped) */
+/* .css — Climb Analyzer injected panel (mirrors popup design, scoped) */
+#climb-inject-button {
+	display: flex;
+	cursor: pointer;
+	text-align: center;
+	justify-content: center;
+	align-items: flex-start;
+	flex: 0 0 90px;
+
+	& > *, & > *:hover, & > *:active, & > *:focus {
+		display: flex;
+		width: 100%;
+		border: none;
+		background: transparent;
+		margin: 0;
+		padding: 5px 8px;
+		color: #1eae00;
+		box-sizing: border-box;
+
+		&:hover {
+			color: var(--Green-Green-1-Hover);
+		}
+
+		&.change {
+			color: #f00;
+		}
+	}
+
+	> button,
+	> a {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+		justify-content: flex-start;
+		align-items: center;
+		border-radius: 4px;
+	}
+
+	& > *:focus-visible {
+		color: var(--Green-Green-1-Hover);
+		outline: 2px solid var(--Green-Green-1-Hover);
+	}
+
+	.icon {
+		width: 24px;
+		height: 24px;
+		pointer-events: none;
+	}
+
+	svg {
+		fill: currentColor;
+	}
+
+	span {
+		display: block;
+		font-size: 12px;
+		line-height: 16px;
+		text-align: center;
+	}
+}
 
 /* ── Panel container + CSS variables ──────────────────────────────────── */
 
@@ -224,6 +284,18 @@
   color: var(--text3);
 }
 
+#climb-inject-panel .climb-summit {
+  font-size: 12px;
+  font-weight: 500;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  background: rgba(128, 0, 32, 0.3);
+  border-radius: 3px;
+}
+
 /* ── Stats 3-column grid ───────────────────────────────────────────────── */
 
 #climb-inject-panel .climb-stats {
@@ -287,6 +359,20 @@
   height: 110px;
   display: block;
   border-radius: 5px;
+  shape-rendering: geometricPrecision;
+  text-rendering: optimizeSpeed;
+  image-rendering: optimizeQuality;
+  vector-effect: non-scaling-stroke;
+}
+
+#climb-inject-panel .profile-svg * {
+  shape-rendering: geometricPrecision;
+}
+
+#climb-inject-panel .profile-svg path,
+#climb-inject-panel .profile-svg line {
+  shape-rendering: geometricPrecision;
+  vector-effect: non-scaling-stroke;
 }
 
 /* ── Analyze button (injected next to Exportovat) ──────────────────────── */

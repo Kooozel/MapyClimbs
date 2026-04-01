@@ -2,9 +2,35 @@
 
 ## What's Been Built
 
-A fully functional Chrome Extension that detects climbs from Mapy.cz route elevation data. The extension intercepts network traffic, processes elevation profiles, categorizes climbs, and displays them with color-coded gradient visualization.
+A fully functional Chrome Extension that detects climbs from Mapy.cz route elevation data. Features v0.5.5 professional-grade UI with interactive charts, smooth bezier curves, and map sync. The extension intercepts network traffic, processes elevation profiles, categorizes climbs, and displays them with gradient-filled charts and real-time tooltips.
 
-## Key Components
+## Current Version: v0.5.5
+
+Recent enhancements (v0.5.5 — Visual Refinement & UX Polish):
+- ✅ SVG linear gradients (area-chart style fills)
+- ✅ Bezier curve fitting (smooth professional curves)
+- ✅ Vertical auto-scaling (per-climb Y-axis optimization)
+- ✅ Hover scanner (interactive real-time tooltips)
+- ✅ Map sync (ghost marker on hover)
+- ✅ chart-utils.js module (SVG utilities)
+
+Previous (v0.5.1 — "Action Only" & Smoothing Patch):
+- ✅ Point resampling (eliminates GPS micro-jitter)
+- ✅ Smart climb start trimming (removes leading <3% flat)
+- ✅ Peak detection (ends at highest point)
+- ✅ Anti-green splitting (splits large flat sections)
+- ✅ Savitzky-Goyal optional smoothing
+- ✅ Gradient capping infrastructure
+
+Earlier (v0.5.0):
+- ✅ Adaptive smoothing window (50-250m based on terrain)
+- ✅ Noise filtering for DEM anomalies (>12%)
+- ✅ Elevation gain gate (30m minimum)
+- ✅ Re-entry merge for nearby climbs
+- ✅ Loading spinner UI
+- ✅ Retry button for failed analyses
+- ✅ Route statistics (climb count, distance)
+- ✅ Storage versioning system
 
 | Component             | File                              | Purpose                                          |
 | --------------------- | --------------------------------- | ------------------------------------------------ |
@@ -28,14 +54,20 @@ A fully functional Chrome Extension that detects climbs from Mapy.cz route eleva
   - ✅ Climb identification (sliding window algorithm)
   - ✅ Endpoint trimming (removes flat starts/ends)
   - ✅ Categorization (Cat HC, 1-4)
-  - ✅ Elevation smoothing (150 m rolling average)
+  - ✅ Adaptive elevation smoothing (50-250m window by terrain)
+  - ✅ Noise filtering for DEM anomalies (>12% spikes)
+  - ✅ Elevation gain gate (30m minimum per climb)
   - ✅ Merge nearby climbs across short gaps/descents
   - ✅ Color-coded SVG elevation profiles (5 gradient tiers)
   - ✅ Route overview strip with positioned climb markers
   - ✅ VAM, estimated climb time, Fiets index per climb
   - ✅ Copy-to-clipboard summary
   - ✅ Auto-capture badge when GPX is intercepted
-  - ✅ Redesigned dark UI (v0.3)
+  - ✅ Loading spinner during analysis (v0.5)
+  - ✅ Retry button for empty results (v0.5)
+  - ✅ Route statistics display (v0.5)
+  - ✅ Storage versioning (v0.5)
+  - ✅ Redesigned dark UI
 
 ## How to Get Started
 

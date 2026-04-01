@@ -6,8 +6,30 @@
 
 (function() {
   'use strict';
-  
-  console.log('[GPX Interceptor - Injected] Initializing in page context');
+
+  // === DOWNLOAD SUPPRESSION ===
+  // When the Climb Analyzer button triggers the GPX export programmatically,
+  // we suppress the resulting file download so the user's Downloads folder is
+  // not spammed.  map-inject.js (content script) signals intent via postMessage.
+
+  let _suppressNextDownload = false;
+
+  window.addEventListener('message', (event) => {
+    if (event.source === window && event.data && event.data.type === 'CLIMB_SUPPRESS_DOWNLOAD') {
+      _suppressNextDownload = true;
+    }
+  });
+
+  // Intercept the programmatic anchor.click() that triggers blob downloads
+  const _origAnchorClick = HTMLAnchorElement.prototype.click;
+  HTMLAnchorElement.prototype.click = function () {
+    if (_suppressNextDownload && this.download && this.href.startsWith('blob:')) {
+      _suppressNextDownload = false;
+      console.log('[GPX Interceptor] Download suppressed — data captured by extension');
+      return;
+    }
+    return _origAnchorClick.call(this);
+  };
 
   // === FETCH INTERCEPTOR ===
   const originalFetch = window.fetch;

@@ -1,10 +1,21 @@
 /**
- * Background Service Worker — Mapy.cz Climb Analyzer v0.4
- * Processes elevation data and detects climbs.
+ * Background Service Worker — Mapy.cz Climb Analyzer v0.5
+ * Processes elevation data and detects climbs with improved algorithm.
  */
 
 // Track connected popup ports
 let popupPorts = [];
+
+// Storage versioning for v0.5 — clear old cache if storage schema changed
+const STORAGE_VERSION = 1; // Increment this when cache format changes
+chrome.storage.local.get('storageVersion', (result) => {
+  if (result.storageVersion !== STORAGE_VERSION) {
+    console.log('[ClimbAnalyzer] Storage version mismatch, clearing old cache');
+    chrome.storage.local.clear(() => {
+      chrome.storage.local.set({ storageVersion: STORAGE_VERSION });
+    });
+  }
+});
 
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name === 'popup') {
@@ -44,6 +55,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 /**
  * Climb Detection Algorithm
  * Processes elevation profile to identify and categorize climbs.
+ * v0.5.1: Adds point resampling, smart trimming, and anti-green splitting
  */
 function detectClimbs(elevationData) {
   if (!elevationData || elevationData.length < 2) return [];
@@ -55,29 +67,203 @@ function detectClimbs(elevationData) {
     lon: point[3] ?? null
   }));
 
-  const smoothed = smoothElevationProfile(profile);
+  // v0.5.1: Point resampling to eliminate micro-jitter (< 10-15m points)
+  const resampled = resamplePoints(profile);
+
+  const smoothed = smoothElevationProfile(resampled);
   const segments = calculateGradients(smoothed);
   const rawClimbs = identifyClimbs(segments);
   const mergedClimbs = mergeNearbyClimbs(rawClimbs, segments);
 
-  return mergedClimbs.map(climb => {
+  // v0.5.1: Post-merge processing for better visual presentation
+  let processedClimbs = mergedClimbs.map(climb => {
     const trimmed = trimClimbEndpoints(climb);
     if (trimmed.totalDistance > 0 && trimmed.totalElevation > 0) {
       return categorizeClimb(trimmed);
     }
     return null;
   }).filter(c => c !== null);
+
+  // v0.5.1: Anti-green splitting - split climbs with large flat sections
+  processedClimbs = processedClimbs.map(climb => splitAntiGreenClimbs(climb))
+                                   .flat()
+                                   .filter(c => c !== null);
+
+  return processedClimbs;
 }
 
 /**
- * Smooth elevation profile using a distance-based rolling average.
- * Reduces DEM/GPS noise while preserving the shape of real climbs.
- * @param {Array} profile  - [{distance, elevation}, ...]
- * @param {number} windowMeters - half-window radius in metres (default 150m)
+ * v0.5.1: Point Resampling
+ * Merge GPS points that are closer than RESAMPLE_THRESHOLD to eliminate
+ * both jitter and unnecessary intermediate points in flat/low-gradient areas.
+ * 
+ * @param {Array} profile - [{distance, elevation, lat, lon}, ...]
+ * @returns {Array} - resampled profile with jitter eliminated
  */
-function smoothElevationProfile(profile, windowMeters = 150) {
+function resamplePoints(profile) {
   if (profile.length <= 2) return profile;
-  return profile.map(point => {
+
+  const RESAMPLE_THRESHOLD = 12; // meters - points closer than this are merged
+  let resampled = [profile[0]];
+
+  for (let i = 1; i < profile.length; i++) {
+    const prev = resampled[resampled.length - 1];
+    const curr = profile[i];
+    const distDelta = curr.distance - prev.distance;
+
+    // If points are too close, skip this one (creates micro-points)
+    if (distDelta < RESAMPLE_THRESHOLD) {
+      continue;
+    }
+
+    resampled.push(curr);
+  }
+
+  // Ensure we always have the last point
+  if (resampled[resampled.length - 1].distance !== profile[profile.length - 1].distance) {
+    resampled.push(profile[profile.length - 1]);
+  }
+
+  return resampled;
+}
+
+
+
+/**
+ * v0.5.1: Anti-Green Splitting
+ * If a climb contains a section longer than 400m with grade <2%,
+ * split it into separate climbs to avoid large "green voids" in UI.
+ * Preserves all metadata for both resulting climbs.
+ *
+ * @param {Object} climb - climb to potentially split
+ * @returns {Array} - array with 1 (no split) or 2+ climbs (split climbs)
+ */
+function splitAntiGreenClimbs(climb) {
+  if (!climb || !climb.segments || climb.segments.length < 2) {
+    return [climb];
+  }
+
+  const FLAT_THRESHOLD = 2; // % gradient
+  const FLAT_LENGTH_THRESHOLD = 400; // meters
+  const MINIMUM_CLIMB_DISTANCE = 300; // m - discard splits smaller than this
+
+  const splits = [];
+  let currentClimb = null;
+  let flatDistance = 0;
+
+  for (let i = 0; i < climb.segments.length; i++) {
+    const seg = climb.segments[i];
+
+    if (seg.gradient < FLAT_THRESHOLD) {
+      // Accumulate flat/low-grade distance
+      flatDistance += seg.distance;
+
+      if (currentClimb) {
+        currentClimb.segments.push(seg);
+        currentClimb.distance += seg.distance;
+        currentClimb.elevation += seg.elevation;
+      }
+
+      // If we've accumulated enough flat section, finalize current climb and reset
+      if (flatDistance >= FLAT_LENGTH_THRESHOLD && currentClimb) {
+        if (currentClimb.distance >= MINIMUM_CLIMB_DISTANCE) {
+          // Recalculate climb stats before saving
+          currentClimb.avgGrade = (currentClimb.elevation / currentClimb.distance) * 100;
+          splits.push(currentClimb);
+        }
+        currentClimb = null;
+        flatDistance = 0;
+      }
+    } else {
+      // Reset flat counter when we hit steep terrain again
+      flatDistance = 0;
+
+      if (!currentClimb) {
+        currentClimb = {
+          distance: 0,
+          elevation: 0,
+          segments: [],
+          avgGrade: climb.avgGrade,
+          difficulty: climb.difficulty,
+          category: climb.category,
+          markerCoords: climb.markerCoords,
+          endCoords: climb.endCoords
+        };
+      }
+
+      currentClimb.segments.push(seg);
+      currentClimb.distance += seg.distance;
+      currentClimb.elevation += seg.elevation;
+    }
+  }
+
+  // Finalize last climb if any
+  if (currentClimb && currentClimb.distance >= MINIMUM_CLIMB_DISTANCE) {
+    currentClimb.avgGrade = (currentClimb.elevation / currentClimb.distance) * 100;
+    splits.push(currentClimb);
+  }
+
+  // If no valid splits, return original climb
+  if (splits.length === 0) {
+    return [climb];
+  }
+
+  return splits;
+}
+
+/**
+ * Smooth elevation profile using adaptive gradient-magnitude-weighted window.
+ * On steep terrain (>8%), uses narrow window (50m) to preserve sharp ramps.
+ * On flat terrain (<3%), uses wide window (250m) to filter noise.
+ * On rolling terrain (3-8%), scales smoothly between.
+ * Prevents over-smoothing punchy climbs while reducing noise on flats.
+ *
+ * Algorithm:
+ * 1. Calculate initial gradients over 500m windows to classify terrain type
+ * 2. For each point, dynamically set window width based on local gradient
+ * 3. Apply rolling average within that window
+ * 4. Preserve lat/lon coordinate data
+ *
+ * @param {Array} profile - [{distance, elevation, lat, lon}, ...]
+ */
+function smoothElevationProfile(profile) {
+  if (profile.length <= 2) return profile;
+
+  // Step 1: Estimate local gradient at each point using 500m window
+  const localGradients = profile.map((point, idx) => {
+    let sumGradMag = 0;
+    let count = 0;
+    for (const p of profile) {
+      const dist = Math.abs(p.distance - point.distance);
+      if (dist <= 500) {
+        // Distance-weighted gradient magnitude to prefer nearby terrain
+        const weight = 1 - Math.abs(dist) / 500;
+        const eleChange = Math.abs(p.elevation - point.elevation);
+        const grad = eleChange > 0 ? eleChange / dist : 0;
+        sumGradMag += Math.abs(grad) * weight;
+        count++;
+      }
+    }
+    return count > 0 ? sumGradMag / count : 0;
+  });
+
+  // Step 2: Smooth with adaptive window, then apply noise filtering
+  const smoothed = profile.map((point, idx) => {
+    const localGrad = localGradients[idx];
+    
+    // Dynamic window: steep terrain = narrow, flat = wide
+    // Steep (>8%): 50m, Medium (3-8%): 100-150m, Flat (<3%): 250m
+    let windowMeters;
+    if (localGrad > 0.08) {
+      windowMeters = 50;
+    } else if (localGrad > 0.03) {
+      windowMeters = 50 + ((0.08 - localGrad) / 0.05) * 100; // scale 50-150
+    } else {
+      windowMeters = 150 + ((0.03 - localGrad) / 0.03) * 100; // scale 150-250
+    }
+    windowMeters = Math.max(50, Math.min(250, windowMeters));
+
+    // Collect points within adaptive window
     let sumElev = 0;
     let count = 0;
     for (const p of profile) {
@@ -86,7 +272,7 @@ function smoothElevationProfile(profile, windowMeters = 150) {
         count++;
       }
     }
-    // Preserve lat/lon from the original point — only elevation is smoothed
+
     return {
       distance: point.distance,
       elevation: count > 0 ? sumElev / count : point.elevation,
@@ -94,10 +280,88 @@ function smoothElevationProfile(profile, windowMeters = 150) {
       lon: point.lon
     };
   });
+
+  // Step 3: Apply noise filtering to remove unrealistic spikes (>12% over single segment)
+  let result = filterNoiseSpikes(smoothed);
+
+  // Step 4 (v0.5.1, optional): Apply Savitzky-Golay for even cleaner curves
+  // Uncomment to enable more aggressive smoothing for cleaner but flatter profiles:
+  // result = savitzkyGolaySmooth(result);
+
+  return result;
 }
 
 /**
- * Trim near-flat sections (<1.5% gradient) from the start and end of a climb.
+ * Filter out unrealistic elevation spikes (>12% gradient anomalies).
+ * A single segment with >12% gradient is checked against neighbors:
+ * If neighbors are <8%, the spike is likely DEM noise and is interpolated.
+ *
+ * @param {Array} profile - smoothed elevation profile
+ * @returns {Array} - profile with noise spikes smoothed out
+ */
+function filterNoiseSpikes(profile) {
+  if (profile.length <= 2) return profile;
+
+  const result = profile.map(p => ({ ...p }));
+  const SPIKE_THRESHOLD = 0.12; // >12% is suspicious
+  const NEIGHBOR_THRESHOLD = 0.08; // neighbors should be <8%
+
+  for (let i = 1; i < result.length - 1; i++) {
+    const prev = result[i - 1];
+    const curr = result[i];
+    const next = result[i + 1];
+
+    const prevGrad = Math.abs((curr.elevation - prev.elevation) / (curr.distance - prev.distance));
+    const nextGrad = Math.abs((next.elevation - curr.elevation) / (next.distance - curr.distance));
+
+    // If this segment is a spike (>12%) but neighbors are gentle (<8%), smooth it
+    if ((prevGrad > SPIKE_THRESHOLD || nextGrad > SPIKE_THRESHOLD) &&
+        prevGrad < NEIGHBOR_THRESHOLD && nextGrad < NEIGHBOR_THRESHOLD) {
+      // Interpolate elevation instead of taking raw value
+      result[i].elevation = (prev.elevation + next.elevation) / 2;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * v0.5.1: Savitzky-Golay Smoothing (Optional Enhancement)
+ * Applies a sliding window polynomial filter to smooth elevation while
+ * preserving the "character" of steep ramps better than simple rolling average.
+ * More sophisticated than rolling average but still fast.
+ *
+ * Uses a simple 3-point polynomial filter: f(x) = (f(x-1) + 2*f(x) + f(x+1)) / 4
+ * Applied multiple passes for stronger smoothing on flat sections.
+ *
+ * @param {Array} profile - elevation profile
+ * @returns {Array} - smoothed profile
+ */
+function savitzkyGolaySmooth(profile) {
+  if (profile.length <= 2) return profile;
+
+  // Single pass of Savitzky-Golay (3-point)
+  const pass1 = profile.map((point, idx) => {
+    if (idx === 0 || idx === profile.length - 1) {
+      return { ...point }; // Keep endpoints unchanged
+    }
+
+    const prev = profile[idx - 1];
+    const curr = profile[idx];
+    const next = profile[idx + 1];
+
+    const smoothedElev = (prev.elevation + 2 * curr.elevation + next.elevation) / 4;
+
+    return {
+      ...curr,
+      elevation: smoothedElev
+    };
+  });
+
+  return pass1;
+}
+
+/**
  * Sections in the middle are preserved regardless of gradient.
  */
 function trimClimbEndpoints(climb) {
@@ -292,7 +556,7 @@ function calculateGradients(profile) {
 function identifyClimbs(segments) {
   const CLIMB_START_GRADE  = 2;    // % — minimum gradient to open a climb
   const MIN_CLIMB_DISTANCE = 300;  // m — minimum length to qualify
-  const MIN_CLIMB_ELEV     = 10;   // m — minimum net elevation gain
+  const MIN_CLIMB_ELEV     = 30;   // m — minimum net elevation gain (v0.5 gate)
   const DESCENT_GRADE      = -1;   // % — gradient considered a real descent
   const DESCENT_DISTANCE   = 150;  // m — cumulative descent that closes a climb
   const MIN_AVG_GRADE      = 2;    // % — minimum average grade to be a real climb

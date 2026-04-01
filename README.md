@@ -4,7 +4,8 @@
 
 A Chrome Extension that analyzes elevation data from Mapy.cz route planning and automatically detects and categorizes climbs. Each climb is color-coded by gradient intensity, displayed with interactive charts, and categorized using the standard cycling difficulty formula.
 
-**Status**: ✅ Complete & Functional (v0.3.0)
+**Status**: ✅ Complete & Functional (v0.5.5)
+**Latest**: Modern charts, interactive hover tooltips, and map sync for professional UX
 
 ## 🚀 Quick Start (3 Steps)
 
@@ -82,6 +83,37 @@ c:\Users\...\climb/
   - 🔴 Dark Red (12%+)
 - ✅ **SVG Elevation Charts**: Per-climb gradient-colored profile
 - ✅ **Popup Interface**: Detailed climb stats in extension popup
+
+## ✨ What's New in v0.5.5 — Visual Refinement & UX Polish
+
+- **🎨 SVG Linear Gradients**: Professional area-chart style with color fades to bottom
+- **📈 Bezier Curve Fitting**: Smooth cubic curves instead of jagged steps
+- **📐 Vertical Auto-Scaling**: Y-axis per-climb for maximum clarity (min -5m to max +10m)
+- **🔍 Hover Scanner**: Real-time interactive tooltip showing grade, distance, elevation
+- **🗺️ Map Sync**: Ghost marker on Mapy.cz map syncs with chart hover
+- **⏱️ Instant Updates**: Tooltip refreshes in <100ms for seamless interaction
+- **🚀 Pro-Grade UI**: Transition from functional tool to SaaS-quality interface
+
+### Previous Release (v0.5.1 — "Action Only" & Smoothing Patch)
+
+- **📍 Point Resampling**: Eliminates micro-jitter from GPS data to remove elevation chart "stripes"
+- **🏔️ Smart Climb Start**: Climbs now visually start only at >3% gradient (removes flat approach ramps)
+- **🔝 Peak Detection**: Climb profiles end exactly at the summit, no trailing flat sections
+- **🟢 Anti-Green Splitting**: Automatically splits climbs with large flat sections (>400m @ <2%) to avoid UI dead zones
+- **🧹 Savitzky-Golay Filter**: Optional polynomial smoothing available for cleaner curves
+- **📈 Gradient Capping**: Display layer can safely cap gradient extremes (prevents "40% glitch")
+- **✅ Merge Safe**: All changes happen outside merge logic — 100% backward compatible
+
+### Previous Features (v0.5.0)
+
+- **🔧 Adaptive Smoothing**: Algorithm automatically adjusts elevation filtering (50-250m window) based on terrain steepness
+- **🔊 Noise Filtering**: Detects & removes unrealistic elevation spikes (>12% anomalies) from DEM data
+- **🚷 Elevation Gate**: Minimum 30m elevation gain filter prevents false climbs on flat roads
+- **🔗 Smart Merge**: Nearby climbs separated by small valleys are intelligently merged
+- **⏳ Loading Spinner**: Visual feedback when analyzing routes
+- **🔄 Retry Button**: Re-analyze routes that detected no climbs
+- **📊 Route Stats**: Climb popup now shows count & total distance
+- **💾 Storage Versioning**: Graceful cache migration for future updates
 
 ## 🎯 Climb Categories
 

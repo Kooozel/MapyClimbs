@@ -2,6 +2,31 @@
 
 All notable changes to Mapy.cz Climb Analyzer are documented in this file.
 
+## [0.4.1] - 2026-03-31 - UX Polish & Lifecycle Fixes
+
+### Added
+
+- **Info popup** (`popup.html` / `popup.css` / `popup.js`): toolbar icon now opens a dark-themed info panel with extension description, step-by-step usage guide, category scoring table, last-capture status dot, and a Buy Me a Coffee placeholder link
+- **One-click analysis button**: clicking the injected *Climb Analyzer* sidebar button now silently triggers the Mapy.cz Export modal and confirms it automatically — no user interaction with the modal needed
+- **Download suppression** (`gpx-interceptor-injected.js`): intercepts `HTMLAnchorElement.prototype.click` to swallow the blob download when triggered by the extension, preventing Downloads folder spam
+- **Route lifecycle cleanup**: all captured GPX data and climb results are removed from `chrome.storage.local` when the route planner UI becomes invisible or the user navigates away — storage is never left stale
+
+### Changed
+
+- `manifest.json`: added `"default_popup": "popup.html"` and icon paths to the `action` block
+- `isRoutePlannerActive()`: now additionally checks that `.route-actions` or `.route-modules` is present **and** visible (`offsetParent !== null`), not just the URL
+- 150 ms poll: tracks a `_lastRoutePlannerVisible` flag — clears overlay and storage the moment the route-planner DOM disappears
+- `onMutation()`: when route UI is not visible, actively removes injected button, panel, and map overlay rather than silently skipping
+- `onRouteChange()`: consolidated into shared `clearRoutePlannerState()` helper (resets all in-memory state, removes DOM nodes, clears storage)
+- Export modal handling: switched from 100 ms polling to a `MutationObserver` that fires before the first paint, hiding the modal with `opacity:0` so it is never seen by the user
+- `findGPXExportButton()`: primary selector updated to `.icon-action[title="Export"] button` (confirmed live DOM); SVG class and text-content fallbacks kept
+
+### Fixed
+
+- Panel and map pins were left visible after the user closed or navigated away from the route planner without a full page load
+- Stale climb result from a previous route could re-appear if the user re-opened the planner in the same tab
+- Export modal briefly flashed on screen before being confirmed programmatically
+
 ## [0.4.0] - 2026-03-31 - Live Map Integration
 
 ### Added

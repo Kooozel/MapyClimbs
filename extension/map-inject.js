@@ -13,7 +13,10 @@
   // themselves by checking isRoutePlannerActive() before doing DOM work.
 
   function isRoutePlannerActive() {
-    return location.href.includes('planovani-trasy');
+    if (!location.href.includes('planovani-trasy')) return false;
+    // Also require the route-planner DOM to actually be visible
+    const el = document.querySelector('.route-actions, .route-modules');
+    return !!(el && el.offsetParent !== null);
   }
 
   let _climbs = null;
@@ -46,28 +49,39 @@
       onRouteChange();
     };
 
-    // Poll URL for pan/zoom changes — Mapy.cz calls replaceState before
-    // document_idle fires so patching it is unreliable; polling is simpler.
+    // Poll URL for pan/zoom changes and route-planner visibility.
+    // Mapy.cz calls replaceState before document_idle fires so patching
+    // it is unreliable; polling is simpler.
     let _lastURL = '';
+    let _lastRoutePlannerVisible = false;
     setInterval(() => {
-      if (location.href !== _lastURL) {
+      const urlChanged = location.href !== _lastURL;
+      const visible = isRoutePlannerActive();
+
+      if (urlChanged) {
         _lastURL = location.href;
-        if (_climbs) renderMapOverlay();
+        if (_climbs && visible) renderMapOverlay();
+      }
+
+      if (_lastRoutePlannerVisible !== visible) {
+        _lastRoutePlannerVisible = visible;
+        if (!visible) {
+          // Route planner hidden — clear overlays and storage
+          const overlay = document.getElementById('climb-marker-overlay');
+          if (overlay) overlay.innerHTML = '';
+          chrome.storage.local.remove(['pendingGPX', 'gpxCaptureTime', 'lastClimbResult', 'lastTotalDistance']);
+        } else if (_climbs) {
+          renderMapOverlay();
+        }
       }
     }, 150);
 
-    window.addEventListener('resize', () => { if (_climbs) renderMapOverlay(); });
+    window.addEventListener('resize', () => { if (_climbs && isRoutePlannerActive()) renderMapOverlay(); });
   }
 
   function onRouteChange() {
+    clearRoutePlannerState();
     if (!isRoutePlannerActive()) return;
-    _climbs = null;
-    _lastGPXLength = 0;
-    _panelInjected = false;
-    _totalRouteDistance = 0;
-    // Remove stale overlay immediately
-    const overlay = document.getElementById('climb-marker-overlay');
-    if (overlay) overlay.innerHTML = '';
     pollForGPX();
   }
 
@@ -75,7 +89,7 @@
 
   function pollForGPX() {
     chrome.storage.local.get(['pendingGPX', 'lastClimbResult'], (data) => {
-      // Never show anything unless the route planner is actually open
+      // Never show anything unless the route-planner DOM is actually visible
       if (!isRoutePlannerActive()) return;
 
       // Fresh GPX arrived — analyse it
@@ -143,55 +157,64 @@
     overlay.style.height = mb.height + 'px';
     overlay.innerHTML = '';
 
-    const CAT_COLORS = { HC: '#d42b2b', '1': '#e85d17', '2': '#e8a117', '3': '#c8c022', '4': '#6b7280' };
+    // v0.5.2 Heat Scale Color Palette — High-contrast against green terrain
+    const CAT_COLORS = { HC: '#660000', '1': '#B30000', '2': '#E65100', '3': '#FF9100', '4': '#FFD600' };
 
     _climbs.forEach((climb, i) => {
       const color = CAT_COLORS[climb.category] || '#6b7280';
       const label = 'Climb ' + (i + 1) + ' · Cat ' + climb.category + ' · ' +
                     (climb.distance / 1000).toFixed(1) + ' km +' + Math.round(climb.elevation) + ' m';
 
-      // Start pin: teardrop with climb number
+      // v0.5.2 "The Pulse" Start Pin: Simple circle with index label
       if (climb.markerCoords) {
         const s = mercatorToPixel(climb.markerCoords.lat, climb.markerCoords.lon,
                                   vp.lat, vp.lon, vp.zoom, mb.width, mb.height);
-        if (s.x >= -20 && s.x <= mb.width + 20 && s.y >= -40 && s.y <= mb.height + 10) {
+        if (s.x >= -25 && s.x <= mb.width + 25 && s.y >= -25 && s.y <= mb.height + 25) {
           const pin = document.createElement('div');
-          pin.style.cssText = 'position:absolute;left:' + Math.round(s.x - 14) + 'px;top:' +
-            Math.round(s.y - 38) + 'px;pointer-events:auto;cursor:default;' +
-            'filter:drop-shadow(0 2px 5px rgba(0,0,0,0.65));';
+          pin.style.cssText = 'position:absolute;left:' + Math.round(s.x - 16) + 'px;top:' +
+            Math.round(s.y - 26) + 'px;pointer-events:auto;cursor:default;' +
+            'filter:drop-shadow(0 3px 6px rgba(0,0,0,0.6));';
           pin.title = label + ' (start)';
           pin.innerHTML =
-            '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="38" viewBox="0 0 28 38">' +
-            '<path d="M14 1C7.37 1 2 6.37 2 13c0 8.5 12 24 12 24S26 21.5 26 13C26 6.37 20.63 1 14 1z"' +
-            ' fill="' + color + '" stroke="#fff" stroke-width="1.5"/>' +
-            '<text x="14" y="18" font-size="13" font-weight="900" fill="#fff"' +
-            ' text-anchor="middle" font-family="-apple-system,sans-serif"' +
-            ' paint-order="stroke" stroke="rgba(0,0,0,0.25)" stroke-width="2">' + (i + 1) + '</text>' +
+            '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="52" viewBox="0 0 24 39">' +
+            '<circle cx="12" cy="24" r="8" fill="' + color + '" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>' +
+            '<text x="12" y="8" font-size="12" font-weight="bold" fill="#fff" text-anchor="middle" font-family="system-ui,sans-serif"' +
+            ' paint-order="stroke" stroke="#000" stroke-width="1.5" opacity="0.8">' + (i + 1) + '</text>' +
             '</svg>';
           overlay.appendChild(pin);
         }
       }
 
-      // End pin: mountain icon with CAT badge on top
+      // v0.5.2 "The Summit" End Pin: Mountain icon with snow-cap + category label
       if (climb.endCoords) {
         const e = mercatorToPixel(climb.endCoords.lat, climb.endCoords.lon,
                                   vp.lat, vp.lon, vp.zoom, mb.width, mb.height);
-        if (e.x >= -48 && e.x <= mb.width + 48 && e.y >= -56 && e.y <= mb.height + 10) {
-          const flag = document.createElement('div');
-          flag.style.cssText = 'position:absolute;left:' + Math.round(e.x - 24) + 'px;top:' +
-            Math.round(e.y - 56) + 'px;pointer-events:auto;cursor:default;' +
-            'filter:drop-shadow(0 3px 6px rgba(0,0,0,0.6));';
-          flag.title = label + ' (end)';
-          const catLabel = climb.category === 'HC' ? 'HC' : climb.category;
-          flag.innerHTML =
-            '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="56" viewBox="0 0 48 56">' +
-            '<path d="M24 14 L44 54 H4 Z" fill="' + color + '" stroke="#fff" stroke-width="2" stroke-linejoin="round"/>' +
-            '<path d="M24 14 L31 30 H17 Z" fill="rgba(255,255,255,0.35)" stroke="none"/>' +
-            '<rect x="10" y="0" width="28" height="18" rx="9" fill="' + color + '" stroke="#fff" stroke-width="1.5"/>' +
-            '<text x="24" y="13" font-size="10" font-weight="800" fill="#fff"' +
-            ' text-anchor="middle" font-family="-apple-system,sans-serif">CAT ' + catLabel + '</text>' +
+        if (e.x >= -35 && e.x <= mb.width + 35 && e.y >= -40 && e.y <= mb.height + 10) {
+          const peak = document.createElement('div');
+          peak.style.cssText = 'position:absolute;left:' + Math.round(e.x - 60) + 'px;top:' +
+            Math.round(e.y - 70) + 'px;pointer-events:auto;cursor:default;width:120px;height:140px;';
+          peak.title = label + ' (end)';
+          const catLabel = climb.category === 'HC' ? 'HC' : 'C' + climb.category;
+          
+          // Mountain icon SVG — optimized viewBox and cleaned coordinates
+          const mountainSvg = 
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400">' +
+            '<defs>' +
+            '<filter id="shadow-' + i + '" x="-20%" y="-20%" width="150%" height="150%">' +
+            // '<feGaussianBlur in="SourceAlpha" stdDeviation="3"/>' +
+            '<feOffset dx="4" dy="4" result="offsetblur"/>' +
+            '<feComponentTransfer><feFuncA type="linear" slope="0.5"/></feComponentTransfer>' +
+            '<feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>' +
+            '</filter>' +
+            '</defs>' +
+            '<g filter="url(#shadow-' + i + ')">' +
+            '<path d="M460 320 H177 c-3 0-5-3-4-6 l90-184 112 2 89 182 c1 3-1 6-4 6z" fill="' + color + '" stroke="#000" stroke-width="8"/>' +
+            '<path d="m375 132-15 32-36-29-37 14-23-19 52-106 c2-3 6-3 8 0z" fill="#FFFFFF" stroke="#000" stroke-width="8"/>' +
+            '<text x="500" y="280" font-family="Arial, sans-serif" font-weight="900" font-size="160" fill="' + color + '" stroke="#000" stroke-width="8" style="paint-order: stroke fill;"><tspan>' + catLabel + '</tspan></text>' +
+            '</g>' +
             '</svg>';
-          overlay.appendChild(flag);
+          peak.innerHTML = mountainSvg;
+          overlay.appendChild(peak);
         }
       }
     });
@@ -242,13 +265,121 @@
 
   // ── MutationObserver ────────────────────────────────────────────────────────
 
+  function clearRoutePlannerState() {
+    _climbs = null;
+    _panelInjected = false;
+    _lastGPXLength = 0;
+    _totalRouteDistance = 0;
+    const btn = document.getElementById('climb-inject-button');
+    if (btn) btn.remove();
+    const panel = document.getElementById('climb-inject-panel');
+    if (panel) { panel.remove(); }
+    const overlay = document.getElementById('climb-marker-overlay');
+    if (overlay) overlay.innerHTML = '';
+    chrome.storage.local.remove(['pendingGPX', 'gpxCaptureTime', 'lastClimbResult', 'lastTotalDistance']);
+  }
+
   function onMutation() {
-    if (!isRoutePlannerActive()) return;
+    if (!isRoutePlannerActive()) {
+      clearRoutePlannerState();
+      return;
+    }
+
+    if (!document.getElementById('climb-inject-button')) { tryInjectButton(); }
 
     if (_climbs && (!_panelInjected || !document.getElementById('climb-inject-panel'))) {
       _panelInjected = false;
       tryInjectPanel();
     }
+  }
+
+  // ── Find climbs button injection ─────────────────────────────────────────
+  function tryInjectButton() {
+    if (document.getElementById('climb-inject-button')) { return;}
+
+    const target = document.querySelector('.route-actions')
+    if (!target) return;
+    
+    target.appendChild(buildButton())
+  }
+
+  function buildButton() {
+    const panel = document.createElement('div')
+    panel.id = 'climb-inject-button';
+    panel.className = 'icon-action'
+
+    panel.innerHTML = `
+    <button type="button">
+        <svg x="0px" y="0px" viewBox="0 0 24 24" class="icon">
+          <polyline points="3 17 9 11 13 15 21 7"/>
+          <polyline points="14 7 21 7 21 14"/>
+        </svg>
+        <span>Climb Analyzer</span>
+    </button>`
+
+    panel.querySelector('button').addEventListener('click', onClimbButtonClick);
+    return panel;
+  }
+
+  function onClimbButtonClick() {
+    const exportBtn = findGPXExportButton();
+    if (!exportBtn) {
+      console.warn('[ClimbAnalyzer] Could not find Export button — export manually to analyse');
+      return;
+    }
+
+    // Watch for the modal BEFORE clicking so we can hide it the moment it is
+    // inserted into the DOM — before the browser has a chance to paint it.
+    const observer = new MutationObserver(() => {
+      const saveBtn = document.querySelector('.mymaps-dialog__saveBtn');
+      if (!saveBtn) return;
+      observer.disconnect();
+
+      // Hide the modal root and its parent overlay immediately
+      const dialogRoot = saveBtn.closest('.mymaps-dialog__content');
+      if (dialogRoot) {
+        dialogRoot.style.setProperty('opacity', '0', 'important');
+        dialogRoot.style.setProperty('pointer-events', 'none', 'important');
+        if (dialogRoot.parentElement) {
+          dialogRoot.parentElement.style.setProperty('opacity', '0', 'important');
+          dialogRoot.parentElement.style.setProperty('pointer-events', 'none', 'important');
+        }
+      }
+
+      // Signal page-context injected script to suppress the blob download
+      window.postMessage({ type: 'CLIMB_SUPPRESS_DOWNLOAD' }, '*');
+      saveBtn.click();
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    // Safety: stop watching after 5 s if modal never appeared
+    setTimeout(() => observer.disconnect(), 5000);
+
+    exportBtn.click();
+  }
+
+  /**
+   * Locate Mapy.cz's Export button.
+   * Primary target: div.icon-action[title="Export"] > button (confirmed DOM shape).
+   * Falls back to SVG class and text scan for forward-compatibility.
+   */
+  function findGPXExportButton() {
+    // Confirmed selector from live Mapy.cz DOM
+    const confirmed = document.querySelector('.icon-action[title="Export"] button');
+    if (confirmed) return confirmed;
+
+    // SVG class fallback (same icon, different wrapper)
+    const bySvg = document.querySelector('button .icon-export2');
+    if (bySvg) return bySvg.closest('button');
+
+    // Text-content scan as last resort
+    for (const el of document.querySelectorAll('button, a, [role="button"]')) {
+      const t = el.textContent.trim();
+      if (t === 'Export' || t === 'GPX' || t === 'Export GPX') return el;
+    }
+
+    return null;
   }
 
   // ── Sidebar panel injection ─────────────────────────────────────────
@@ -442,7 +573,8 @@
   }
 
   function getCategoryColor(cat) {
-    return { HC: '#d42b2b', '1': '#e85d17', '2': '#e8a117', '3': '#c8c022', '4': '#6b7280' }[cat] || '#6b7280';
+    // v0.5.5 Peak Style Color Palette
+    return { HC: '#800020', '1': '#D32F2F', '2': '#F57C00', '3': '#FBC02D', '4': '#4CAF50' }[cat] || '#4CAF50';
   }
 
   function calcVAM(climb) {
@@ -499,8 +631,8 @@
   function renderElevationSVG(profile, totalDistance) {
     if (profile.length < 2) return '';
     const elevs     = profile.map(p => p.elevation);
-    const minElev   = Math.min(...elevs);
-    const maxElev   = Math.max(...elevs);
+    const minElev   = Math.min(...elevs) - 5;
+    const maxElev   = Math.max(...elevs) + 5;
     const elevRange = maxElev - minElev;
     if (elevRange === 0) return '';
 
@@ -512,16 +644,23 @@
     const sy   = el => H - M.bottom - ((el - minElev) / elevRange) * cH;
     const base = H - M.bottom;
 
-    let fills = '', lines = '';
+    let fills = '';
+    let lines = '';
+    
     for (let i = 0; i < profile.length - 1; i++) {
       const a = profile[i], b = profile[i + 1];
       const dD = b.distance - a.distance;
       const g  = dD > 0 ? ((b.elevation - a.elevation) / dD) * 100 : 0;
-      const col = g < 3 ? '#44aa88' : g < 6 ? '#cccc55' : g < 9 ? '#ff8833' : g < 12 ? '#ee3333' : '#880000';
-      const x1 = sx(a.distance).toFixed(1), y1 = sy(a.elevation).toFixed(1);
-      const x2 = sx(b.distance).toFixed(1), y2 = sy(b.elevation).toFixed(1);
-      fills += `<polygon points="${x1},${base} ${x2},${base} ${x2},${y2} ${x1},${y1}" fill="${col}" opacity="0.75"/>`;
-      lines += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${col}" stroke-width="2" stroke-linecap="round"/>`;
+      const col = g < 3 ? '#4CAF50' : g < 6 ? '#FBC02D' : g < 9 ? '#F57C00' : g < 12 ? '#D32F2F' : '#800020';
+      
+      const x1 = sx(a.distance);
+      const y1 = sy(a.elevation);
+      const x2 = sx(b.distance);
+      const y2 = sy(b.elevation);
+      
+      // Trapezoid with 0.5px overlap to hide seams
+      fills += `<polygon points="${x1.toFixed(1)},${base} ${x2.toFixed(1)},${base} ${x2.toFixed(1)},${y2.toFixed(1)} ${x1.toFixed(1)},${y1.toFixed(1)}" fill="${col}" opacity="0.75" stroke="none"/>`;
+      lines += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${col}" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"/>\n`;
     }
 
     let yAxis = '';

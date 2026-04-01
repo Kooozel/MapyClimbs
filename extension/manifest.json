@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Mapy.cz Climb Analyzer",
-  "version": "0.4.0",
+  "version": "0.5.5",
   "description": "Analyzes GPX files exported from Mapy.cz and displays climbs with gradient-colored segments and difficulty scores.",
   "permissions": [
     "storage"
@@ -13,8 +13,13 @@
     "https://*.mapy.com/*"
   ],
   "action": {
+    "default_title": "Climb Analyzer",
     "default_popup": "popup.html",
-    "default_title": "Climb Analyzer"
+    "default_icon": {
+      "16":  "images/icon-16.svg",
+      "48":  "images/icon-48.svg",
+      "128": "images/icon-128.svg"
+    }
   },
   "background": {
     "service_worker": "background.js"
