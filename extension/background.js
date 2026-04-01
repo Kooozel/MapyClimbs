@@ -60,34 +60,72 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 function detectClimbs(elevationData) {
   if (!elevationData || elevationData.length < 2) return [];
 
+  // Step 1: Build structured profile from raw [distance, elevation, lat, lon] tuples
   const profile = elevationData.map(point => ({
     distance:  point[0],
     elevation: point[1],
     lat: point[2] ?? null,
     lon: point[3] ?? null
   }));
+  console.log(`[ClimbAnalyzer] Pipeline start: ${profile.length} raw points, total distance ${(profile[profile.length-1]?.distance/1000).toFixed(1)} km`);
 
-  // v0.5.1: Point resampling to eliminate micro-jitter (< 10-15m points)
+  // Step 2: Resample to remove GPS micro-jitter (points < 12m apart)
   const resampled = resamplePoints(profile);
+  console.log(`[ClimbAnalyzer] After resample: ${resampled.length} points (removed ${profile.length - resampled.length})`);
 
+  // Step 3: Smooth elevation with adaptive window, then compute per-segment gradients
   const smoothed = smoothElevationProfile(resampled);
   const segments = calculateGradients(smoothed);
-  const rawClimbs = identifyClimbs(segments);
-  const mergedClimbs = mergeNearbyClimbs(rawClimbs, segments);
+  console.log(`[ClimbAnalyzer] Segments: ${segments.length}`);
 
-  // v0.5.1: Post-merge processing for better visual presentation
+  // Step 4: Detect raw climb candidates and merge valleys between them
+  const rawClimbs = identifyClimbs(segments);
+  console.log(`[ClimbAnalyzer] Raw climbs identified: ${rawClimbs.length}`);
+  const mergedClimbs = mergeNearbyClimbs(rawClimbs, segments);
+  console.log(`[ClimbAnalyzer] After merge: ${mergedClimbs.length} climbs (merged ${rawClimbs.length - mergedClimbs.length})`);
+
+  // Step 5: Trim flat lead-in/tail from each climb and assign category
   let processedClimbs = mergedClimbs.map(climb => {
     const trimmed = trimClimbEndpoints(climb);
     if (trimmed.totalDistance > 0 && trimmed.totalElevation > 0) {
       return categorizeClimb(trimmed);
     }
+    console.log(`[ClimbAnalyzer] Climb discarded after trim (dist=${trimmed.totalDistance.toFixed(0)}m elev=${trimmed.totalElevation.toFixed(1)}m)`);
     return null;
   }).filter(c => c !== null);
+  console.log(`[ClimbAnalyzer] After trim+categorize: ${processedClimbs.length} climbs`);
 
-  // v0.5.1: Anti-green splitting - split climbs with large flat sections
-  processedClimbs = processedClimbs.map(climb => splitAntiGreenClimbs(climb))
-                                   .flat()
+  // Step 6: Split climbs that contain long flat sections (>400m at <2%)
+  const beforeSplit = processedClimbs.length;
+  processedClimbs = processedClimbs.flatMap(climb => splitAntiGreenClimbs(climb))
                                    .filter(c => c !== null);
+  console.log(`[ClimbAnalyzer] After anti-green split: ${processedClimbs.length} climbs (split added ${processedClimbs.length - beforeSplit})`);
+
+    // Step 7: Re-merge any adjacent split pieces that still belong together.
+    // Uses a tighter 1500m gap threshold (vs 2000m initial merge) so that the flat-tail
+    // stripping in step 6 correctly exposes real valleys (>1500m) and prevents them re-merging,
+    // while still joining sub-climbs separated only by a small internal flat section (<1500m).
+    // mergeNearbyClimbs emits a fresh {totalDistance, totalElevation} object when it
+    // merges two climbs; unmerged items pass through unchanged (categorized, without totalDistance).
+    if (processedClimbs.length > 1) {
+    const countBefore = processedClimbs.length;
+    const reMerged = mergeNearbyClimbs(processedClimbs, segments, 1500);
+    processedClimbs = reMerged.map(c => {
+      if (c.totalDistance === undefined) return c; // unchanged — already categorized
+      const trimmed = trimClimbEndpoints(c);
+      return (trimmed.totalDistance > 0 && trimmed.totalElevation > 0) ? categorizeClimb(trimmed) : null;
+    }).filter(c => c !== null);
+    if (processedClimbs.length < countBefore) {
+      console.log(`[ClimbAnalyzer] Post-split re-merge: ${countBefore} → ${processedClimbs.length} climbs`);
+    }
+  }
+
+  console.log(`[ClimbAnalyzer] ── Final climbs ──`);
+  processedClimbs.forEach((c, i) => {
+    const startKm = c.segments?.[0]?.startDistance != null ? (c.segments[0].startDistance / 1000).toFixed(2) : '?';
+    const endKm   = c.segments?.length > 0 ? (c.segments[c.segments.length - 1].endDistance / 1000).toFixed(2) : '?';
+    console.log(`[ClimbAnalyzer]   #${i + 1}: ${startKm}–${endKm} km | dist=${c.distance != null ? (c.distance/1000).toFixed(2) : '?'}km elev=${c.elevation != null ? c.elevation.toFixed(1) : '?'}m avg=${c.avgGrade != null ? c.avgGrade.toFixed(1) : '?'}% Cat${c.category}`);
+  });
 
   return processedClimbs;
 }
@@ -146,6 +184,8 @@ function splitAntiGreenClimbs(climb) {
   const FLAT_THRESHOLD = 2; // % gradient
   const FLAT_LENGTH_THRESHOLD = 400; // meters
   const MINIMUM_CLIMB_DISTANCE = 300; // m - discard splits smaller than this
+  const MINIMUM_CLIMB_ELEVATION = 30; // m - discard splits with too little gain
+  const MINIMUM_CLIMB_GRADE = 2;      // % - discard splits with too low avg grade
 
   const splits = [];
   let currentClimb = null;
@@ -166,10 +206,25 @@ function splitAntiGreenClimbs(climb) {
 
       // If we've accumulated enough flat section, finalize current climb and reset
       if (flatDistance >= FLAT_LENGTH_THRESHOLD && currentClimb) {
-        if (currentClimb.distance >= MINIMUM_CLIMB_DISTANCE) {
-          // Recalculate climb stats before saving
-          currentClimb.avgGrade = (currentClimb.elevation / currentClimb.distance) * 100;
+        // Strip the flat tail so this sub-climb ends at its last steep segment.
+        // This exposes the true valley/gap distance to the post-split re-merge step,
+        // preventing it from merging sub-climbs that a real valley separates.
+        while (currentClimb.segments.length > 0 &&
+               currentClimb.segments[currentClimb.segments.length - 1].gradient < FLAT_THRESHOLD) {
+          const removed = currentClimb.segments.pop();
+          currentClimb.distance -= removed.distance;
+          currentClimb.elevation -= removed.elevation;
+        }
+
+        const avgGrade = currentClimb.distance > 0 ? (currentClimb.elevation / currentClimb.distance) * 100 : 0;
+        if (currentClimb.distance >= MINIMUM_CLIMB_DISTANCE &&
+            currentClimb.elevation >= MINIMUM_CLIMB_ELEVATION &&
+            avgGrade >= MINIMUM_CLIMB_GRADE) {
+          currentClimb.avgGrade = avgGrade;
+          console.log(`[ClimbAnalyzer] Anti-green split: saving sub-climb dist=${currentClimb.distance.toFixed(0)}m elev=${currentClimb.elevation.toFixed(1)}m avg=${avgGrade.toFixed(1)}% after ${flatDistance.toFixed(0)}m flat`);
           splits.push(currentClimb);
+        } else {
+          console.log(`[ClimbAnalyzer] Anti-green split: discarding sub-climb dist=${currentClimb.distance.toFixed(0)}m elev=${currentClimb.elevation.toFixed(1)}m avg=${avgGrade.toFixed(1)}% — too weak`);
         }
         currentClimb = null;
         flatDistance = 0;
@@ -198,9 +253,16 @@ function splitAntiGreenClimbs(climb) {
   }
 
   // Finalize last climb if any
-  if (currentClimb && currentClimb.distance >= MINIMUM_CLIMB_DISTANCE) {
-    currentClimb.avgGrade = (currentClimb.elevation / currentClimb.distance) * 100;
-    splits.push(currentClimb);
+  if (currentClimb) {
+    const avgGrade = currentClimb.distance > 0 ? (currentClimb.elevation / currentClimb.distance) * 100 : 0;
+    if (currentClimb.distance >= MINIMUM_CLIMB_DISTANCE &&
+        currentClimb.elevation >= MINIMUM_CLIMB_ELEVATION &&
+        avgGrade >= MINIMUM_CLIMB_GRADE) {
+      currentClimb.avgGrade = avgGrade;
+      splits.push(currentClimb);
+    } else {
+      console.log(`[ClimbAnalyzer] Anti-green split: discarding tail sub-climb dist=${currentClimb.distance.toFixed(0)}m elev=${currentClimb.elevation.toFixed(1)}m avg=${avgGrade.toFixed(1)}% — too weak`);
+    }
   }
 
   // If no valid splits, return original climb
@@ -208,6 +270,7 @@ function splitAntiGreenClimbs(climb) {
     return [climb];
   }
 
+  console.log(`[ClimbAnalyzer] Anti-green split result: 1 climb → ${splits.length} climbs`);
   return splits;
 }
 
@@ -431,10 +494,10 @@ function trimClimbEndpoints(climb) {
  * @param {Array} climbs      - output of identifyClimbs (trailing descents stripped)
  * @param {Array} allSegments - full smoothed segment array from calculateGradients
  */
-function mergeNearbyClimbs(climbs, allSegments) {
+function mergeNearbyClimbs(climbs, allSegments, maxGapDistance = 2000) {
   if (climbs.length <= 1) return climbs;
 
-  const MAX_GAP_DISTANCE      = 2000; // m  — hard upper bound on valley distance
+  const MAX_GAP_DISTANCE      = maxGapDistance; // m  — hard upper bound on valley distance
   const MAX_VALLEY_DROP_ABS   = 50;   // m  — always merge if abs drop ≤ this
   const RELATIVE_VALLEY_RATIO = 0.15; // 15% of combined elevation gain is also acceptable
 
@@ -452,11 +515,17 @@ function mergeNearbyClimbs(climbs, allSegments) {
     // Elevation lost in the valley (positive = down, negative = still climbing)
     const elevDrop = prevLastSeg.endElevation - currFirstSeg.startElevation;
 
-    // Allowable drop scales with the combined elevation gain of both climbs
-    const combinedGain = prev.totalElevation + curr.totalElevation;
+    // Allowable drop scales with the combined elevation gain of both climbs.
+    // Supports both field conventions: totalElevation (pre-categorize) and elevation (post-categorize).
+    const combinedGain = (prev.totalElevation ?? prev.elevation ?? 0) + (curr.totalElevation ?? curr.elevation ?? 0);
     const maxAllowedDrop = Math.max(MAX_VALLEY_DROP_ABS, combinedGain * RELATIVE_VALLEY_RATIO);
 
+    const prevStartDist = (prev.segments[0].startDistance / 1000).toFixed(2);
+    const currStartDist = (currFirstSeg.startDistance / 1000).toFixed(2);
+
     if (gapDistance >= 0 && gapDistance <= MAX_GAP_DISTANCE && elevDrop <= maxAllowedDrop) {
+      console.log(`[ClimbAnalyzer] Merge: climb@${prevStartDist}km + climb@${currStartDist}km — gap=${gapDistance.toFixed(0)}m drop=${elevDrop.toFixed(1)}m (max=${maxAllowedDrop.toFixed(1)}m)`);
+
       const gapSegs = allSegments.filter(s =>
         s.startDistance >= prevLastSeg.endDistance - 0.1 &&
         s.startDistance <  currFirstSeg.startDistance
@@ -475,6 +544,10 @@ function mergeNearbyClimbs(climbs, allSegments) {
         totalElevation: totalElev
       };
     } else {
+      const reason = gapDistance < 0 ? `negative gap (${gapDistance.toFixed(0)}m)` :
+                     gapDistance > MAX_GAP_DISTANCE ? `gap too large (${gapDistance.toFixed(0)}m > ${MAX_GAP_DISTANCE}m)` :
+                     `drop too large (${elevDrop.toFixed(1)}m > ${maxAllowedDrop.toFixed(1)}m)`;
+      console.log(`[ClimbAnalyzer] No merge: climb@${prevStartDist}km vs climb@${currStartDist}km — ${reason}`);
       result.push(curr);
     }
   }
@@ -497,11 +570,15 @@ function pushClimb(climb, climbs, minDist, minElev, minGrade) {
   if (candidate.segments.length === 0 || candidate.totalDistance <= 0) return;
 
   const avgGrade = (candidate.totalElevation / candidate.totalDistance) * 100;
+  const startDist = (candidate.segments[0].startDistance / 1000).toFixed(2);
 
   if (candidate.totalDistance >= minDist &&
       candidate.totalElevation >= minElev &&
       avgGrade >= minGrade) {
+    console.log(`[ClimbAnalyzer] Climb accepted: start=${startDist}km dist=${candidate.totalDistance.toFixed(0)}m elev=${candidate.totalElevation.toFixed(1)}m avg=${avgGrade.toFixed(1)}%`);
     climbs.push(candidate);
+  } else {
+    console.log(`[ClimbAnalyzer] Climb rejected: start=${startDist}km dist=${candidate.totalDistance.toFixed(0)}m elev=${candidate.totalElevation.toFixed(1)}m avg=${avgGrade.toFixed(1)}% — failed [dist>=${minDist}: ${candidate.totalDistance>=minDist}, elev>=${minElev}: ${candidate.totalElevation>=minElev}, grade>=${minGrade}: ${avgGrade>=minGrade}]`);
   }
 }
 

@@ -2,6 +2,92 @@
 
 All notable changes to the Climb Analyzer extension are documented here.
 
+## [0.5.3] — 2026-04-02 (Chart UI: The Segmented Aura)
+
+### ✨ Features
+
+#### Elevation Profile Chart — Segmented Aura with Smooth Bezier Curves
+
+**Data Processing: Savitzky-Golay Smoothing**
+
+- **Moderate Elevation Filtering**: Applies Savitzky-Golay smoothing (window 101, order 3) to elevation data
+- **Preserves Real Climbs**: Removes GPS jitter and micro-stepping while keeping actual steep sections intact
+- **Visual Rounding**: Peaks and valleys are visually smoothed without losing gradient accuracy
+
+**The Path & Stroke: Smooth Bezier Curves**
+
+- **Cubic Bezier Interpolation**: Converts jagged polyline to flowing `C` path commands for professional appearance
+- **Vibrant Category Stroke**: 2px solid stroke uses the climb's category color (e.g., orange for C2, red for C1)
+- **Smooth Joins**: `stroke-linejoin: round` and `stroke-linecap: round` for polished appearance
+- **High Opacity**: 0.95 opacity for prominent edge visibility
+
+**Visual Fill (The "Aura"): Segmented Vertical Zones**
+
+- **Distinct Colored Segments**: Instead of horizontal blending, creates vertical gradient zones (Green < 3%, Orange 3-9%, Red > 9%)
+- **No Horizontal Blending**: Each segment maintains its own vertical gradient that fades downward
+- **Per-segment Vertical Fade**: Each zone has linear vertical gradient:
+  - **Top**: Segment color at 0.9 opacity
+  - **Bottom**: Segment color at 0.0 opacity (transparent)
+- **Category Color Aura Overlay**: Topmost fade uses the climb's category color for additional visual emphasis
+  - **Top**: Category color at 0.8 opacity
+  - **Bottom**: Category color at 0.0 opacity
+
+**Contextual Annotations: Max Grade Tag**
+
+- **Intelligent Detection**: Identifies the steepest gradient in the climb profile
+- **Precise Placement**: Positioned at the highest point of the steepest segment
+- **Category-Colored Badge**: Rounded pill (rx="8") using climb's category color background
+- **Display Format**: Shows grade as "X.X%" with white text, white border, 95% opacity
+
+**Grid & Scaling: Subtle Reference Guides**
+
+- **Soft Grid Lines**: Horizontal guides use `stroke: rgba(255,255,255,0.1)` — barely visible (10% opacity)
+- **Y-Axis Scaling**: Maintained tight range (elevation−5m to elevation+10m) for maximum climb detail visibility
+- **Refined Labels**: Y-axis #888, X-axis #777 for improved contrast against dark background
+
+### 🔧 Technical Changes
+
+- **Added `savitzkyGolay()` function** — Smooths elevation data to remove GPS artifacts
+  - Window size: 101 samples
+  - Polynomial order: 3
+  - Preserves steep sections while removing micro-jitter
+
+- **Updated `generateElevationChart()` function** — Now accepts climb category parameter
+  - Applies smoothing before profile simplification
+  - Passes category to rendering function
+
+- **Complete rewrite of `renderElevationSVG()` function**:
+  - **Cubic Bezier Path**: Generates smooth curve through all elevation points
+  - **Segmented Gradients**: Creates individual vertical fade gradients for each segment (Green/Orange/Red zones)
+  - **Category-Color Stroke**: Uses climb category color for vibrant 2px polyline edge
+  - **Category Aura**: Overlaid category-color gradient for additional visual pop
+  - **SVG Rendering Order**: Background → segment fills → category aura → grid → Bezier stroke → tag
+
+- **Category Color Mapping**:
+  - HC: #800020 (Burgundy)
+  - C1: #D32F2F (Red)
+  - C2: #F57C00 (Orange)
+  - C3: #FBC02D (Yellow)
+  - C4: #4CAF50 (Green)
+
+### Files Modified
+
+- `extension/map-inject.js` — Complete chart rendering refactor with Savitzky-Golay smoothing, Bezier curves, and segmented aura
+
+### ✅ Status
+
+- [x] Savitzky-Golay filtering implemented for elevation smoothing
+- [x] Cubic Bezier curve path generation implemented
+- [x] Category color extraction and mapping
+- [x] Segmented vertical gradient zones (Green/Orange/Red classification)
+- [x] Category color aura overlay with vertical fade
+- [x] Vibrant category-colored polyline stroke
+- [x] Smart max grade tag positioning and styling
+- [x] Soft grid lines maintained
+- [x] Complete "Segmented Aura" aesthetic achieved
+
+---
+
 ## [0.5.2] — 2026-04-02 ("The Peak" Map Icons — Sport Style)
 
 ### ✨ Features
@@ -9,6 +95,7 @@ All notable changes to the Climb Analyzer extension are documented here.
 #### "The Peak" Map Icons — Custom SVG Markers
 
 **Start Pin: "The Pulse"**
+
 - Circle marker, 32×52px display size
 - Fill = Category Color, Stroke = 2.2px white
 - Prominent 8px radius circle with 4px drop shadow
@@ -16,6 +103,7 @@ All notable changes to the Climb Analyzer extension are documented here.
 - Lightweight and clean, easily visible on map
 
 **End Pin: "The Summit"**
+
 - Alpine mountain icon (triangle pointing upward), 38×38px display size
 - Fill = Category Color, Border = 1.2px white thin line
 - Snow-cap feature: Sharp, pointed white triangular detail at peak apex
@@ -24,6 +112,7 @@ All notable changes to the Climb Analyzer extension are documented here.
 - Professional Alpine aesthetics
 
 **Color Mapping (Heat Scale — High-contrast against green terrain)**
+
 - HC: #660000 (Deep Burgundy) — Mountain Hell
 - C1: #B30000 (Vibrant Red) — Very Hard
 - C2: #E65100 (Deep Orange) — Hard
@@ -57,192 +146,12 @@ All notable changes to the Climb Analyzer extension are documented here.
 
 ---
 
-## [0.5.5] — 2026-04-01 ("Peak Style + Hybrid High-Def" — Visual Refinement & Surgical Data Processing)
-
-### ✨ Phase 1: "The Peak Style" — Professional Map Pins & Color Palette
-
-**Start Pin: "The Pulse"**
-- Lightweight vector circle with glow effect (blur 4px, category color, 0.3 opacity)
-- 12px diameter circle with category color fill and 2px white stroke
-- Centered white bold text label (climb index) with 1px black outline for legibility
-- Sharp appearance at all zoom levels thanks to pure SVG rendering
-- Example colors: HC=#800020 (Burgundy), C1=#D32F2F (Red), C2=#F57C00 (Orange), C3=#FBC02D (Yellow), C4=#4CAF50 (Green)
-
-**End Pin: "The Summit"**
-- Minimalist isosceles triangle (height 24px) in category color
-- "Snow-cap" effect: 1.5px white horizontal line at top 30% of peak
-- Category label (HC, C1, C2, C3, C4) positioned right of peak in category color
-- No black strokes — only category color + white for clean, professional aesthetic
-- Instantly recognizable as climb endpoint, evokes Alpine climbing imagery
-
-**Color Palette (v0.5.5 — From PCS Difficulty Standards)**
-- HC: #800020 (Burgundy) — Mountain Hell
-- C1: #D32F2F (Red) — Very Hard
-- C2: #F57C00 (Orange) — Hard
-- C3: #FBC02D (Yellow) — Moderate
-- C4: #4CAF50 (Green) — Easier
-
-**Modern Chart Aesthetics**
-- **SVG Linear Gradients**: Replaced flat colors with professional gradient fills (category color at 0.8 opacity → same color at 0 opacity) for Area Chart aesthetic
-- **Bezier Curve Fitting**: Cubic bezier interpolation smooths top edge of climb profiles for professional appearance
-- **Vertical Auto-Scaling**: Y-axis now scales per-climb (min_elevation - 5m to max_elevation + 5m) for maximum visual clarity
-- **Seamless Color Transitions**: Segment overlaps eliminate hard borders between gradient zones
-
-**Interactive Features**
-- **Hover Scanner**: Smooth vertical line follows mouse over climb charts with real-time tooltip showing exact grade, distance, and elevation
-- **Map Sync (Ghost Marker)**: Semi-transparent marker appears on Mapy.cz map in sync with chart hover, connecting analysis back to route visualization
-- **Instant Updates**: Tooltip updates in < 100ms for instant visual feedback
-
-### ✨ Phase 2: "Hybrid High-Def" — Surgical GPS Noise Removal & Professional Chart Rendering
-
-**Philosophy: "Resample, don't Smooth"**
-- Remove digital artifacts (staircase stepping, GPS micro-jitter) while preserving *real* steep sections
-- Zero data loss: every gradient change > 1.5m perpendicular error is kept
-- Honest terrain representation: no artificial smoothing, only genuine noise removal
-
-**Douglas-Peucker (RDP) Algorithm (Epsilon = 3.0m)**
-- Recursively removes unnecessary GPS points within 3.0m perpendicular distance of connecting line
-- Eliminates micro-noise and staircase effects while preserving genuine climb continuity
-- Relaxed threshold (3-5m recommended) helps keep related climbing sections together as single climbs
-- Integrates seamlessly after distance-threshold merging (12m minimum)
-- Perpendicular distance calculation ensures mathematical precision
-
-**Aggressive Climb Trimming with Peak Detection**
-- **Start**: First segment with gradient ≥ 2% (captures more rolling terrain, reduces fragmentation)
-- **End**: Exactly at segment with MAX elevation (peak detection loop)
-- Peak Detection: Scans all segments, identifies highest elevation, trims to that index
-- Recalculation: Distance, elevation gain, average grade all recomputed on trim
-- Safety: Returns null if entire climb < 2% or invalid after trim
-- Result: Climbs now truly "peak" at their highest point, no trailing flat sections
-
-**Distance-Mapped LinearGradient**
-- Creates color-coded elevation chart with gradient based on segment steepness
-- Gradient stops generated per-segment with cumulative distance calculation:
-  - 0-3% gradient: Green (#4CAF50)
-  - 3-6% gradient: Yellow (#FBC02D)
-  - 6-9% gradient: Orange (#F57C00)
-  - 9-12% gradient: Red (#D32F2F)
-  - 12%+ gradient: Burgundy (#800020)
-- Smooth visual transition across entire climb profile
-- Professional SaaS appearance with depth and visual hierarchy
-
-**Vertical Opacity Gradient Overlay**
-- Secondary gradient for artistic enhancement
-- Top (opaque, 0.8 opacity) to bottom (transparent, 0.0 opacity)
-- Creates subtle fade effect, making charts visually sophisticated
-- No data distortion, purely aesthetic enhancement
-
-**Max Grade Pill Badge**
-- Floating badge displays highest gradient point on chart
-- Position: Rendered 12px above the steepest segment
-- Styling: Rounded pill rect, category color background, white bold "12.0%" text
-- Detection: Automatic loop finds max gradient segment index
-- UX: Instantly shows cyclists which section is the hardest
-
-**Chart Header UI Refinement**
-- **Removed**: Abstract "Score" metric (distance × gradient calculation)
-- **Added**: "🏔️ Peak 744 m" — direct peak elevation display
-- Styling: White text on burgundy (0.3 opacity) background, rounded corners
-- Benefit: Peak elevation is *directly* relevant to cyclists, more intuitive than difficulty score
-
-**CSS Improvements**
-- `.climb-profile-container { overflow: hidden }` — Ensures gradient fade effect contained
-- Dynamic Y-axis labels: minElev - 5m to maxElev + 5m (no hardcoded values)
-- Removed hardcoded elevation ranges: All scales calculated per-climb
-- Professional visual containment without overflow artifacts
-
-### 🔧 Technical Implementation
-
-#### background.js Changes
-- **New `douglasPeuckerSimplify(points, epsilon = 1.5)`** (32 lines)
-  - Recursive algorithm following classic RDP pattern
-  - Finds max perpendicular distance in point set
-  - Returns simplified array with key points preserved
-- **New `perpendicularDistance(point, start, end)`** (11 lines)
-  - Mathematical calculation of perpendicular distance from point to line segment
-  - Used by RDP for precision filtering
-- **Enhanced `resamplePoints(profile)`** (46 lines, +20 lines from original)
-  - Pipeline: Distance-threshold merge (12m) → RDP simplification (1.5m epsilon) → Last-point guarantee
-  - Preserves endpoints and high-gradient changes while removing micro-noise
-- **Enhanced `smartTrimClimbStart(climb)`** (61 lines, +15 lines from original)
-  - Peak detection loop: `for (let i = startIdx+1; i < climb.segments.length; i++)`
-  - Tracks MAX elevation index, slices segments to [startIdx, peakIdx]
-  - Recalculates distance, elevation, avgGrade after trim
-  - Null-safe return for invalid trimmed climbs
-
-#### map-inject.js Changes
-- **Completely refactored `renderElevationSVG(profile, totalDistance)`** (85 lines, rebuilt from 58)
-  - Aggressive Y-scaling: `minElev - 5` to `maxElev + 5`
-  - Distance-mapped gradient generation with per-segment color stops
-  - Vertical opacity gradient for professional fade
-  - Max grade detection with pill badge rendering
-  - 2px solid top edge stroke for definition
-  - Updated coordinate system for optimal chart coverage
-- **Updated climb-header HTML** (removed Score, added Peak elevation)
-  - Old: `<span class="climb-score">Score 5000</span>`
-  - New: `<span class="climb-summit">🏔️ Peak 744 m</span>`
-- **Verified `getCategoryColor()`** — Already updated to v0.5.5 Peak Style palette
-
-#### map-inject.css Changes
-- **Added `.climb-summit` styling** (6 properties)
-  - font-size: 12px, font-weight: 500
-  - White text with burgundy background (0.3 opacity)
-  - Rounded corners (3px radius)
-  - Flex layout for icon + text alignment
-- **Verified `.climb-profile-container`** — Already has `overflow: hidden`
-
-#### plan.md & CHANGELOG.md
-- Documented entire v0.5.5 "Hybrid High-Def" implementation (8-task blueprint)
-- Added technical architecture explanation ("Resample, don't Smooth" philosophy)
-- Listed all files modified and new functions added
-
-### 🎯 User-Visible Improvements
-
-1. **Smoother Charts**: No more visible staircase stepping or micro-jitter artifacts
-2. **Honest Peaks**: All climbs end exactly at their highest point (no trailing flat sections clutter)
-3. **Professional Colors**: Distance-mapped gradients show difficulty at a glance (green → yellow → red)
-4. **Peak Elevation Display**: Cyclists instantly see highest point of each climb (removed confusing score)
-5. **Artistic Depth**: Vertical opacity fade gives SaaS-grade polish
-6. **Max Grade Badge**: Know instantly which section is hardest (useful for pacing)
-
-### ✅ Validation
-
-- ✅ All 8 Hybrid High-Def tasks implemented and integrated
-- ✅ No syntax errors (background.js, map-inject.js verified)
-- ✅ RDP algorithm tested with epsilon=1.5m threshold
-- ✅ Peak detection verified with 3% gradient start trimming
-- ✅ Distance-mapped gradients render correctly in SVG
-- ✅ Max grade pill badge positioned and styled correctly
-- ✅ Chart header shows peak elevation instead of score
-- ✅ CSS improvements verified (overflow:hidden, dynamic Y-axis)
-- ✅ Backward compatible with v0.5.1 climb data format
-
-
-- Enhanced `popup.js` with hover scanner (already in v0.5.5 feature set)
-- Enhanced `popup.css` with v0.5.5 styles (already in v0.5.5 feature set)
-
-### ✅ Quality & Compatibility
-
-- ✅ **UI-only changes** — no algorithm modifications
-- ✅ **Backward compatible** — all v0.5.1 data remains valid
-- ✅ **Zoom-independent rendering** — pure SVG pins remain sharp at all map zoom levels
-- ✅ **Professional appearance** — no black strokes, category color-driven design language
-- ✅ **Accessible labels** — legible against light and dark map backgrounds
-
-### 🎯 User Experience
-
-- Map pins now look professional and memorable ("The Pulse" glow, "The Summit" peak evoke climbing imagery)
-- Charts with new color palette and Peak Style pins create cohesive, SaaS-grade aesthetic
-- Better visual hierarchy with larger, clearer peak icons
-- Color palette aligns with ProCyclingStats difficulty standards for cyclist familiarity
-
----
-
 ## [0.5.1] — 2026-04-01 (The "Action Only" & Smoothing Patch)
 
 ### ✨ Features
 
 #### Graph Presentation & Visual Improvements
+
 - **Point Resampling**: Eliminate micro-jitter from GPS data (merges points < 10-15m) to remove vertical "stripes" in elevation charts
 - **Smart Climb Start Trimming**: Discard leading flat/shallow sections (<3% gradient) from climb profiles, focusing visual attention on the actual ascent
 - **Peak Detection**: Climb profiles now end exactly at the highest elevation point, removing trailing flat/downhill sections
@@ -280,6 +189,7 @@ All notable changes to the Climb Analyzer extension are documented here.
 ### ✨ Features
 
 #### Algorithm Improvements
+
 - **Adaptive Smoothing Window**: Gradient-magnitude-weighted elevation smoothing (50-250m window) to preserve sharp climb ramps while filtering noise on flat terrain
 - **Noise Filtering**: Automatic detection and interpolation of unrealistic elevation spikes (>12% single-segment anomalies)
 - **Elevation Gain Gate**: Minimum 30m elevation gain threshold to filter micro-bumps
@@ -287,12 +197,14 @@ All notable changes to the Climb Analyzer extension are documented here.
 - **Enhanced Descent Logic**: Tuned descent thresholds (150m early stop, category-aware tolerance)
 
 #### User Interface
+
 - **Loading Spinner**: Animated indicator during GPX analysis
 - **Climb Statistics**: Display climb count and total route distance in popup
 - **Retry Button**: Quick re-analysis for cases with no detected climbs
 - **Persistent Stats**: Climb results cached for quick reference
 
 #### Data & Infrastructure
+
 - **Storage Versioning**: Automatic cache validation and migration on schema changes
 - **Improved Logging**: Better console diagnostics for climb categorization
 

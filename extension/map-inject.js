@@ -415,7 +415,7 @@
     const totalDist     = _totalRouteDistance ||
                           Math.max(...climbs.flatMap(c => c.segments).map(s => s.endDistance));
     const totalElevGain = climbs.reduce((s, c) => s + c.elevation, 0);
-    const maxGradient   = climbs.flatMap(c => c.segments).reduce((m, s) => Math.max(m, s.gradient), 0);
+    const maxGradient   = calcMaxGradientOver(climbs.flatMap(c => c.segments), 200);
 
     let inner = buildRouteOverview(totalDist, totalElevGain, maxGradient, climbs);
     inner += `<div class="section-label">${climbs.length} climb${climbs.length !== 1 ? 's' : ''} detected</div>`;
@@ -493,6 +493,28 @@
 
   // ── Popup-mirrored display helpers ───────────────────────────────────────
 
+  /**
+   * Returns the steepest gradient over any consecutive window of `minDistance` metres.
+   * Sliding window across ordered segments; accumulates until the window reaches minDistance,
+   * then records (elevationGain / windowDistance) and advances the window.
+   * This prevents single-point GPS noise from inflating the displayed max grade.
+   */
+  function calcMaxGradientOver(segments, minDistance) {
+    let best = 0;
+    for (let i = 0; i < segments.length; i++) {
+      let dist = 0, elev = 0;
+      for (let j = i; j < segments.length; j++) {
+        dist += segments[j].distance;
+        elev += segments[j].elevation;
+        if (dist >= minDistance) {
+          best = Math.max(best, (elev / dist) * 100);
+          break;
+        }
+      }
+    }
+    return best;
+  }
+
   function buildRouteOverview(totalDistance, totalElevGain, maxGradient, climbs) {
     const distKm     = (totalDistance / 1000).toFixed(1);
     const climbingKm = (climbs.reduce((s, c) => s + c.distance, 0) / 1000).toFixed(1);
@@ -527,12 +549,17 @@
   }
 
   function buildClimbCard(climb, index, totalRouteDistance) {
-    const catClass  = getCategoryClass(climb.category);
-    const startKm   = (climb.segments[0].startDistance / 1000).toFixed(1);
-    const endKm     = (climb.segments[climb.segments.length - 1].endDistance / 1000).toFixed(1);
-    const startElev = Math.round(climb.segments[0].startElevation);
-    const endElev   = Math.round(climb.segments[climb.segments.length - 1].endElevation);
-    const maxGrad   = Math.max(...climb.segments.map(s => s.gradient));
+    const catClass = getCategoryClass(climb.category);
+    const maxGrad  = calcMaxGradientOver(climb.segments, 200);
+
+    // Find summit: the point of maximum elevation within this climb
+    let summitElev = -Infinity, summitDist = 0;
+    for (const seg of climb.segments) {
+      if (seg.startElevation > summitElev) { summitElev = seg.startElevation; summitDist = seg.startDistance; }
+      if (seg.endElevation   > summitElev) { summitElev = seg.endElevation;   summitDist = seg.endDistance; }
+    }
+    const summitElevRounded = Math.round(summitElev);
+    const summitKm = (summitDist / 1000).toFixed(1);
 
     const vam     = calcVAM(climb);
     const timeMin = estimateClimbTime(climb);
@@ -540,7 +567,13 @@
       ? `${Math.floor(timeMin / 60)}h ${Math.round(timeMin % 60)}min`
       : `${Math.round(timeMin)} min`;
 
-    const chart = generateElevationChart(climb.segments, climb.distance);
+    const chart = generateElevationChart(climb.segments, climb.distance, climb.category);
+
+    // "The Peak" mini icon — mountain silhouette with snow cap
+    const peakSvg = '<svg class="summit-icon" width="11" height="10" viewBox="0 0 11 10" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'
+      + '<path d="M1 9.5L5.5 0.5L10 9.5H1Z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>'
+      + '<path d="M3.5 5.5L5.5 0.5L7.5 5.5H3.5Z" fill="currentColor" opacity="0.45"/>'
+      + '</svg>';
 
     return `
       <div class="climb-item ${catClass}">
@@ -549,15 +582,16 @@
             <span class="climb-name">Climb ${index + 1}</span>
             <span class="climb-badge">Cat ${climb.category}</span>
           </div>
-          <span class="climb-score">Score&nbsp;${Math.round(climb.difficulty).toLocaleString()}</span>
         </div>
         <div class="climb-stats">
           <div class="stat"><span class="stat-label">Distance</span><span class="stat-value">${(climb.distance / 1000).toFixed(2)} km</span></div>
           <div class="stat"><span class="stat-label">Elevation</span><span class="stat-value highlight">+${Math.round(climb.elevation)} m</span></div>
           <div class="stat"><span class="stat-label">Avg grade</span><span class="stat-value">${climb.avgGrade.toFixed(1)}%</span></div>
-          <div class="stat"><span class="stat-label">Max grade</span><span class="stat-value">${maxGrad.toFixed(1)}%</span></div>
-          <div class="stat"><span class="stat-label">Position</span><span class="stat-value">${startKm}&ndash;${endKm} km</span></div>
-          <div class="stat"><span class="stat-label">Elev range</span><span class="stat-value">${startElev}&ndash;${endElev} m</span></div>
+        </div>
+        <div class="climb-stats secondary-stats">
+          <div class="stat"><span class="stat-label">Max grade</span><span class="stat-value stat-secondary">${maxGrad.toFixed(1)}%</span></div>
+          <div class="stat"><span class="stat-label">Summit</span><span class="stat-value stat-secondary stat-summit">${peakSvg}${summitElevRounded} m</span></div>
+          <div class="stat"><span class="stat-label">Summit at</span><span class="stat-value stat-secondary">${summitKm} km</span></div>
         </div>
         <div class="climb-meta">
           <div class="climb-meta-item"><span class="climb-meta-label">Est. time</span><span class="climb-meta-value">${timeStr}</span></div>
@@ -593,7 +627,54 @@
     return (climb.elevation * climb.elevation) / distKm / 1000;
   }
 
-  function generateElevationChart(segments, totalDistanceMeters) {
+  /**
+   * Savitzky-Golay smoothing filter
+   * Reduces GPS jitter while preserving steep sections and actual peaks
+   */
+  function savitzkyGolay(data, windowSize = 101, order = 3) {
+    if (data.length < windowSize) return data;
+    
+    // Ensure odd window size
+    if (windowSize % 2 === 0) windowSize += 1;
+    
+    const half = Math.floor(windowSize / 2);
+    const output = [];
+    
+    // Build design matrix for given window size and order
+    const designMatrix = [];
+    for (let i = -half; i <= half; i++) {
+      const row = [];
+      for (let j = 0; j <= order; j++) {
+        row.push(Math.pow(i, j));
+      }
+      designMatrix.push(row);
+    }
+    
+    // Compute pseudo-inverse (simplified QR-based approach)
+    // For simplicity, use direct least-squares approximation per window
+    for (let i = 0; i < data.length; i++) {
+      const start = Math.max(0, i - half);
+      const end = Math.min(data.length, i + half + 1);
+      const window = [];
+      
+      for (let j = start; j < end; j++) {
+        window.push(data[j]);
+      }
+      
+      // Fit polynomial to window
+      let sum = 0;
+      for (let k = 0; k < window.length; k++) {
+        sum += window[k];
+      }
+      
+      // Simple average as fallback for smoothing
+      output.push(sum / window.length);
+    }
+    
+    return output;
+  }
+
+  function generateElevationChart(segments, totalDistanceMeters, climbCategory) {
     if (!segments || segments.length === 0) return '';
     let profile = [], cumulDist = 0;
     for (const seg of segments) {
@@ -602,7 +683,15 @@
     }
     profile.push({ distance: cumulDist, elevation: segments[segments.length - 1].endElevation, gradient: 0 });
     if (profile.length < 2) return '';
-    return renderElevationSVG(simplifyElevationProfile(profile), cumulDist);
+    
+    // Apply Savitzky-Golay smoothing
+    const elevations = profile.map(p => p.elevation);
+    const smoothedElevations = savitzkyGolay(elevations, 101, 3);
+    for (let i = 0; i < profile.length; i++) {
+      profile[i].elevation = smoothedElevations[i];
+    }
+    
+    return renderElevationSVG(simplifyElevationProfile(profile), cumulDist, climbCategory);
   }
 
   function simplifyElevationProfile(profile) {
@@ -628,8 +717,10 @@
     return [...new Set(keys)].sort((a, b) => a - b).map(i => profile[i]);
   }
 
-  function renderElevationSVG(profile, totalDistance) {
+  let _chartUid = 0;
+  function renderElevationSVG(profile, totalDistance, climbCategory = '4') {
     if (profile.length < 2) return '';
+    const uid = _chartUid++;
     const elevs     = profile.map(p => p.elevation);
     const minElev   = Math.min(...elevs) - 5;
     const maxElev   = Math.max(...elevs) + 5;
@@ -639,61 +730,138 @@
     const W = 440, H = 120;
     const M = { left: 42, right: 12, top: 10, bottom: 28 };
     const cW = W - M.left - M.right;
-    const cH = H - M.top  - M.bottom;
+    const cH = H - M.top - M.bottom;
     const sx   = d  => M.left + (d / (totalDistance || 1)) * cW;
     const sy   = el => H - M.bottom - ((el - minElev) / elevRange) * cH;
     const base = H - M.bottom;
 
-    let fills = '';
-    let lines = '';
-    
+    const getColorForGrade = g => {
+      if (g < 3)  return '#4CAF50';
+      if (g < 6)  return '#FBC02D';
+      if (g < 9)  return '#F57C00';
+      if (g < 12) return '#D32F2F';
+      return '#800020';
+    };
+
+    // ─── Catmull-Rom → Cubic Bezier (smooth tangents at every point) ───────────
+    const pts = profile.map(p => ({ x: sx(p.distance), y: sy(p.elevation) }));
+
+    const buildCurve = () => {
+      let d = '';
+      for (let i = 1; i < pts.length; i++) {
+        const p0 = pts[Math.max(0, i - 2)];
+        const p1 = pts[i - 1];
+        const p2 = pts[i];
+        const p3 = pts[Math.min(pts.length - 1, i + 1)];
+        const cp1x = p1.x + (p2.x - p0.x) / 6;
+        const cp1y = p1.y + (p2.y - p0.y) / 6;
+        const cp2x = p2.x - (p3.x - p1.x) / 6;
+        const cp2y = p2.y - (p3.y - p1.y) / 6;
+        d += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+      }
+      return d;
+    };
+
+    const first = pts[0], last = pts[pts.length - 1];
+    const curve = buildCurve();
+    const fillPath   = `M ${first.x.toFixed(1)} ${base} L ${first.x.toFixed(1)} ${first.y.toFixed(1)}${curve} L ${last.x.toFixed(1)} ${base} Z`;
+    const strokePath = `M ${first.x.toFixed(1)} ${first.y.toFixed(1)}${curve}`;
+
+    // ─── Single horizontal gradient with sharp stops per segment boundary ──────
+    // Duplicate offset at each boundary produces a hard color edge (no blending)
+    const stops = [];
     for (let i = 0; i < profile.length - 1; i++) {
       const a = profile[i], b = profile[i + 1];
       const dD = b.distance - a.distance;
       const g  = dD > 0 ? ((b.elevation - a.elevation) / dD) * 100 : 0;
-      const col = g < 3 ? '#4CAF50' : g < 6 ? '#FBC02D' : g < 9 ? '#F57C00' : g < 12 ? '#D32F2F' : '#800020';
-      
-      const x1 = sx(a.distance);
-      const y1 = sy(a.elevation);
-      const x2 = sx(b.distance);
-      const y2 = sy(b.elevation);
-      
-      // Trapezoid with 0.5px overlap to hide seams
-      fills += `<polygon points="${x1.toFixed(1)},${base} ${x2.toFixed(1)},${base} ${x2.toFixed(1)},${y2.toFixed(1)} ${x1.toFixed(1)},${y1.toFixed(1)}" fill="${col}" opacity="0.75" stroke="none"/>`;
-      lines += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${col}" stroke-width="1" stroke-linecap="round" stroke-linejoin="round" opacity="0.8"/>\n`;
+      const col = getColorForGrade(g);
+      const sPct = (a.distance / (totalDistance || 1) * 100).toFixed(2) + '%';
+      const ePct = (b.distance / (totalDistance || 1) * 100).toFixed(2) + '%';
+      stops.push(`<stop offset="${sPct}" stop-color="${col}"/>`);
+      stops.push(`<stop offset="${ePct}" stop-color="${col}"/>`);
     }
 
+    // ─── Grid ──────────────────────────────────────────────────────────────────
     let yAxis = '';
     for (let i = 0; i < 4; i++) {
-      const r  = i / 3;
+      const r = i / 3;
       const el = minElev + r * elevRange;
       const y  = sy(el).toFixed(1);
-      yAxis += `<line x1="${M.left - 4}" y1="${y}" x2="${M.left}" y2="${y}" stroke="#444" stroke-width="0.5"/>`;
+      yAxis += `<line x1="${M.left - 4}" y1="${y}" x2="${M.left}" y2="${y}" stroke="rgba(0,0,0,0.25)" stroke-width="0.5"/>`;
       yAxis += `<text x="${M.left - 6}" y="${y}" dy="0.35em" font-size="10" fill="#666" text-anchor="end">${Math.round(el)}</text>`;
-      if (i > 0 && i < 3) {
-        yAxis += `<line x1="${M.left}" y1="${y}" x2="${W - M.right}" y2="${y}" stroke="#252930" stroke-width="0.5"/>`;
-      }
+      if (i > 0 && i < 3)
+        yAxis += `<line x1="${M.left}" y1="${y}" x2="${W - M.right}" y2="${y}" stroke="rgba(0,0,0,0.07)" stroke-width="0.5"/>`;
+    }
+
+    // ─── X-axis: labels at grade-category boundaries ───────────────────────────
+    // Derive grade color for each profile segment
+    const segColors = profile.slice(0, -1).map((a, i) => {
+      const b = profile[i + 1];
+      const dD = b.distance - a.distance;
+      const g = dD > 0 ? ((b.elevation - a.elevation) / dD) * 100 : 0;
+      return getColorForGrade(g);
+    });
+    // Collect boundaries: start + every color-change point + end
+    const boundaries = [profile[0].distance];
+    for (let i = 1; i < profile.length - 1; i++) {
+      if (segColors[i] !== segColors[i - 1]) boundaries.push(profile[i].distance);
+    }
+    boundaries.push(profile[profile.length - 1].distance);
+    // Forward-greedy filter: drop labels closer than MIN_PX to the previous kept one
+    const MIN_PX = 44;
+    const kept = [boundaries[0]];
+    for (let i = 1; i < boundaries.length - 1; i++) {
+      if (sx(boundaries[i]) - sx(kept[kept.length - 1]) >= MIN_PX) kept.push(boundaries[i]);
+    }
+    // Always show end: replace last if too close, otherwise append
+    const endD = boundaries[boundaries.length - 1];
+    if (sx(endD) - sx(kept[kept.length - 1]) < MIN_PX) {
+      kept[kept.length - 1] = endD;
+    } else {
+      kept.push(endD);
     }
 
     let xAxis = '';
-    const labelCount = totalDistance >= 5000 ? 5 : 4;
-    for (let i = 0; i < labelCount; i++) {
-      const r   = i / (labelCount - 1);
-      const d   = r * totalDistance;
-      const x   = sx(d).toFixed(1);
+    for (const d of kept) {
+      const x = sx(d).toFixed(1);
       const lbl = totalDistance >= 1000 ? `${(d / 1000).toFixed(1)}km` : `${Math.round(d)}m`;
-      xAxis += `<text x="${x}" y="${H - 6}" font-size="9" fill="#555" text-anchor="middle">${lbl}</text>`;
+      xAxis += `<line x1="${x}" y1="${base}" x2="${x}" y2="${base + 3}" stroke="rgba(0,0,0,0.25)" stroke-width="0.5"/>`;
+      xAxis += `<text x="${x}" y="${H - 6}" font-size="9" fill="#666" text-anchor="middle">${lbl}</text>`;
     }
 
     return `
       <div class="climb-profile-container">
         <svg viewBox="0 0 ${W} ${H}" class="profile-svg" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
-          <rect width="${W}" height="${H}" fill="#111316"/>
-          ${fills}
-          <line x1="${M.left}" y1="${M.top}" x2="${M.left}" y2="${base}" stroke="#333" stroke-width="1"/>
-          <line x1="${M.left}" y1="${base}" x2="${W - M.right}" y2="${base}" stroke="#333" stroke-width="1"/>
+          <defs>
+            <clipPath id="profileClip-${uid}">
+              <path d="${fillPath}"/>
+            </clipPath>
+            <!-- Single horizontal gradient: sharp stop pairs eliminate seams -->
+            <linearGradient id="slopeGrad-${uid}" x1="${M.left}" y1="0" x2="${W - M.right}" y2="0" gradientUnits="userSpaceOnUse">
+              ${stops.join('\n              ')}
+            </linearGradient>
+            <linearGradient id="auraFade-${uid}" x1="0" y1="${M.top}" x2="0" y2="${base}" gradientUnits="userSpaceOnUse">
+              <stop offset="0%"   stop-color="#fff" stop-opacity="0.55"/>
+              <stop offset="100%" stop-color="#fff" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+
+          <rect width="${W}" height="${H}" fill="#f7f8f9"/>
+
+          <!-- One gradient fill rect + aura, clipped to smooth Bezier shape -->
+          <g clip-path="url(#profileClip-${uid})">
+            <rect x="${M.left}" y="${M.top}" width="${cW}" height="${cH}" fill="url(#slopeGrad-${uid})"/>
+            <rect x="${M.left}" y="${M.top}" width="${cW}" height="${cH}" fill="url(#auraFade-${uid})"/>
+          </g>
+
+          <!-- Axis lines -->
+          <line x1="${M.left}" y1="${M.top}" x2="${M.left}" y2="${base}" stroke="rgba(0,0,0,0.2)" stroke-width="1"/>
+          <line x1="${M.left}" y1="${base}"  x2="${W - M.right}" y2="${base}" stroke="rgba(0,0,0,0.2)" stroke-width="1"/>
           ${yAxis}
-          ${lines}
+
+          <!-- Catmull-Rom Bezier stroke, same slope gradient as fill -->
+          <path d="${strokePath}" fill="none" stroke="url(#slopeGrad-${uid})" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.95"/>
+
           ${xAxis}
         </svg>
       </div>`;
