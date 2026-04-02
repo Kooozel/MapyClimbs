@@ -20,7 +20,6 @@ const STORAGE_VERSION = 1;
 chrome.storage.local.get(StorageKey.StorageVersion, (result) => {
   if (chrome.runtime.lastError) return;
   if (result[StorageKey.StorageVersion] !== STORAGE_VERSION) {
-    console.log("[MapyClimbs] Storage version mismatch, clearing old cache");
     chrome.storage.local.clear(() => {
       if (chrome.runtime.lastError) return;
       chrome.storage.local.set({ [StorageKey.StorageVersion]: STORAGE_VERSION });
@@ -63,16 +62,13 @@ chrome.runtime.onMessage.addListener(
       try {
         const climbs = detectClimbs(request.elevation);
         const totalDistance =
-          request.elevation.length > 0
-            ? request.elevation[request.elevation.length - 1][0]
-            : 0;
+          request.elevation.length > 0 ? request.elevation[request.elevation.length - 1][0] : 0;
         chrome.storage.local.set({
           [StorageKey.LastClimbResult]: climbs,
           [StorageKey.LastTotalDistance]: totalDistance,
         });
         sendResponse({ climbs, totalDistance });
       } catch (error) {
-        console.error("[MapyClimbs] Climb detection error:", error);
         sendResponse({
           climbs: [],
           totalDistance: 0,
@@ -90,7 +86,6 @@ chrome.runtime.onMessage.addListener(
         });
         sendResponse({ climbs, totalDistance });
       } catch (error) {
-        console.error("[MapyClimbs] GPX analysis error:", error);
         sendResponse({
           climbs: [],
           totalDistance: 0,

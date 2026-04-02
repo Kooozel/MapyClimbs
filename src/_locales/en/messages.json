@@ -1,10 +1,10 @@
 {
   "extName": {
-    "message": "MapyClimbs",
+    "message": "MapyClimbs: GPX Climb Analyzer",
     "description": "Extension name"
   },
   "extDescription": {
-    "message": "Analyzes GPX files exported from Mapy.cz and displays climbs with gradient-colored segments and difficulty scores.",
+    "message": "Auto-detect every climb on your Mapy.com route — elevation charts, category grades, VAM, and live map pins injected right into the sidebar.",
     "description": "Extension description"
   },
 

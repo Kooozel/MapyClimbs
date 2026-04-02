@@ -10,7 +10,15 @@
  * as produced by gpx-parser.ts, and Climb is defined in types.ts.
  */
 
-import type { ClimbCategory, Climb, Coords, ElevationTuple, GpsPoint, RawClimb, Segment } from "./types";
+import type {
+  ClimbCategory,
+  Climb,
+  Coords,
+  ElevationTuple,
+  GpsPoint,
+  RawClimb,
+  Segment,
+} from "./types";
 
 // ─── Pipeline entry point ────────────────────────────────────────────────────
 
@@ -192,12 +200,8 @@ function filterNoiseSpikes(profile: GpsPoint[]): GpsPoint[] {
     const curr = original[i];
     const next = original[i + 1];
 
-    const prevGrad = Math.abs(
-      (curr.elevation - prev.elevation) / (curr.distance - prev.distance)
-    );
-    const nextGrad = Math.abs(
-      (next.elevation - curr.elevation) / (next.distance - curr.distance)
-    );
+    const prevGrad = Math.abs((curr.elevation - prev.elevation) / (curr.distance - prev.distance));
+    const nextGrad = Math.abs((next.elevation - curr.elevation) / (next.distance - curr.distance));
 
     if (
       (prevGrad > SPIKE_THRESHOLD && nextGrad < NEIGHBOR_THRESHOLD) ||
@@ -263,7 +267,11 @@ function identifyClimbs(segments: Segment[]): RawClimb[] {
     }
 
     if (segment.gradient >= CLIMB_START_GRADE && currentClimb === null) {
-      currentClimb = { segments: [segment], totalDistance: segment.distance, totalElevation: segment.elevation };
+      currentClimb = {
+        segments: [segment],
+        totalDistance: segment.distance,
+        totalElevation: segment.elevation,
+      };
       descentDistance = 0;
     } else if (currentClimb !== null) {
       currentClimb.segments.push(segment);
@@ -395,7 +403,10 @@ function trimClimbEndpoints(climb: RawClimb): RawClimb {
   if (!trimmed.segments || trimmed.segments.length === 0) return trimmed;
 
   let startIndex = 0;
-  while (startIndex < trimmed.segments.length && trimmed.segments[startIndex].gradient < TRIM_THRESHOLD) {
+  while (
+    startIndex < trimmed.segments.length &&
+    trimmed.segments[startIndex].gradient < TRIM_THRESHOLD
+  ) {
     startIndex++;
   }
 
@@ -567,9 +578,7 @@ function splitAntiGreenClimbs(climb: Climb): Climb[] {
         ? { lat: first.startLat, lon: first.startLon }
         : null;
     sc.endCoords =
-      last?.endLat != null && last?.endLon != null
-        ? { lat: last.endLat, lon: last.endLon }
-        : null;
+      last?.endLat != null && last?.endLon != null ? { lat: last.endLat, lon: last.endLon } : null;
   }
 
   return splits as Climb[];

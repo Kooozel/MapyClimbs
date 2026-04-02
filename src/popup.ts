@@ -3,7 +3,13 @@
  * Shows last GPX capture status and climb analysis results.
  */
 
-import { StorageKey, type Climb, type AnalyzeGpxMessage, type ClimbsResponse, type PortMessage } from "./types";
+import {
+  StorageKey,
+  type Climb,
+  type AnalyzeGpxMessage,
+  type ClimbsResponse,
+  type PortMessage,
+} from "./types";
 
 const dot = document.getElementById("status-dot")!;
 const text = document.getElementById("status-text")!;
@@ -41,26 +47,23 @@ function hideSpinner(): void {
 }
 
 function updateClimbStats(): void {
-  chrome.storage.local.get(
-    [StorageKey.LastClimbResult, StorageKey.LastTotalDistance],
-    (data) => {
-      hideSpinner();
-      const climbs = data[StorageKey.LastClimbResult] as Climb[] | undefined;
-      const totalDistance = data[StorageKey.LastTotalDistance] as number | undefined;
+  chrome.storage.local.get([StorageKey.LastClimbResult, StorageKey.LastTotalDistance], (data) => {
+    hideSpinner();
+    const climbs = data[StorageKey.LastClimbResult] as Climb[] | undefined;
+    const totalDistance = data[StorageKey.LastTotalDistance] as number | undefined;
 
-      if (climbs && climbs.length > 0) {
-        climbStatsText.innerHTML = chrome.i18n.getMessage("popupClimbsDetected", [
-          `<strong>${climbs.length}</strong>`,
-          `<strong>${((totalDistance ?? 0) / 1000).toFixed(1)}</strong>`,
-        ]);
-        climbStatsSection.style.display = "block";
-        retrySection.style.display = "none";
-      } else if (climbs !== undefined) {
-        climbStatsSection.style.display = "none";
-        retrySection.style.display = "block";
-      }
+    if (climbs && climbs.length > 0) {
+      climbStatsText.innerHTML = chrome.i18n.getMessage("popupClimbsDetected", [
+        `<strong>${climbs.length}</strong>`,
+        `<strong>${((totalDistance ?? 0) / 1000).toFixed(1)}</strong>`,
+      ]);
+      climbStatsSection.style.display = "block";
+      retrySection.style.display = "none";
+    } else if (climbs !== undefined) {
+      climbStatsSection.style.display = "none";
+      retrySection.style.display = "block";
     }
-  );
+  });
 }
 
 retryBtn.addEventListener("click", (e) => {

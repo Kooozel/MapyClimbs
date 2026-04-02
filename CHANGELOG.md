@@ -2,6 +2,14 @@
 
 All notable changes to the MapyClimbs extension are documented here.
 
+## [1.0.0] — 2026-04-02 (First Public Release)
+
+### Changed
+
+- Version bumped to 1.0.0 for initial Chrome Web Store publication.
+
+---
+
 ## [0.6.0] — 2026-04-02 (TypeScript Migration)
 
 ### Added

@@ -175,7 +175,7 @@ export function buildPanel(climbs: Climb[] | null, totalRouteDistance: number): 
   if (!climbs || climbs.length === 0) {
     panel.innerHTML = `
       <div class="cip-header-bar">
-        <img src="${chrome.runtime.getURL('images/icon-48.png')}" width="16" height="16" alt="" aria-hidden="true">
+        <img src="${chrome.runtime.getURL("images/icon-48.png")}" width="16" height="16" alt="" aria-hidden="true">
         <span>${chrome.i18n.getMessage("panelTitle")}</span>
       </div>
       <p class="cip-empty">${chrome.i18n.getMessage("panelNoClimbs")}</p>`;
@@ -183,17 +183,17 @@ export function buildPanel(climbs: Climb[] | null, totalRouteDistance: number): 
   }
 
   const totalDist =
-    totalRouteDistance ||
-    Math.max(...climbs.flatMap((c) => c.segments).map((s) => s.endDistance));
+    totalRouteDistance || Math.max(...climbs.flatMap((c) => c.segments).map((s) => s.endDistance));
   const totalElevGain = climbs.reduce((s, c) => s + c.elevation, 0);
   const maxGradient = calcMaxGradientOver(
     climbs.flatMap((c) => c.segments),
     200
   );
 
-  const climbsLabel = climbs.length === 1
-    ? chrome.i18n.getMessage("panelClimbsDetectedSingular")
-    : chrome.i18n.getMessage("panelClimbsDetectedPlural", [String(climbs.length)]);
+  const climbsLabel =
+    climbs.length === 1
+      ? chrome.i18n.getMessage("panelClimbsDetectedSingular")
+      : chrome.i18n.getMessage("panelClimbsDetectedPlural", [String(climbs.length)]);
   let inner = buildRouteOverview(totalDist, totalElevGain, maxGradient, climbs);
   inner += `<div class="section-label">${climbsLabel}</div>`;
   climbs.forEach((climb, i) => {
@@ -202,7 +202,7 @@ export function buildPanel(climbs: Climb[] | null, totalRouteDistance: number): 
 
   panel.innerHTML = `
     <button class="cip-header-bar cip-toggle" aria-expanded="true">
-      <img src="${chrome.runtime.getURL('images/icon-48.png')}" width="16" height="16" alt="" aria-hidden="true">
+      <img src="${chrome.runtime.getURL("images/icon-48.png")}" width="16" height="16" alt="" aria-hidden="true">
       <span>${chrome.i18n.getMessage("panelTitle")}</span>
       <svg class="cip-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
         <polyline points="6 9 12 15 18 9"/>

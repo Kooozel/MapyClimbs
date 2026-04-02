@@ -7,7 +7,13 @@
 
 import { parseGPX } from "../gpx-parser";
 import { buildPanel, showChartOverlay, hideChartOverlay } from "./panel";
-import { StorageKey, type Climb, type ElevationTuple, type ProcessClimbsMessage, type ClimbsResponse } from "../types";
+import {
+  StorageKey,
+  type Climb,
+  type ElevationTuple,
+  type ProcessClimbsMessage,
+  type ClimbsResponse,
+} from "../types";
 
 // ── Route-planner guard ────────────────────────────────────────────────────────
 
@@ -31,12 +37,7 @@ init();
 function init(): void {
   chrome.storage.local.get([StorageKey.LastClimbResult], (data) => {
     const cached = data[StorageKey.LastClimbResult] as Climb[] | undefined;
-    if (
-      cached &&
-      Array.isArray(cached) &&
-      cached.length > 0 &&
-      !cached[0].markerCoords
-    ) {
+    if (cached && Array.isArray(cached) && cached.length > 0 && !cached[0].markerCoords) {
       chrome.storage.local.remove(StorageKey.LastClimbResult);
     }
   });
@@ -97,27 +98,32 @@ function pollForGPX(): void {
   chrome.storage.local.get(
     [StorageKey.PendingGPX, StorageKey.LastClimbResult, StorageKey.LastTotalDistance],
     (data) => {
-    if (!isRoutePlannerActive()) return;
+      if (!isRoutePlannerActive()) return;
 
-    const pendingGPX = data[StorageKey.PendingGPX] as string | undefined;
-    const lastClimbResult = data[StorageKey.LastClimbResult] as Climb[] | undefined;
-    const lastTotalDistance = data[StorageKey.LastTotalDistance] as number | undefined;
+      const pendingGPX = data[StorageKey.PendingGPX] as string | undefined;
+      const lastClimbResult = data[StorageKey.LastClimbResult] as Climb[] | undefined;
+      const lastTotalDistance = data[StorageKey.LastTotalDistance] as number | undefined;
 
-    if (pendingGPX && pendingGPX.length !== _lastGPXLength) {
-      _lastGPXLength = pendingGPX.length;
-      analyzeGPX(pendingGPX);
-      return;
-    }
+      if (pendingGPX && pendingGPX.length !== _lastGPXLength) {
+        _lastGPXLength = pendingGPX.length;
+        analyzeGPX(pendingGPX);
+        return;
+      }
 
-    if (pendingGPX && lastClimbResult && !_climbs) {
-      if (Array.isArray(lastClimbResult) && lastClimbResult.length > 0 && lastClimbResult[0].markerCoords) {
-        _climbs = lastClimbResult;
-        _totalRouteDistance = lastTotalDistance ?? 0;
-        renderPanel();
-        renderMapOverlay();
+      if (pendingGPX && lastClimbResult && !_climbs) {
+        if (
+          Array.isArray(lastClimbResult) &&
+          lastClimbResult.length > 0 &&
+          lastClimbResult[0].markerCoords
+        ) {
+          _climbs = lastClimbResult;
+          _totalRouteDistance = lastTotalDistance ?? 0;
+          renderPanel();
+          renderMapOverlay();
+        }
       }
     }
-  });
+  );
 }
 
 // ── Analysis ──────────────────────────────────────────────────────────────────
@@ -250,7 +256,7 @@ function renderMapOverlay(): void {
           `<filter id="shadow-${i}" x="-20%" y="-20%" width="150%" height="150%">` +
           '<feOffset dx="4" dy="4" result="offsetblur"/>' +
           '<feComponentTransfer><feFuncA type="linear" slope="0.5"/></feComponentTransfer>' +
-          "<feMerge><feMergeNode/><feMergeNode in=\"SourceGraphic\"/></feMerge>" +
+          '<feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>' +
           "</filter>" +
           "</defs>" +
           `<g filter="url(#shadow-${i})">` +
@@ -358,7 +364,7 @@ function buildButton(): HTMLDivElement {
   btn.className = "icon-action";
   btn.innerHTML = `
     <button type="button">
-      <img src="${chrome.runtime.getURL('images/icon-48.png')}" width="24" height="24" alt="" aria-hidden="true">
+      <img src="${chrome.runtime.getURL("images/icon-48.png")}" width="24" height="24" alt="" aria-hidden="true">
       <span>${chrome.i18n.getMessage("panelTitle")}</span>
     </button>`;
   btn.querySelector("button")!.addEventListener("click", onClimbButtonClick);

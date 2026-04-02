@@ -46,13 +46,13 @@ interface InjectClimbData {
 
 // Script-mode global augmentations (no import/export — file is not an ES module
 // so that Rollup outputs plain JS suitable for a classic <script> injection).
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 interface Window {
   SMap?: SMapConstructorStatic;
   __climbMap?: SMapInstance;
   __climbMarkerLayer?: SMapLayerMarker;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 interface XMLHttpRequest {
   _isGPXRequest?: boolean;
 }
@@ -85,8 +85,7 @@ const originalFetch = window.fetch;
 
 window.fetch = (...args: Parameters<typeof fetch>): ReturnType<typeof fetch> => {
   const [input] = args;
-  const url =
-    typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+  const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
 
   if (url.includes("tplannerexport") && url.includes("export=gpx")) {
     const fetchPromise = originalFetch(...args);
@@ -141,17 +140,23 @@ const originalXHROpen = XMLHttpRequest.prototype.open;
 const originalXHRSend = XMLHttpRequest.prototype.send;
 
 // Cast the prototype property to a relaxed signature to avoid overload-spread issues.
-(XMLHttpRequest.prototype as { open: (method: string, url: string | URL, ...rest: unknown[]) => void }).open =
-  function (this: XMLHttpRequest, method: string, url: string | URL, ...rest: unknown[]): void {
-    if (typeof url === "string" && url.includes("tplannerexport") && url.includes("export=gpx")) {
-      this._isGPXRequest = true;
-    }
-    (originalXHROpen as (...args: unknown[]) => void).apply(this, [method, url, ...rest]);
-  };
-
-XMLHttpRequest.prototype.send = function (
-  body?: Document | XMLHttpRequestBodyInit | null
+(
+  XMLHttpRequest.prototype as {
+    open: (method: string, url: string | URL, ...rest: unknown[]) => void;
+  }
+).open = function (
+  this: XMLHttpRequest,
+  method: string,
+  url: string | URL,
+  ...rest: unknown[]
 ): void {
+  if (typeof url === "string" && url.includes("tplannerexport") && url.includes("export=gpx")) {
+    this._isGPXRequest = true;
+  }
+  (originalXHROpen as (...args: unknown[]) => void).apply(this, [method, url, ...rest]);
+};
+
+XMLHttpRequest.prototype.send = function (body?: Document | XMLHttpRequestBodyInit | null): void {
   if (this._isGPXRequest) {
     const onReadyStateChange = (): void => {
       if (this.readyState !== 4 || (this.status !== 200 && this.status !== 0)) return;
@@ -162,7 +167,12 @@ XMLHttpRequest.prototype.send = function (
           .then((text) => {
             if (text.length > 0) {
               window.postMessage(
-                { type: "GPX_FETCHED", gpxContent: text, source: "xhr-blob", timestamp: Date.now() },
+                {
+                  type: "GPX_FETCHED",
+                  gpxContent: text,
+                  source: "xhr-blob",
+                  timestamp: Date.now(),
+                },
                 location.origin
               );
             }
@@ -282,7 +292,7 @@ function discoverMapInstance(): SMapInstance | null {
 
   for (const key of Object.keys(window)) {
     try {
-      const v = ((window as unknown) as Record<string, unknown>)[key];
+      const v = (window as unknown as Record<string, unknown>)[key];
       if (isDuckTypedSMap(v)) {
         captureInstance(v);
         return window.__climbMap ?? null;
@@ -292,7 +302,9 @@ function discoverMapInstance(): SMapInstance | null {
     }
   }
 
-  const candidates = Array.from(document.querySelectorAll('div[id], div[class*="map"], div[class*="Map"]'));
+  const candidates = Array.from(
+    document.querySelectorAll('div[id], div[class*="map"], div[class*="Map"]')
+  );
   for (const el of candidates) {
     for (const prop of Object.getOwnPropertyNames(el)) {
       try {

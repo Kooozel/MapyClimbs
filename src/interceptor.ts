@@ -42,8 +42,7 @@ window.addEventListener("message", (event: MessageEvent) => {
   if (event.origin !== location.origin) return;
 
   if (isGpxFetchedEvent(event.data)) {
-    const ts =
-      typeof event.data.timestamp === "number" ? event.data.timestamp : Date.now();
+    const ts = typeof event.data.timestamp === "number" ? event.data.timestamp : Date.now();
     storeAndNotifyGPX(event.data.gpxContent, ts);
   }
 });

@@ -18,11 +18,7 @@ export function parseGPX(gpxContent: string): ElevationTuple[] {
   }
 
   // Attempt multiple namespace variants used by different GPX exporters
-  const namespaces = [
-    "http://www.topografix.com/GPX/1/1",
-    "http://www.topografix.com/GPX/1/0",
-    "",
-  ];
+  const namespaces = ["http://www.topografix.com/GPX/1/1", "http://www.topografix.com/GPX/1/0", ""];
 
   let trkpts: HTMLCollectionOf<Element> | null = null;
   for (const ns of namespaces) {
@@ -54,10 +50,9 @@ export function parseGPX(gpxContent: string): ElevationTuple[] {
 
     const eleEl: Element | undefined =
       (trkpt.getElementsByTagName("ele")[0] as Element | undefined) ??
-      (trkpt.getElementsByTagNameNS(
-        "http://www.topografix.com/GPX/1/1",
-        "ele"
-      )[0] as Element | undefined);
+      (trkpt.getElementsByTagNameNS("http://www.topografix.com/GPX/1/1", "ele")[0] as
+        | Element
+        | undefined);
 
     const ele = eleEl ? parseFloat(eleEl.textContent ?? "0") : 0;
 
@@ -78,12 +73,7 @@ export function parseGPX(gpxContent: string): ElevationTuple[] {
 
     if (i > 0) {
       const prevPoint = trackPoints[i - 1];
-      cumulativeDistance += haversineDistance(
-        prevPoint.lat,
-        prevPoint.lon,
-        point.lat,
-        point.lon
-      );
+      cumulativeDistance += haversineDistance(prevPoint.lat, prevPoint.lon, point.lat, point.lon);
     }
 
     elevationProfile.push([cumulativeDistance, point.ele, point.lat, point.lon]);

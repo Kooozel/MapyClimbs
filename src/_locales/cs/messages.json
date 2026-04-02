@@ -1,10 +1,10 @@
 {
   "extName": {
-    "message": "MapyClimbs",
+    "message": "MapyClimbs: Statistiky stoupání",
     "description": "Extension name"
   },
   "extDescription": {
-    "message": "Analyzuje GPX soubory exportované z Mapy.cz a zobrazuje stoupání s barevnými segmenty dle sklonu a skórem obtížnosti.",
+    "message": "Automatická detekce každého stoupání na vaší trase na Mapy.com — výškové grafy, kategorie obtížnosti, VAM a živé body na mapě vložené přímo do bočního panelu.",
     "description": "Extension description"
   },
 
