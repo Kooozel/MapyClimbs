@@ -2,7 +2,7 @@
 
 Chrome extension that intercepts GPX exports from Mapy.cz, detects climbs, and injects analysis directly into the route-planner sidebar with live map pins.
 
-**Version**: 0.5.5 | **Browser**: Chrome 88+ / Edge 88+ / Brave
+**Version**: 0.6.0 | **Browser**: Chrome 88+ / Edge 88+ / Brave
 
 ## Quick Start
 
@@ -18,22 +18,26 @@ climb/
 ├── README.md
 ├── CHANGELOG.md
 ├── ARCHITECTURE.md       ← Architecture, algorithm, data flow, file responsibilities
-└── extension/
-    ├── manifest.json
-    ├── background.js             ← Service worker (imports climb-engine)
-    ├── climb-engine.js           ← Pure module: all climb-detection logic
-    ├── gpx-interceptor.js        ← Content script: injects page-level interceptor
-    ├── gpx-interceptor-injected.js ← Page-context fetch/XHR interceptor
-    ├── gpx-parser.js             ← GPX XML parser (Haversine distances)
-    ├── map-inject-chart.js       ← SVG elevation chart renderer
-    ├── map-inject-panel.js       ← Sidebar panel DOM builder
-    ├── map-inject.js             ← SPA lifecycle: GPX polling, map overlay, button injection
-    ├── map-inject.css            ← Injected panel styles
-    ├── popup.html / popup.css / popup.js  ← Extension info popup
-    └── images/
-        ├── icon-16.svg
-        ├── icon-48.svg
-        └── icon-128.svg
+├── manifest.json
+├── package.json
+├── tsconfig.json
+├── vite.config.ts
+└── src/
+    ├── types.ts                     ← Shared domain types and message interfaces
+    ├── background.ts                ← Service worker (imports climb-engine)
+    ├── climb-engine.ts              ← Pure module: all climb-detection logic
+    ├── interceptor.ts               ← Content script: injects page-level interceptor
+    ├── gpx-interceptor-injected.ts  ← Page-context fetch/XHR interceptor
+    ├── gpx-parser.ts                ← GPX XML parser (Haversine distances)
+    ├── popup.ts / popup.html / popup.css  ← Extension info popup
+    ├── map-inject.css               ← Injected panel styles
+    ├── _locales/
+    │   ├── cs/messages.json         ← Czech UI strings
+    │   └── en/messages.json         ← English UI strings
+    └── content/
+        ├── chart.ts                 ← SVG elevation chart renderer
+        ├── panel.ts                 ← Sidebar panel DOM builder
+        └── inject.ts                ← SPA lifecycle: GPX polling, map overlay, button injection
 ```
 
 ## Documentation

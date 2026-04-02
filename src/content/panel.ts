@@ -175,10 +175,7 @@ export function buildPanel(climbs: Climb[] | null, totalRouteDistance: number): 
   if (!climbs || climbs.length === 0) {
     panel.innerHTML = `
       <div class="cip-header-bar">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline points="3 17 9 11 13 15 21 7"/>
-          <polyline points="14 7 21 7 21 14"/>
-        </svg>
+        <img src="${chrome.runtime.getURL('images/icon-48.png')}" width="16" height="16" alt="" aria-hidden="true">
         <span>${chrome.i18n.getMessage("panelTitle")}</span>
       </div>
       <p class="cip-empty">${chrome.i18n.getMessage("panelNoClimbs")}</p>`;
@@ -205,10 +202,7 @@ export function buildPanel(climbs: Climb[] | null, totalRouteDistance: number): 
 
   panel.innerHTML = `
     <button class="cip-header-bar cip-toggle" aria-expanded="true">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <polyline points="3 17 9 11 13 15 21 7"/>
-        <polyline points="14 7 21 7 21 14"/>
-      </svg>
+      <img src="${chrome.runtime.getURL('images/icon-48.png')}" width="16" height="16" alt="" aria-hidden="true">
       <span>${chrome.i18n.getMessage("panelTitle")}</span>
       <svg class="cip-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
         <polyline points="6 9 12 15 18 9"/>

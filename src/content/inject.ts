@@ -214,11 +214,11 @@ function renderMapOverlay(): void {
       if (s.x >= -25 && s.x <= mb.width + 25 && s.y >= -25 && s.y <= mb.height + 25) {
         const pin = document.createElement("div");
         pin.style.cssText =
-          `position:absolute;left:${Math.round(s.x - 16)}px;top:${Math.round(s.y - 26)}px;` +
+          `position:absolute;left:${Math.round(s.x - 12)}px;top:${Math.round(s.y - 20)}px;` +
           "pointer-events:auto;cursor:default;filter:drop-shadow(0 3px 6px rgba(0,0,0,0.6));";
         pin.title = label + " (start)";
         pin.innerHTML =
-          '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="52" viewBox="0 0 24 39">' +
+          '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="39" viewBox="0 0 24 39">' +
           `<circle cx="12" cy="24" r="8" fill="${color}" stroke="#000" stroke-width="1.5" stroke-linejoin="round"/>` +
           '<text x="12" y="8" font-size="12" font-weight="bold" fill="#fff" text-anchor="middle" font-family="system-ui,sans-serif"' +
           ` paint-order="stroke" stroke="#000" stroke-width="1.5" opacity="0.8">${i + 1}</text>` +
@@ -240,8 +240,8 @@ function renderMapOverlay(): void {
       if (e.x >= -35 && e.x <= mb.width + 35 && e.y >= -40 && e.y <= mb.height + 10) {
         const peak = document.createElement("div");
         peak.style.cssText =
-          `position:absolute;left:${Math.round(e.x - 60)}px;top:${Math.round(e.y - 70)}px;` +
-          "pointer-events:auto;cursor:default;width:120px;height:140px;";
+          `position:absolute;left:${Math.round(e.x - 45)}px;top:${Math.round(e.y - 52)}px;` +
+          "pointer-events:auto;cursor:default;width:90px;height:105px;";
         peak.title = label + " (end)";
         const catLabel = climb.category === "HC" ? "HC" : "C" + climb.category;
         peak.innerHTML =
@@ -358,10 +358,7 @@ function buildButton(): HTMLDivElement {
   btn.className = "icon-action";
   btn.innerHTML = `
     <button type="button">
-      <svg x="0px" y="0px" viewBox="0 0 24 24" class="icon">
-        <polyline points="3 17 9 11 13 15 21 7"/>
-        <polyline points="14 7 21 7 21 14"/>
-      </svg>
+      <img src="${chrome.runtime.getURL('images/icon-48.png')}" width="24" height="24" alt="" aria-hidden="true">
       <span>${chrome.i18n.getMessage("panelTitle")}</span>
     </button>`;
   btn.querySelector("button")!.addEventListener("click", onClimbButtonClick);

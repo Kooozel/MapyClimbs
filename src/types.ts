@@ -1,5 +1,5 @@
 /**
- * Shared domain types for Climb Analyzer.
+ * Shared domain types for MapyClimbs.
  * Imported by background service worker, content scripts, and popup.
  */
 

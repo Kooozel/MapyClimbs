@@ -13,7 +13,7 @@ The extension uses a **five-layer architecture** for GPX capture, analysis, and 
                ▼
 ┌─────────────────────────────────────────┐
 │  Page Context (Injected Script)         │
-│  gpx-interceptor-injected.js            │
+│  gpx-interceptor-injected.ts            │
 │  - Intercepts FETCH & XHR               │
 │  - Converts blob responses to text      │
 │  - Posts GPX via postMessage            │
@@ -22,7 +22,7 @@ The extension uses a **five-layer architecture** for GPX capture, analysis, and 
                ▼
 ┌─────────────────────────────────────────┐
 │  Content Script Context                 │
-│  gpx-interceptor.js                     │
+│  interceptor.ts                         │
 │  - Listens for GPX via postMessage      │
 │  - Stores in chrome.storage.local       │
 │  - Notifies background worker           │
@@ -32,7 +32,7 @@ The extension uses a **five-layer architecture** for GPX capture, analysis, and 
                ▼
 ┌─────────────────────────────────────────┐
 │  Service Worker Context                 │
-│  background.js                          │
+│  background.ts                          │
 │  - Receives GPX via chrome.runtime API  │
 │  - Processes climb detection            │
 │  - Responds to popup requests           │
@@ -41,7 +41,7 @@ The extension uses a **five-layer architecture** for GPX capture, analysis, and 
                ▼
 ┌─────────────────────────────────────────┐
 │  Popup Context                          │
-│  popup.js/html/css                      │
+│  popup.ts/html/css                      │
 │  - Shows last capture status            │
 │  - Displays climb count + distance      │
 │  - Retry button for reanalysis          │
@@ -49,7 +49,7 @@ The extension uses a **five-layer architecture** for GPX capture, analysis, and 
 ```
 
 _(Sidebar panel and map pins are rendered by the content scripts_
-_`map-inject-chart.js` + `map-inject-panel.js` + `map-inject.js` —_
+_`content/chart.ts` + `content/panel.ts` + `content/inject.ts` —_
 _not by the popup.)_
 
 ## Data Flow
@@ -61,16 +61,16 @@ User clicks "Export Route" on Mapy.cz
          ↓
 XHR/Fetch to /api/tplannerexport?export=gpx
          ↓
-gpx-interceptor-injected.js intercepts response
+gpx-interceptor-injected.ts intercepts response
          ↓
 Converts blob/text to GPX string
          ↓
 window.postMessage({ type: 'GPX_FETCHED', gpxContent })
          ↓
-gpx-interceptor.js content script receives message
+interceptor.ts content script receives message
          ↓
 Stores in chrome.storage.local
-Sends message to background.js
+Sends message to background.ts
 Notifies popup via port
          ↓
 Extension icon shows notification (optional)
@@ -81,18 +81,18 @@ Extension icon shows notification (optional)
 ```
 User clicks "MapyClimbs" button injected in the route toolbar
          ↓
-map-inject.js: onClimbButtonClick() → pollForGPX()
+content/inject.ts: onClimbButtonClick() → pollForGPX()
          ↓
 Reads { pendingGPX, lastTotalDistance } from chrome.storage.local
          ↓
-Calls parseGPX() from gpx-parser.js (shared content-script library)
+Calls parseGPX() from gpx-parser.ts (shared content-script library)
          ↓
 Generates elevation profile [[distance_m, elevation_m, lat, lon], ...]
          ↓
-Sends PROCESS_CLIMBS message to background.js
+Sends PROCESS_CLIMBS message to background.ts
          ↓
-background.js imports detectClimbs() from climb-engine.js
-climb-engine.js 7-step pipeline:
+background.ts imports detectClimbs() from climb-engine.ts
+climb-engine.ts 7-step pipeline:
   1. Build structured profile from raw tuples
   2. resamplePoints() - remove GPS micro-jitter (<12 m)
   3. smoothElevationProfile() / filterNoiseSpikes() - adaptive smoothing
@@ -101,12 +101,12 @@ climb-engine.js 7-step pipeline:
   6. splitAntiGreenClimbs() - split on >400 m of <2% grade
   7. mergeNearbyClimbs() again (1500 m) → re-trim / re-categorize
          ↓
-Returns Climb[] to background.js
+Returns Climb[] to background.ts
          ↓
-background.js stores results in chrome.storage.local, responds to map-inject.js
+background.ts stores results in chrome.storage.local, responds to content/inject.ts
          ↓
-map-inject.js calls buildPanel(climbs, totalRouteDistance) from map-inject-panel.js
-map-inject.js calls renderMapOverlay(climbs) to place Web Mercator pins
+content/inject.ts calls buildPanel(climbs, totalRouteDistance) from content/panel.ts
+content/inject.ts calls renderMapOverlay(climbs) to place Web Mercator pins
 ```
 
 ## File Responsibilities
@@ -114,12 +114,23 @@ map-inject.js calls renderMapOverlay(climbs) to place Web Mercator pins
 ### `manifest.json`
 
 - Extension metadata, permissions (`storage` only)
-- Service worker with `"type": "module"` (enables ES module `import` in background.js)
-- Content scripts: `gpx-interceptor.js` at `document_start`; `gpx-parser.js` + `map-inject-chart.js` + `map-inject-panel.js` + `map-inject.js` at `document_idle`
-- Web-accessible resource: `gpx-interceptor-injected.js`
+- Service worker with `"type": "module"` (enables ES module `import` in background.ts)
+- Content scripts: `interceptor.ts` at `document_start`; `gpx-parser.ts` + `content/chart.ts` + `content/panel.ts` + `content/inject.ts` at `document_idle`
+- Web-accessible resource: `gpx-interceptor-injected.ts`
 - Host permissions for `mapy.cz` and `mapy.com`
 
-### `gpx-interceptor-injected.js`
+### `types.ts`
+
+**Context**: Shared module — imported by all layers
+**Responsibilities**:
+
+- `StorageKey` — typed constants for all `chrome.storage.local` keys
+- `ElevationTuple`, `GpsPoint`, `Climb` — core data types for the detection pipeline
+- `ProcessClimbsMessage`, `AnalyzeGpxMessage`, `GpxCapturedMessage` — extension message union type
+- `ClimbsResponse`, `GpxStoredResponse` — response shapes for background message handlers
+- `PortMessage` — shape of notifications pushed over the popup long-lived port
+
+### `gpx-interceptor-injected.ts`
 
 **Context**: Page/window context (not sandboxed)
 **When**: Runs at document_start
@@ -132,20 +143,20 @@ map-inject.js calls renderMapOverlay(climbs) to place Web Mercator pins
 - Converts blob responses to text
 - Posts captured GPX to content script via postMessage
 
-### `gpx-interceptor.js`
+### `interceptor.ts`
 
 **Context**: Content script (sandboxed, separate from page)
 **When**: Runs at document_start
 **Responsibilities**:
 
-- Injects gpx-interceptor-injected.js into page
+- Injects `gpx-interceptor-injected.ts` into page
 - Listens for postMessage events from injected script
 - Validates GPX content
 - Stores in chrome.storage.local
-- Sends chrome.runtime.sendMessage to background.js
+- Sends chrome.runtime.sendMessage to background.ts
 - Maintains persistent port connection to popup
 
-### `background.js`
+### `background.ts`
 
 **Context**: Service worker ES module (always running)
 **Responsibilities**:
@@ -153,11 +164,12 @@ map-inject.js calls renderMapOverlay(climbs) to place Web Mercator pins
 - Storage version guard — clears stale cache on schema change
 - Manages connected popup port list for push notifications
 - Handles `GPX_CAPTURED` messages: stores GPX + timestamp, notifies popup ports
-- Handles `PROCESS_CLIMBS` messages: delegates to `detectClimbs()` (imported from `climb-engine.js`), writes results to storage, sends response
+- Handles `PROCESS_CLIMBS` messages: delegates to `detectClimbs()` (imported from `climb-engine.ts`), writes results to storage, sends response
+- Handles `ANALYZE_GPX` messages: parses raw GPX via `parseGPX()` then runs `detectClimbs()`
 
-### `climb-engine.js`
+### `climb-engine.ts`
 
-**Context**: ES module imported by `background.js`
+**Context**: ES module imported by `background.ts`
 **Responsibilities** (pure functions — no Chrome APIs):
 
 - `detectClimbs()` — 7-step pipeline entry point
@@ -174,15 +186,15 @@ map-inject.js calls renderMapOverlay(climbs) to place Web Mercator pins
 
 Only `detectClimbs` is exported; all other functions are private to the module.
 
-### `gpx-parser.js`
+### `gpx-parser.ts`
 
-**Context**: Shared library — loaded as content script on mapy.cz pages AND via `<script>` tag in `popup.html`
+**Context**: Shared library — imported by `content/inject.ts` as a content script and by `background.ts` for the `ANALYZE_GPX` path
 **Responsibilities**:
 
 - Parse GPX XML format with support for three namespace variants
 - Extract track points with latitude, longitude, elevation
 - Calculate cumulative distance using the Haversine formula
-- Return elevation profile as `[[distance_m, elevation_m, lat, lon], ...]`
+- Return elevation profile as `ElevationTuple[]` (`[distance_m, elevation_m, lat, lon]`)
 
 ### `popup.html`
 
@@ -198,21 +210,21 @@ Only `detectClimbs` is exported; all other functions are private to the module.
 - Dark-theme styles for the 280px toolbar popup
 - Status dot, spinner animation, retry button, info sections
 
-### `popup.js`
+### `popup.ts`
 
 **Context**: Popup window script (runs when popup opened)
 **Responsibilities**:
 
-- Establish persistent port connection to background.js for push notifications
+- Establish persistent port connection to background.ts for push notifications
 - Read `lastClimbResult` + `lastTotalDistance` from `chrome.storage.local` on open
 - Update climb count and total distance display
 - Show spinner while analysis is pending; show retry button if result is empty
-- Retry button re-sends the last `pendingGPX` to background.js for reanalysis
+- Retry button sends `ANALYZE_GPX` with the last `pendingGPX` to background.ts for reanalysis
 
-### `map-inject.js`
+### `content/inject.ts`
 
-**Context**: Content script IIFE — SPA lifecycle controller
-**State** (private to IIFE): `_climbs`, `_panelInjected`, `_lastGPXLength`, `_totalRouteDistance`
+**Context**: Content script — SPA lifecycle controller
+**State**: `_climbs`, `_panelInjected`, `_lastGPXLength`, `_totalRouteDistance`
 **Responsibilities**:
 
 - `isRoutePlannerActive()` — guards all logic; returns false outside the route-planner view
@@ -220,15 +232,15 @@ Only `detectClimbs` is exported; all other functions are private to the module.
 - `onClimbButtonClick()` — triggered by injected button; calls `pollForGPX()`
 - `pollForGPX()` — reads `pendingGPX` + `lastTotalDistance` from storage; sends `PROCESS_CLIMBS` to background
 - `analyzeGPX(gpxText)` → `parseGPX()` → sends message → on response calls `renderPanel` + `renderMapOverlay`
-- `renderPanel()` / `tryInjectPanel()` — calls `buildPanel(climbs, totalRouteDistance)` from `map-inject-panel.js`
+- `renderPanel()` / `tryInjectPanel()` — calls `buildPanel(climbs, totalRouteDistance)` from `content/panel.ts`
 - `renderMapOverlay(climbs)` — reads viewport from URL `x`/`y`/`z` params; places Web Mercator SVG pins
 - `tryInjectButton()` / `buildButton()` — injects "MapyClimbs" button next to export button in toolbar
 - `clearRoutePlannerState()` — removes panel, overlay, and storage keys when route planner closes
 - `onMutation()` — re-injects button/panel if Mapy.cz SPA navigation removes them
 
-### `map-inject-chart.js`
+### `content/chart.ts`
 
-**Context**: Content script (loaded before `map-inject.js`, shares global scope)
+**Context**: Content script (loaded before `content/inject.ts`)
 **Responsibilities**:
 
 - `generateElevationChart(segments, totalDistanceMeters, climbCategory)` — entry point
@@ -236,16 +248,16 @@ Only `detectClimbs` is exported; all other functions are private to the module.
 - `renderElevationSVG(profile, totalDistance, climbCategory)` — builds SVG with Catmull-Rom Bezier curves, grade-coloured gradient fills, and X-axis distance labels
 - No Chrome APIs, no mutable state (except an internal `_chartUid` counter for unique SVG IDs)
 
-### `map-inject-panel.js`
+### `content/panel.ts`
 
-**Context**: Content script (loaded after `map-inject-chart.js`, before `map-inject.js`)
+**Context**: Content script (loaded after `content/chart.ts`, before `content/inject.ts`)
 **Responsibilities**:
 
 - `buildPanel(climbs, totalRouteDistance)` — constructs the full sidebar DOM tree
 - `buildClimbCard(climb, index)`, `buildRouteOverview(climbs, totalRouteDistance)` — card/overview builders
 - `showChartOverlay(svgEl)` / `hideChartOverlay()` — floating chart overlay on hover
 - `calcVAM`, `estimateClimbTime`, `calcFiets`, `calcMaxGradientOver` — per-climb metric helpers
-- Depends on `generateElevationChart` from `map-inject-chart.js`
+- Depends on `generateElevationChart` from `content/chart.ts`
 
 ## Key Design Decisions
 

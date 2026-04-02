@@ -1,6 +1,6 @@
 {
   "extName": {
-    "message": "Mapy.cz Climb Analyzer",
+    "message": "MapyClimbs",
     "description": "Extension name"
   },
   "extDescription": {
@@ -49,7 +49,7 @@
     "description": "How-to step 2"
   },
   "popupHowToStep3": {
-    "message": "Klikněte na <strong>Climb Analyzer</strong> v panelu trasy — doplněk automaticky stáhne a analyzuje GPX",
+    "message": "Klikněte na <strong>MapyClimbs</strong> v panelu trasy — doplněk automaticky stáhne a analyzuje GPX",
     "description": "How-to step 3 (may contain HTML)"
   },
   "popupHowToStep4": {
@@ -65,11 +65,11 @@
     "description": "Scoring formula label"
   },
   "popupBmcHeading": {
-    "message": "Líbí se vám Climb Analyzer?",
+    "message": "Líbí se vám MapyClimbs?",
     "description": "Support section heading"
   },
   "popupBmcDesc": {
-    "message": "Stovky hodin práce pro vás. Pokud vám šetří čas, zvažte koupi kávy pro udržení projektu! ☕",
+    "message": "Každý výjezd začíná prvním šlápnutím do pedálu. Pokud vám MapyClimbs pomáhá zdolávat kopce, kupte vývojáři kávu! ☕",
     "description": "Support section description"
   },
   "popupBmcBtn": {
@@ -78,7 +78,7 @@
   },
 
   "panelTitle": {
-    "message": "Climb Analyzer",
+    "message": "MapyClimbs",
     "description": "Sidebar panel and toolbar button title"
   },
   "panelRouteOverview": {

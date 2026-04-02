@@ -2,6 +2,29 @@
 
 All notable changes to the MapyClimbs extension are documented here.
 
+## [0.6.0] — 2026-04-02 (TypeScript Migration)
+
+### Added
+
+- `src/types.ts` — shared domain types and message interfaces: `StorageKey`, `Climb`, `GpsPoint`, `ElevationTuple`, `ExtensionMessage`, `ProcessClimbsMessage`, `AnalyzeGpxMessage`, `GpxCapturedMessage`, `ClimbsResponse`
+- `ANALYZE_GPX` message type — background worker accepts raw GPX content directly; used by the popup retry flow so it no longer depends on a separately parsed elevation profile
+- `_locales/cs/messages.json` and `_locales/en/messages.json` — full i18n message catalogs (Czech and English)
+- `vite.config.ts` — Vite + `@crxjs/vite-plugin` build, replacing the hand-rolled `build.js`
+- `tsconfig.json` — TypeScript strict-mode configuration
+- `test/climb-engine.test.js` — Vitest test suite (40 tests, 83.6% branch coverage)
+- CI — GitHub Actions workflow (`.github/workflows/ci.yml`): typecheck, lint, and test on every push
+- ESLint flat config (`eslint.config.js`) and Prettier (`.prettierrc`) for consistent code style
+
+### Changed
+
+- Complete rewrite of all source files from JavaScript to TypeScript under `src/`
+- File renames: `gpx-interceptor.js` → `interceptor.ts`; `map-inject-chart.js` → `content/chart.ts`; `map-inject-panel.js` → `content/panel.ts`; `map-inject.js` → `content/inject.ts`; `popup.js` → `popup.ts`
+- Source root moved from `extension/` to `src/`; `manifest.json` promoted to repo root
+- `chart-utils.js` merged into `content/chart.ts`; SVG icons replaced with PNG (required by Chrome for packed extensions)
+- `npm run build` now runs Vite; `npm run pack` wraps web-ext around the Vite output
+
+---
+
 ## [0.5.5] — 2026-04-01 (CSS Cleanup)
 
 ### Changed
