@@ -1,52 +1,40 @@
-import js from "@eslint/js";
+import tseslint from "typescript-eslint";
 import globals from "globals";
 
-const sharedRules = {
-  "no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" }],
-  "no-undef": "error",
-  "no-console": "warn",
-  "no-empty": ["error", { allowEmptyCatch: true }],
-};
+export default tseslint.config(
+  // Ignore legacy JS source and build output
+  { ignores: ["extension/", "dist/"] },
 
-export default [
-  js.configs.recommended,
-  // Content scripts — loaded as classic <script> tags, share one global scope per page.
+  // TypeScript source files (all browser/webextension context)
+  ...tseslint.configs.recommended,
   {
-    files: ["extension/**/*.js"],
-    ignores: ["extension/background.js", "extension/climb-engine.js"],
+    files: ["src/**/*.ts"],
     languageOptions: {
-      ecmaVersion: 2023,
-      sourceType: "script",
       globals: {
         ...globals.browser,
         ...globals.webextensions,
       },
     },
-    rules: sharedRules,
+    rules: {
+      "@typescript-eslint/no-unused-vars": [
+        "error",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
+      ],
+      "no-console": "warn",
+    },
   },
-  // Node.js build scripts.
+
+  // Node.js context: Vite config and ESLint config itself
   {
-    files: ["build.js", "*.config.js"],
+    files: ["vite.config.ts", "eslint.config.js"],
     languageOptions: {
-      ecmaVersion: 2023,
-      sourceType: "module",
       globals: {
         ...globals.node,
       },
     },
-    rules: sharedRules,
-  },
-  // Background service worker and its ES module imports.
-  {
-    files: ["extension/background.js", "extension/climb-engine.js"],
-    languageOptions: {
-      ecmaVersion: 2023,
-      sourceType: "module",
-      globals: {
-        ...globals.browser,
-        ...globals.webextensions,
-      },
-    },
-    rules: sharedRules,
-  },
-];
+  }
+);

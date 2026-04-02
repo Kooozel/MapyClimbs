@@ -1,49 +1,51 @@
 /**
- * map-inject-chart.js — Elevation profile SVG chart renderer.
+ * content/chart.ts — Elevation profile SVG chart renderer.
  * Pure DOM/SVG creation — no Chrome APIs, no module state except the
  * per-page UID counter used to keep gradient/clipPath IDs unique.
- *
- * Public:
- *   generateElevationChart(segments, totalDistanceMeters, climbCategory) → html string
  */
-/* exported generateElevationChart */
+
+import type { ClimbCategory, Segment } from "../types";
 
 let _chartUid = 0;
 
-/**
- * Build an SVG elevation profile chart for a climb.
- * @param {Segment[]} segments
- * @param {number}    totalDistanceMeters
- * @param {string}    climbCategory
- * @returns {string} HTML string (div > svg), or '' when no data
- */
-function generateElevationChart(segments, totalDistanceMeters, climbCategory) {
-  if (!segments || segments.length === 0) return '';
+interface ProfilePoint {
+  distance: number;
+  elevation: number;
+  gradient: number;
+}
 
-  const profile = [];
+/** Build an SVG elevation profile chart for a climb. Returns an HTML string or '' when empty. */
+export function generateElevationChart(
+  segments: Segment[],
+  totalDistanceMeters: number,
+  _climbCategory: ClimbCategory
+): string {
+  if (!segments || segments.length === 0) return "";
+
+  const profile: ProfilePoint[] = [];
   let cumulDist = 0;
   for (const seg of segments) {
     profile.push({ distance: cumulDist, elevation: seg.startElevation, gradient: seg.gradient });
     cumulDist += seg.distance;
   }
-  profile.push({ distance: cumulDist, elevation: segments[segments.length - 1].endElevation, gradient: 0 });
-  if (profile.length < 2) return '';
+  profile.push({
+    distance: cumulDist,
+    elevation: segments[segments.length - 1].endElevation,
+    gradient: 0,
+  });
+  if (profile.length < 2) return "";
 
-  return renderElevationSVG(simplifyElevationProfile(profile), cumulDist, climbCategory);
+  return renderElevationSVG(simplifyElevationProfile(profile), cumulDist, _climbCategory);
 }
 
-/**
- * Reduce profile to at most 20 key points by keeping gradient-change knees.
- * Falls back to uniform sampling when there are too many knees.
- */
-function simplifyElevationProfile(profile) {
+function simplifyElevationProfile(profile: ProfilePoint[]): ProfilePoint[] {
   if (profile.length <= 3) return profile;
   const maxSegs = Math.min(20, Math.max(8, Math.ceil(profile.length / 3)));
 
-  const grads = [];
+  const grads: number[] = [];
   for (let i = 0; i < profile.length - 1; i++) {
     const dE = profile[i + 1].elevation - profile[i].elevation;
-    const dD = profile[i + 1].distance  - profile[i].distance;
+    const dD = profile[i + 1].distance - profile[i].distance;
     grads.push(dD > 0 ? (dE / dD) * 100 : 0);
   }
 
@@ -60,50 +62,46 @@ function simplifyElevationProfile(profile) {
     keys.push(profile.length - 1);
   }
 
-  return [...new Set(keys)].sort((a, b) => a - b).map(i => profile[i]);
+  return [...new Set(keys)].sort((a, b) => a - b).map((i) => profile[i]);
 }
 
-/**
- * Render a gradient-colored elevation SVG string.
- *
- * Design:
- * - Catmull-Rom → Cubic Bezier smooth line
- * - Hard-edge gradient stops (duplicate offset per segment boundary)
- * - Separate aura overlay (white → transparent top-to-bottom)
- * - Y-axis: 4 elevation labels; X-axis: grade-color-change boundaries
- */
-function renderElevationSVG(profile, totalDistance, _climbCategory = '4') {
-  if (profile.length < 2) return '';
+function renderElevationSVG(
+  profile: ProfilePoint[],
+  totalDistance: number,
+  _climbCategory: ClimbCategory = "4"
+): string {
+  if (profile.length < 2) return "";
   const uid = _chartUid++;
 
-  const elevs     = profile.map(p => p.elevation);
-  const minElev   = Math.min(...elevs) - 5;
-  const maxElev   = Math.max(...elevs) + 5;
+  const elevs = profile.map((p) => p.elevation);
+  const minElev = Math.min(...elevs) - 5;
+  const maxElev = Math.max(...elevs) + 5;
   const elevRange = maxElev - minElev;
-  if (elevRange === 0) return '';
+  if (elevRange === 0) return "";
 
-  const W = 440, H = 120;
+  const W = 440,
+    H = 120;
   const M = { left: 42, right: 12, top: 10, bottom: 28 };
   const cW = W - M.left - M.right;
   const cH = H - M.top - M.bottom;
 
-  const sx   = d  => M.left + (d / (totalDistance || 1)) * cW;
-  const sy   = el => H - M.bottom - ((el - minElev) / elevRange) * cH;
+  const sx = (d: number) => M.left + (d / (totalDistance || 1)) * cW;
+  const sy = (el: number) => H - M.bottom - ((el - minElev) / elevRange) * cH;
   const base = H - M.bottom;
 
-  const getColorForGrade = g => {
-    if (g < 3)  return '#4CAF50';
-    if (g < 6)  return '#FBC02D';
-    if (g < 9)  return '#F57C00';
-    if (g < 12) return '#D32F2F';
-    return '#800020';
+  const getColorForGrade = (g: number): string => {
+    if (g < 3) return "#4CAF50";
+    if (g < 6) return "#FBC02D";
+    if (g < 9) return "#F57C00";
+    if (g < 12) return "#D32F2F";
+    return "#800020";
   };
 
-  // ── Catmull-Rom → Cubic Bezier (smooth tangents at every point) ─────────────
-  const pts = profile.map(p => ({ x: sx(p.distance), y: sy(p.elevation) }));
+  // Catmull-Rom → Cubic Bezier
+  const pts = profile.map((p) => ({ x: sx(p.distance), y: sy(p.elevation) }));
 
-  const buildCurve = () => {
-    let d = '';
+  const buildCurve = (): string => {
+    let d = "";
     for (let i = 1; i < pts.length; i++) {
       const p0 = pts[Math.max(0, i - 2)];
       const p1 = pts[i - 1];
@@ -118,41 +116,43 @@ function renderElevationSVG(profile, totalDistance, _climbCategory = '4') {
     return d;
   };
 
-  const first = pts[0], last = pts[pts.length - 1];
+  const first = pts[0];
+  const last = pts[pts.length - 1];
   const curve = buildCurve();
-  const fillPath   = `M ${first.x.toFixed(1)} ${base} L ${first.x.toFixed(1)} ${first.y.toFixed(1)}${curve} L ${last.x.toFixed(1)} ${base} Z`;
+  const fillPath = `M ${first.x.toFixed(1)} ${base} L ${first.x.toFixed(1)} ${first.y.toFixed(1)}${curve} L ${last.x.toFixed(1)} ${base} Z`;
   const strokePath = `M ${first.x.toFixed(1)} ${first.y.toFixed(1)}${curve}`;
 
-  // ── Hard-edge color stops (duplicate at each boundary = no blending) ─────────
-  const stops = [];
+  // Hard-edge gradient stops
+  const stops: string[] = [];
   for (let i = 0; i < profile.length - 1; i++) {
-    const a = profile[i], b = profile[i + 1];
-    const dD  = b.distance - a.distance;
-    const g   = dD > 0 ? ((b.elevation - a.elevation) / dD) * 100 : 0;
+    const a = profile[i];
+    const b = profile[i + 1];
+    const dD = b.distance - a.distance;
+    const g = dD > 0 ? ((b.elevation - a.elevation) / dD) * 100 : 0;
     const col = getColorForGrade(g);
-    const sPct = (a.distance / (totalDistance || 1) * 100).toFixed(2) + '%';
-    const ePct = (b.distance / (totalDistance || 1) * 100).toFixed(2) + '%';
+    const sPct = ((a.distance / (totalDistance || 1)) * 100).toFixed(2) + "%";
+    const ePct = ((b.distance / (totalDistance || 1)) * 100).toFixed(2) + "%";
     stops.push(`<stop offset="${sPct}" stop-color="${col}"/>`);
     stops.push(`<stop offset="${ePct}" stop-color="${col}"/>`);
   }
 
-  // ── Y-axis grid ──────────────────────────────────────────────────────────────
-  let yAxis = '';
+  // Y-axis grid
+  let yAxis = "";
   for (let i = 0; i < 4; i++) {
-    const r  = i / 3;
+    const r = i / 3;
     const el = minElev + r * elevRange;
-    const y  = sy(el).toFixed(1);
+    const y = sy(el).toFixed(1);
     yAxis += `<line x1="${M.left - 4}" y1="${y}" x2="${M.left}" y2="${y}" stroke="rgba(0,0,0,0.25)" stroke-width="0.5"/>`;
     yAxis += `<text x="${M.left - 6}" y="${y}" dy="0.35em" font-size="10" fill="#666" text-anchor="end">${Math.round(el)}</text>`;
     if (i > 0 && i < 3)
       yAxis += `<line x1="${M.left}" y1="${y}" x2="${W - M.right}" y2="${y}" stroke="rgba(0,0,0,0.07)" stroke-width="0.5"/>`;
   }
 
-  // ── X-axis: labels at grade-color-change boundaries, forward-greedy filtered ─
+  // X-axis at grade-color-change boundaries
   const segColors = profile.slice(0, -1).map((a, i) => {
-    const b  = profile[i + 1];
+    const b = profile[i + 1];
     const dD = b.distance - a.distance;
-    const g  = dD > 0 ? ((b.elevation - a.elevation) / dD) * 100 : 0;
+    const g = dD > 0 ? ((b.elevation - a.elevation) / dD) * 100 : 0;
     return getColorForGrade(g);
   });
   const boundaries = [profile[0].distance];
@@ -173,9 +173,9 @@ function renderElevationSVG(profile, totalDistance, _climbCategory = '4') {
     kept.push(endD);
   }
 
-  let xAxis = '';
+  let xAxis = "";
   for (const d of kept) {
-    const x   = sx(d).toFixed(1);
+    const x = sx(d).toFixed(1);
     const lbl = totalDistance >= 1000 ? `${(d / 1000).toFixed(1)}km` : `${Math.round(d)}m`;
     xAxis += `<line x1="${x}" y1="${base}" x2="${x}" y2="${base + 3}" stroke="rgba(0,0,0,0.25)" stroke-width="0.5"/>`;
     xAxis += `<text x="${x}" y="${H - 6}" font-size="9" fill="#666" text-anchor="middle">${lbl}</text>`;
@@ -189,7 +189,7 @@ function renderElevationSVG(profile, totalDistance, _climbCategory = '4') {
             <path d="${fillPath}"/>
           </clipPath>
           <linearGradient id="slopeGrad-${uid}" x1="${M.left}" y1="0" x2="${W - M.right}" y2="0" gradientUnits="userSpaceOnUse">
-            ${stops.join('\n            ')}
+            ${stops.join("\n            ")}
           </linearGradient>
           <linearGradient id="auraFade-${uid}" x1="0" y1="${M.top}" x2="0" y2="${base}" gradientUnits="userSpaceOnUse">
             <stop offset="0%"   stop-color="#fff" stop-opacity="0.55"/>
