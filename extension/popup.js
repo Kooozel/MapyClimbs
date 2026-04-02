@@ -3,6 +3,7 @@
  * Shows last GPX capture status and climb analysis results.
  * v0.5: Adds loading spinner, retry button, and climb statistics.
  */
+/* global parseGPX */
 
 (function () {
   'use strict';

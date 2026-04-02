@@ -4,8 +4,8 @@
  * Communicates back to content script via postMessage
  */
 
-(function() {
-  'use strict';
+(function () {
+  "use strict";
 
   // === DOWNLOAD SUPPRESSION ===
   // When the Climb Analyzer button triggers the GPX export programmatically,
@@ -14,8 +14,8 @@
 
   let _suppressNextDownload = false;
 
-  window.addEventListener('message', (event) => {
-    if (event.source === window && event.data && event.data.type === 'CLIMB_SUPPRESS_DOWNLOAD') {
+  window.addEventListener("message", (event) => {
+    if (event.source === window && event.data && event.data.type === "CLIMB_SUPPRESS_DOWNLOAD") {
       _suppressNextDownload = true;
     }
   });
@@ -23,7 +23,7 @@
   // Intercept the programmatic anchor.click() that triggers blob downloads
   const _origAnchorClick = HTMLAnchorElement.prototype.click;
   HTMLAnchorElement.prototype.click = function () {
-    if (_suppressNextDownload && this.download && this.href.startsWith('blob:')) {
+    if (_suppressNextDownload && this.download && this.href.startsWith("blob:")) {
       _suppressNextDownload = false;
       return;
     }
@@ -33,56 +33,71 @@
   // === FETCH INTERCEPTOR ===
   const originalFetch = window.fetch;
 
-  window.fetch = function(...args) {
-    const url = typeof args[0] === 'string' ? args[0] : (args[0]?.url || '');
-    
+  window.fetch = function (...args) {
+    const url = typeof args[0] === "string" ? args[0] : args[0]?.url || "";
+
     // Check if this is a GPX export request
-    if (url.includes('tplannerexport') && url.includes('export=gpx')) {
-      
+    if (url.includes("tplannerexport") && url.includes("export=gpx")) {
       const fetchPromise = originalFetch.apply(this, args);
-      
+
       fetchPromise
         .then((response) => {
           // Check content-type to determine how to read
-          const contentType = response.headers.get('content-type') || '';
+          const contentType = response.headers.get("content-type") || "";
           const clonedResponse = response.clone();
-          
+
           // Handle different response types
-          if (contentType.includes('application/octet-stream') || contentType.includes('application/blob')) {
+          if (
+            contentType.includes("application/octet-stream") ||
+            contentType.includes("application/blob")
+          ) {
             // Binary blob response
-            clonedResponse.blob().then((blob) => {
-              return blob.text();
-            }).then((gpxContent) => {
-              if (gpxContent && gpxContent.length > 0) {
-                window.postMessage({
-                  type: 'GPX_FETCHED',
-                  gpxContent: gpxContent,
-                  source: 'fetch-blob',
-                  timestamp: Date.now()
-                }, '*');
-              }
-            }).catch(() => {});
+            clonedResponse
+              .blob()
+              .then((blob) => {
+                return blob.text();
+              })
+              .then((gpxContent) => {
+                if (gpxContent && gpxContent.length > 0) {
+                  window.postMessage(
+                    {
+                      type: "GPX_FETCHED",
+                      gpxContent: gpxContent,
+                      source: "fetch-blob",
+                      timestamp: Date.now(),
+                    },
+                    "*"
+                  );
+                }
+              })
+              .catch(() => {});
           } else {
             // Text response
-            clonedResponse.text().then((gpxContent) => {
-              if (gpxContent && gpxContent.length > 0) {
-                window.postMessage({
-                  type: 'GPX_FETCHED',
-                  gpxContent: gpxContent,
-                  source: 'fetch-text',
-                  timestamp: Date.now()
-                }, '*');
-              }
-            }).catch(() => {});
+            clonedResponse
+              .text()
+              .then((gpxContent) => {
+                if (gpxContent && gpxContent.length > 0) {
+                  window.postMessage(
+                    {
+                      type: "GPX_FETCHED",
+                      gpxContent: gpxContent,
+                      source: "fetch-text",
+                      timestamp: Date.now(),
+                    },
+                    "*"
+                  );
+                }
+              })
+              .catch(() => {});
           }
-          
+
           return response;
         })
         .catch(() => {});
-      
+
       return fetchPromise;
     }
-    
+
     return originalFetch.apply(this, args);
   };
 
@@ -90,15 +105,15 @@
   const originalXHROpen = XMLHttpRequest.prototype.open;
   const originalXHRSend = XMLHttpRequest.prototype.send;
 
-  XMLHttpRequest.prototype.open = function(method, url, ...rest) {
+  XMLHttpRequest.prototype.open = function (method, url, ...rest) {
     // Check if this is a GPX request
-    if (typeof url === 'string' && url.includes('tplannerexport') && url.includes('export=gpx')) {
+    if (typeof url === "string" && url.includes("tplannerexport") && url.includes("export=gpx")) {
       this._isGPXRequest = true;
     }
     return originalXHROpen.apply(this, [method, url, ...rest]);
   };
 
-  XMLHttpRequest.prototype.send = function(...args) {
+  XMLHttpRequest.prototype.send = function (...args) {
     if (this._isGPXRequest) {
       // Set up load listener to capture the response
       const onReadyStateChange = () => {
@@ -106,49 +121,60 @@
           let gpxContent = null;
 
           // Handle different response types
-          if (this.responseType === 'blob' && this.response instanceof Blob) {
+          if (this.responseType === "blob" && this.response instanceof Blob) {
             // Response is a blob - read it as text
-            this.response.text().then((text) => {
-              if (text && text.length > 0) {
-                window.postMessage({
-                  type: 'GPX_FETCHED',
-                  gpxContent: text,
-                  source: 'xhr-blob',
-                  timestamp: Date.now()
-                }, '*');
-              }
-            }).catch(() => {});
-          } else if (this.responseType === '' || this.responseType === 'text') {
+            this.response
+              .text()
+              .then((text) => {
+                if (text && text.length > 0) {
+                  window.postMessage(
+                    {
+                      type: "GPX_FETCHED",
+                      gpxContent: text,
+                      source: "xhr-blob",
+                      timestamp: Date.now(),
+                    },
+                    "*"
+                  );
+                }
+              })
+              .catch(() => {});
+          } else if (this.responseType === "" || this.responseType === "text") {
             // Response is text
             gpxContent = this.responseText || this.response;
             if (gpxContent && gpxContent.length > 0) {
-              window.postMessage({
-                type: 'GPX_FETCHED',
-                gpxContent: gpxContent,
-                source: 'xhr-text',
-                timestamp: Date.now()
-              }, '*');
+              window.postMessage(
+                {
+                  type: "GPX_FETCHED",
+                  gpxContent: gpxContent,
+                  source: "xhr-text",
+                  timestamp: Date.now(),
+                },
+                "*"
+              );
             }
           } else {
             // Try response property as fallback
-            if (typeof this.response === 'string' && this.response.length > 0) {
-              window.postMessage({
-                type: 'GPX_FETCHED',
-                gpxContent: this.response,
-                source: 'xhr-response',
-                timestamp: Date.now()
-              }, '*');
+            if (typeof this.response === "string" && this.response.length > 0) {
+              window.postMessage(
+                {
+                  type: "GPX_FETCHED",
+                  gpxContent: this.response,
+                  source: "xhr-response",
+                  timestamp: Date.now(),
+                },
+                "*"
+              );
             }
           }
         }
       };
-      
-      this.addEventListener('readystatechange', onReadyStateChange);
+
+      this.addEventListener("readystatechange", onReadyStateChange);
     }
-    
+
     return originalXHRSend.apply(this, args);
   };
-
 
   // === SMAP INSTANCE CAPTURE ===
   //
@@ -163,9 +189,12 @@
   let _smapPoll = null; // polling interval reference (declared early for captureInstance)
 
   function captureInstance(inst) {
-    if (!window.__climbMap && inst &&
-        typeof inst.addLayer === 'function' &&
-        typeof inst.getCenter === 'function') {
+    if (
+      !window.__climbMap &&
+      inst &&
+      typeof inst.addLayer === "function" &&
+      typeof inst.getCenter === "function"
+    ) {
       window.__climbMap = inst;
       clearInterval(_smapPoll);
     }
@@ -180,12 +209,20 @@
     // $constructor fires on creation, addLayer during init,
     // setCenter/getCenter on every pan/zoom — between these we will
     // always catch the instance even if already created.
-    const hookMethods = ['$constructor', 'addLayer', 'setCenter', 'getCenter',
-                         'addDefaultLayer', 'lock', 'unlock', 'redraw'];
-    hookMethods.forEach(name => {
+    const hookMethods = [
+      "$constructor",
+      "addLayer",
+      "setCenter",
+      "getCenter",
+      "addDefaultLayer",
+      "lock",
+      "unlock",
+      "redraw",
+    ];
+    hookMethods.forEach((name) => {
       if (!S.prototype[name]) return;
       const _orig = S.prototype[name];
-      S.prototype[name] = function(...args) {
+      S.prototype[name] = function (...args) {
         captureInstance(this);
         return _orig.apply(this, args);
       };
@@ -200,21 +237,25 @@
   // Setter trap catches future window.SMap = assignments
   try {
     let _smapValue = window.SMap; // preserve existing value if any
-    Object.defineProperty(window, 'SMap', {
-      get() { return _smapValue; },
+    Object.defineProperty(window, "SMap", {
+      get() {
+        return _smapValue;
+      },
       set(val) {
         _smapValue = val;
         applySMapHooks(val);
       },
-      configurable: true
+      configurable: true,
     });
-  } catch (_) {
-  }
+  } catch {}
 
   // Poll for SMap in case setter trap missed it (e.g. loaded via async module)
   let _pollCount = 0;
   _smapPoll = setInterval(() => {
-    if (window.__climbMap || _pollCount++ > 20) { clearInterval(_smapPoll); return; }
+    if (window.__climbMap || _pollCount++ > 20) {
+      clearInterval(_smapPoll);
+      return;
+    }
     const S = window.SMap;
     if (S && !S._climbHooked) applySMapHooks(S);
   }, 500);
@@ -226,13 +267,16 @@
     for (const key of Object.keys(window)) {
       try {
         const v = window[key];
-        if (v && typeof v === 'object' &&
-            typeof v.addLayer === 'function' &&
-            typeof v.getCenter === 'function') {
+        if (
+          v &&
+          typeof v === "object" &&
+          typeof v.addLayer === "function" &&
+          typeof v.getCenter === "function"
+        ) {
           captureInstance(v);
           return window.__climbMap;
         }
-      } catch (_) {}
+      } catch {}
     }
 
     // 2. Scan DOM elements — SMap stores its instance on its container element.
@@ -242,15 +286,18 @@
       for (const prop of Object.getOwnPropertyNames(el)) {
         try {
           const v = el[prop];
-          if (v && typeof v === 'object' &&
-              typeof v.addLayer === 'function' &&
-              typeof v.getCenter === 'function') {
+          if (
+            v &&
+            typeof v === "object" &&
+            typeof v.addLayer === "function" &&
+            typeof v.getCenter === "function"
+          ) {
             captureInstance(v);
             if (window.__climbMap) {
               return window.__climbMap;
             }
           }
-        } catch (_) {}
+        } catch {}
       }
     }
 
@@ -258,8 +305,8 @@
   }
 
   // === MARKER INJECTION LISTENER ===
-  window.addEventListener('message', (event) => {
-    if (event.source !== window || event.data?.type !== 'INJECT_CLIMB_MARKERS') return;
+  window.addEventListener("message", (event) => {
+    if (event.source !== window || event.data?.type !== "INJECT_CLIMB_MARKERS") return;
 
     const { climbs } = event.data;
     if (!climbs?.length) return;
@@ -282,11 +329,12 @@
   });
 
   function doInjectMarkers(map, S, climbs) {
-
     try {
       // Remove previous marker layer if it exists
       if (window.__climbMarkerLayer) {
-        try { map.removeLayer(window.__climbMarkerLayer); } catch (_) {}
+        try {
+          map.removeLayer(window.__climbMarkerLayer);
+        } catch {}
       }
 
       const layer = new S.Layer.Marker();
@@ -295,36 +343,48 @@
       window.__climbMarkerLayer = layer;
 
       const CAT_COLORS = {
-        HC: '#d42b2b', '1': '#e85d17', '2': '#e8a117', '3': '#c8c022', '4': '#6b7280'
+        HC: "#d42b2b",
+        1: "#e85d17",
+        2: "#e8a117",
+        3: "#c8c022",
+        4: "#6b7280",
       };
 
       climbs.forEach((climb, i) => {
         if (!climb.markerCoords) return;
         const { lat, lon } = climb.markerCoords;
-        const color = CAT_COLORS[climb.category] || '#6b7280';
+        const color = CAT_COLORS[climb.category] || "#6b7280";
         const num = i + 1;
 
         // SVG pin: teardrop shape with climb number
-        const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="34" viewBox="0 0 28 34">` +
+        const svg =
+          `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="34" viewBox="0 0 28 34">` +
           `<path d="M14 0C6.27 0 0 6.27 0 14c0 9.6 14 20 14 20S28 23.6 28 14C28 6.27 21.73 0 14 0z" fill="${color}" stroke="#fff" stroke-width="1.5"/>` +
           `<circle cx="14" cy="14" r="9" fill="rgba(0,0,0,0.25)"/>` +
           `<text x="14" y="19" font-size="11" font-weight="bold" fill="#fff" text-anchor="middle" font-family="sans-serif">${num}</text>` +
           `</svg>`;
 
         const img = new Image();
-        img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+        img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
 
         const coords = S.Coords.fromWGS84(lon, lat);
-        const marker = new S.Marker(coords, 'climb-' + i, {
+        const marker = new S.Marker(coords, "climb-" + i, {
           url: img,
           size: [28, 34],
           anchor: { left: 14, bottom: 0 },
-          title: 'Climb ' + num + ' · Cat ' + climb.category + ' · ' + (climb.distance / 1000).toFixed(1) + ' km +' + Math.round(climb.elevation) + ' m'
+          title:
+            "Climb " +
+            num +
+            " · Cat " +
+            climb.category +
+            " · " +
+            (climb.distance / 1000).toFixed(1) +
+            " km +" +
+            Math.round(climb.elevation) +
+            " m",
         });
         layer.addMarker(marker);
       });
-
-    } catch (_) {
-    }
+    } catch {}
   }
 })();

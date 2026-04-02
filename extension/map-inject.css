@@ -1,83 +1,85 @@
 /* map-inject.css — Climb Analyzer injected panel (mirrors popup design, scoped) */
 #climb-inject-button {
-	display: flex;
-	cursor: pointer;
-	text-align: center;
-	justify-content: center;
-	align-items: flex-start;
-	flex: 0 0 90px;
+  display: flex;
+  cursor: pointer;
+  text-align: center;
+  justify-content: center;
+  align-items: flex-start;
+  flex: 0 0 90px;
 
-	& > *, & > *:active, & > *:focus {
-		display: flex;
-		width: 100%;
-		border: none;
-		background: transparent;
-		margin: 0;
-		padding: 5px 8px;
-		color: #1eae00;
-		box-sizing: border-box;
+  & > *,
+  & > *:active,
+  & > *:focus {
+    display: flex;
+    width: 100%;
+    border: none;
+    background: transparent;
+    margin: 0;
+    padding: 5px 8px;
+    color: #1eae00;
+    box-sizing: border-box;
 
-		&:hover {
-			color: var(--Green-Green-1-Hover);
-		}
+    &:hover {
+      color: var(--Green-Green-1-Hover);
+    }
 
-		&.change {
-			color: #f00;
-		}
-	}
+    &.change {
+      color: #f00;
+    }
+  }
 
-	> button,
-	> a {
-		display: flex;
-		flex-direction: column;
-		gap: 4px;
-		justify-content: flex-start;
-		align-items: center;
-		border-radius: 4px;
-	}
+  > button,
+  > a {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    justify-content: flex-start;
+    align-items: center;
+    border-radius: 4px;
+  }
 
-	& > *:focus-visible {
-		color: var(--Green-Green-1-Hover);
-		outline: 2px solid var(--Green-Green-1-Hover);
-	}
+  & > *:focus-visible {
+    color: var(--Green-Green-1-Hover);
+    outline: 2px solid var(--Green-Green-1-Hover);
+  }
 
-	.icon {
-		width: 24px;
-		height: 24px;
-		pointer-events: none;
-	}
+  .icon {
+    width: 24px;
+    height: 24px;
+    pointer-events: none;
+  }
 
-	svg {
-		fill: currentColor;
-	}
+  svg {
+    fill: currentColor;
+  }
 
-	span {
-		display: block;
-		font-size: 12px;
-		line-height: 16px;
-		text-align: center;
-	}
+  span {
+    display: block;
+    font-size: 12px;
+    line-height: 16px;
+    text-align: center;
+  }
 }
 
 /* ── Panel container + CSS variables ──────────────────────────────────── */
 
 #climb-inject-panel {
   /* Mapy.cz-inspired light theme */
-  --accent:  #1eae00;
+  --accent: #1eae00;
   --accent2: #17940a;
-  --hc:   #b71c1c;
+  --hc: #b71c1c;
   --cat1: #e53935;
   --cat2: #ef6c00;
   --cat3: #e0a800;
   --cat4: #43a047;
 
-  --text1:  #1a1a1a;
-  --text2:  #555;
-  --text3:  #999;
-  --bg0:    #fff;
-  --bg1:    #f7f8f9;
-  --bg2:    #eff0f2;
-  --bg3:    #e4e6ea;
+  --text1: #1a1a1a;
+  --text2: #555;
+  --text3: #999;
+  --bg0: #fff;
+  --bg1: #f7f8f9;
+  --bg2: #eff0f2;
+  --bg3: #e4e6ea;
   --border: rgba(0, 0, 0, 0.09);
 
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif;
@@ -108,7 +110,10 @@
   letter-spacing: -0.1px;
 }
 
-#climb-inject-panel .cip-header-bar svg { flex-shrink: 0; color: var(--accent); }
+#climb-inject-panel .cip-header-bar svg {
+  flex-shrink: 0;
+  color: var(--accent);
+}
 
 #climb-inject-panel .cip-chevron {
   margin-left: auto;
@@ -125,10 +130,19 @@
   overscroll-behavior: contain;
 }
 
-#climb-inject-panel .cip-body::-webkit-scrollbar { width: 4px; }
-#climb-inject-panel .cip-body::-webkit-scrollbar-track { background: transparent; }
-#climb-inject-panel .cip-body::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 2px; }
-#climb-inject-panel .cip-body::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.28); }
+#climb-inject-panel .cip-body::-webkit-scrollbar {
+  width: 4px;
+}
+#climb-inject-panel .cip-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+#climb-inject-panel .cip-body::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 2px;
+}
+#climb-inject-panel .cip-body::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.28);
+}
 
 #climb-inject-panel .cip-inner {
   padding: 10px 12px;
@@ -147,7 +161,7 @@
 /* ── Route overview ────────────────────────────────────────────────────── */
 
 #climb-inject-panel .route-overview {
-  background: var(--bg1);
+  background: var(--bg0);
   border: 1px solid var(--border);
   border-radius: 6px;
   padding: 10px 12px;
@@ -169,20 +183,25 @@
   margin-bottom: 10px;
 }
 
-#climb-inject-panel .rstat { display: flex; flex-direction: column; gap: 1px; }
+#climb-inject-panel .rstat {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
 
 #climb-inject-panel .rstat-value {
-  font-size: 15px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 600;
   color: var(--text1);
-  letter-spacing: -0.4px;
+  letter-spacing: -0.2px;
 }
 
 #climb-inject-panel .rstat-label {
   font-size: 9px;
+  font-weight: 600;
   color: var(--text3);
   text-transform: uppercase;
-  letter-spacing: 0.4px;
+  letter-spacing: 0.6px;
 }
 
 #climb-inject-panel .route-strip-wrap {
@@ -239,11 +258,21 @@
   border-left: 3px solid var(--cat4);
 }
 
-#climb-inject-panel .climb-item.hc   { border-left-color: var(--hc); }
-#climb-inject-panel .climb-item.cat1 { border-left-color: var(--cat1); }
-#climb-inject-panel .climb-item.cat2 { border-left-color: var(--cat2); }
-#climb-inject-panel .climb-item.cat3 { border-left-color: var(--cat3); }
-#climb-inject-panel .climb-item.cat4 { border-left-color: var(--cat4); }
+#climb-inject-panel .climb-item.hc {
+  border-left-color: var(--hc);
+}
+#climb-inject-panel .climb-item.cat1 {
+  border-left-color: var(--cat1);
+}
+#climb-inject-panel .climb-item.cat2 {
+  border-left-color: var(--cat2);
+}
+#climb-inject-panel .climb-item.cat3 {
+  border-left-color: var(--cat3);
+}
+#climb-inject-panel .climb-item.cat4 {
+  border-left-color: var(--cat4);
+}
 
 #climb-inject-panel .climb-header {
   display: flex;
@@ -272,12 +301,26 @@
   letter-spacing: 0.2px;
 }
 
-#climb-inject-panel .climb-item.hc   .climb-badge { background: rgba(183,28,28,0.1);   color: #b71c1c; }
-#climb-inject-panel .climb-item.cat1 .climb-badge { background: rgba(229,57,53,0.1);   color: #c62828; }
-#climb-inject-panel .climb-item.cat2 .climb-badge { background: rgba(239,108,0,0.1);   color: #bf360c; }
-#climb-inject-panel .climb-item.cat3 .climb-badge { background: rgba(224,168,0,0.12);  color: #c47d00; }
-#climb-inject-panel .climb-item.cat4 .climb-badge { background: rgba(67,160,71,0.1);   color: #2e7d32; }
-
+#climb-inject-panel .climb-item.hc .climb-badge {
+  background: rgba(183, 28, 28, 0.1);
+  color: #b71c1c;
+}
+#climb-inject-panel .climb-item.cat1 .climb-badge {
+  background: rgba(229, 57, 53, 0.1);
+  color: #c62828;
+}
+#climb-inject-panel .climb-item.cat2 .climb-badge {
+  background: rgba(239, 108, 0, 0.1);
+  color: #bf360c;
+}
+#climb-inject-panel .climb-item.cat3 .climb-badge {
+  background: rgba(224, 168, 0, 0.12);
+  color: #c47d00;
+}
+#climb-inject-panel .climb-item.cat4 .climb-badge {
+  background: rgba(67, 160, 71, 0.1);
+  color: #2e7d32;
+}
 
 /* ── Stats 3-column grid ───────────────────────────────────────────────── */
 
@@ -296,7 +339,11 @@
   margin-bottom: 8px;
 }
 
-#climb-inject-panel .stat { display: flex; flex-direction: column; gap: 1px; }
+#climb-inject-panel .stat {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
 
 #climb-inject-panel .stat-label {
   font-size: 9px;
@@ -313,7 +360,9 @@
   letter-spacing: -0.2px;
 }
 
-#climb-inject-panel .stat-value.highlight { color: var(--accent); }
+#climb-inject-panel .stat-value.highlight {
+  color: var(--accent);
+}
 
 /* Muted secondary stat values */
 #climb-inject-panel .stat-value.stat-secondary {
@@ -349,9 +398,22 @@
   border: 1px solid var(--border);
 }
 
-#climb-inject-panel .climb-meta-item { display: flex; flex-direction: column; gap: 1px; }
-#climb-inject-panel .climb-meta-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text3); }
-#climb-inject-panel .climb-meta-value { font-size: 12px; font-weight: 600; color: var(--text2); }
+#climb-inject-panel .climb-meta-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+#climb-inject-panel .climb-meta-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text3);
+}
+#climb-inject-panel .climb-meta-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text2);
+}
 
 /* ── SVG elevation chart ───────────────────────────────────────────────── */
 
@@ -402,10 +464,15 @@
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
   white-space: nowrap;
 }
 
-.climb-action-btn:hover { background: rgba(30, 174, 0, 0.08); }
-.climb-action-btn svg { flex-shrink: 0; }
-
+.climb-action-btn:hover {
+  background: rgba(30, 174, 0, 0.08);
+}
+.climb-action-btn svg {
+  flex-shrink: 0;
+}

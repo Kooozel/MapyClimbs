@@ -6,6 +6,7 @@
  * Public:
  *   generateElevationChart(segments, totalDistanceMeters, climbCategory) → html string
  */
+/* exported generateElevationChart */
 
 let _chartUid = 0;
 
@@ -71,7 +72,7 @@ function simplifyElevationProfile(profile) {
  * - Separate aura overlay (white → transparent top-to-bottom)
  * - Y-axis: 4 elevation labels; X-axis: grade-color-change boundaries
  */
-function renderElevationSVG(profile, totalDistance, climbCategory = '4') {
+function renderElevationSVG(profile, totalDistance, _climbCategory = '4') {
   if (profile.length < 2) return '';
   const uid = _chartUid++;
 

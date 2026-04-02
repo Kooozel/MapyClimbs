@@ -2,6 +2,7 @@
  * GPX Parser for Climb Analyzer
  * Parses GPX XML files and extracts elevation profile data
  */
+/* exported parseGPX, loadGPXFile */
 
 /**
  * Parse GPX file and extract elevation profile
@@ -10,8 +11,7 @@
  */
 function parseGPX(gpxContent) {
   
-  try {
-    const parser = new DOMParser();
+  const parser = new DOMParser();
     const gpxDoc = parser.parseFromString(gpxContent, 'text/xml');
     
     if (gpxDoc.getElementsByTagName('parsererror').length > 0) {
@@ -93,9 +93,6 @@ function parseGPX(gpxContent) {
 
 
     return elevationProfile;
-  } catch (error) {
-    throw error;
-  }
 }
 
 /**

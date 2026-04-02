@@ -1,0 +1,30 @@
+{
+  "name": "climb",
+  "version": "0.5.5",
+  "description": "Mapy.cz Climb Analyzer Chrome extension",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.js",
+    "dev": "npm run build && web-ext run --config=web-ext.config.mjs",
+    "pack": "npm run build && web-ext build --config=web-ext.config.mjs",
+    "lint": "eslint extension/ build.js",
+    "lint:fix": "eslint extension/ build.js --fix",
+    "lint:ext": "npm run build && web-ext lint --config=web-ext.config.mjs",
+    "format": "prettier --write extension/",
+    "format:check": "prettier --check extension/",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@vitest/coverage-v8": "^4.1.2",
+    "esbuild": "^0.25.0",
+    "eslint": "^9.0.0",
+    "globals": "^15.0.0",
+    "prettier": "^3.0.0",
+    "vitest": "^4.1.2",
+    "web-ext": "^8.0.0"
+  }
+}

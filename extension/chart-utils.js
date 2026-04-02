@@ -1,55 +1,56 @@
 /**
  * chart-utils.js — SVG Chart Rendering Utilities
  * v0.5.5: Bezier curves, gradient fills, and interactive hover features
- * 
+ *
  * Provides tools for rendering professional-grade climb profile charts with:
  * - Cubic bezier curve smoothing
  * - Linear gradient fills (color-faded to bottom)
  * - Vertical auto-scaling for max visual clarity
  * - Hover scanner with real-time coordinates
  */
+/* exported getGradientForCategory, generateGradientStops, generateBezierPath, calculateOptimalYScale, findSegmentAtPixel, formatHoverValues, generateSVGDefs */
 
 /**
  * Generate SVG gradient definitions for climb profile fills
  * Creates smooth color-to-transparent gradients matching the climb difficulty
- * 
+ *
  * @param {string} category - Climb category (HC, 1, 2, 3, 4)
  * @returns {Object} - { gradientId, startColor, endColor }
  */
 function getGradientForCategory(category) {
   const gradients = {
-    'HC': { id: 'grad-hc',    start: '#d42b2b', end: '#d42b2b33' },  // Red
-    '1':  { id: 'grad-cat1',  start: '#e85d17', end: '#e85d1733' },  // Orange
-    '2':  { id: 'grad-cat2',  start: '#e8a117', end: '#e8a11733' },  // Gold
-    '3':  { id: 'grad-cat3',  start: '#c8c022', end: '#c8c02233' },  // Yellow
-    '4':  { id: 'grad-cat4',  start: '#6b7280', end: '#6b728033' }   // Gray
+    HC: { id: "grad-hc", start: "#d42b2b", end: "#d42b2b33" }, // Red
+    1: { id: "grad-cat1", start: "#e85d17", end: "#e85d1733" }, // Orange
+    2: { id: "grad-cat2", start: "#e8a117", end: "#e8a11733" }, // Gold
+    3: { id: "grad-cat3", start: "#c8c022", end: "#c8c02233" }, // Yellow
+    4: { id: "grad-cat4", start: "#6b7280", end: "#6b728033" }, // Gray
   };
-  
-  return gradients[category] || gradients['4'];
+
+  return gradients[category] || gradients["4"];
 }
 
 /**
  * Calculate SVG gradient stop percentages and colors
  * Linear fade from top color to semi-transparent bottom
- * 
+ *
  * @param {string} topColor - Hex color at top (e.g. '#e85d17')
  * @returns {Array} - Array of { offset, stopColor } objects
  */
 function generateGradientStops(topColor) {
   // Add alpha transparency (last 2 hex digits)
-  const bottomColor = topColor + '33'; // 20% opacity
-  
+  const bottomColor = topColor + "33"; // 20% opacity
+
   return [
-    { offset: '0%',   stopColor: topColor },
-    { offset: '70%',  stopColor: topColor + 'cc' },    // 80% opacity
-    { offset: '100%', stopColor: bottomColor }         // 20% opacity
+    { offset: "0%", stopColor: topColor },
+    { offset: "70%", stopColor: topColor + "cc" }, // 80% opacity
+    { offset: "100%", stopColor: bottomColor }, // 20% opacity
   ];
 }
 
 /**
  * Generate cubic bezier curve control points from elevation segments
  * Creates smooth "professional" curve instead of jagged step profile
- * 
+ *
  * @param {Array} segments - Climb segments with distance/elevation data
  * @param {number} minElev - Minimum elevation for Y-axis
  * @param {number} maxElev - Maximum elevation for Y-axis
@@ -58,11 +59,11 @@ function generateGradientStops(topColor) {
  * @returns {string} - SVG path data (d attribute)
  */
 function generateBezierPath(segments, minElev, maxElev, width, height) {
-  if (!segments || segments.length === 0) return '';
+  if (!segments || segments.length === 0) return "";
 
   const totalDist = segments.reduce((sum, s) => sum + s.distance, 0);
   const elevRange = maxElev - minElev;
-  
+
   // Convert segment data to canvas coordinate points
   const points = [];
   let cumulativeDist = 0;
@@ -70,7 +71,7 @@ function generateBezierPath(segments, minElev, maxElev, width, height) {
   for (const seg of segments) {
     const x = (cumulativeDist / totalDist) * width;
     const y = height - ((seg.endElevation - minElev) / elevRange) * height;
-    
+
     points.push({ x, y, elevation: seg.endElevation, distance: cumulativeDist });
     cumulativeDist += seg.distance;
   }
@@ -108,7 +109,7 @@ function generateBezierPath(segments, minElev, maxElev, width, height) {
 /**
  * Calculate optimal Y-axis min/max for maximum vertical resolution
  * Instead of using 0-max, scale to climb_min - 5m to climb_max
- * 
+ *
  * @param {Array} segments - Climb segments
  * @returns {Object} - { minElev, maxElev, range }
  */
@@ -117,8 +118,8 @@ function calculateOptimalYScale(segments) {
     return { minElev: 0, maxElev: 100, range: 100 };
   }
 
-  let minElev = Math.min(...segments.map(s => Math.min(s.startElevation, s.endElevation)));
-  let maxElev = Math.max(...segments.map(s => Math.max(s.startElevation, s.endElevation)));
+  let minElev = Math.min(...segments.map((s) => Math.min(s.startElevation, s.endElevation)));
+  let maxElev = Math.max(...segments.map((s) => Math.max(s.startElevation, s.endElevation)));
 
   // Reduce min by 5m for padding, add 10m padding to max
   minElev = Math.max(0, minElev - 5);
@@ -127,14 +128,14 @@ function calculateOptimalYScale(segments) {
   return {
     minElev,
     maxElev,
-    range: maxElev - minElev
+    range: maxElev - minElev,
   };
 }
 
 /**
  * Find the segment and exact position at a given horizontal pixel coordinate
  * Used for hover scanner to show real-time grade/distance
- * 
+ *
  * @param {Array} segments - Climb segments
  * @param {number} pixelX - X coordinate in SVG canvas
  * @param {number} totalDist - Total route distance
@@ -150,7 +151,7 @@ function findSegmentAtPixel(segments, pixelX, totalDist, canvasWidth) {
   const queryDistance = (pixelX / canvasWidth) * totalDist;
 
   let currentDistance = 0;
-  
+
   for (const seg of segments) {
     const segStartDist = currentDistance;
     const segEndDist = currentDistance + seg.distance;
@@ -170,7 +171,7 @@ function findSegmentAtPixel(segments, pixelX, totalDist, canvasWidth) {
         elevation: interpElev,
         grade: interpGrade,
         progress,
-        segmentIndex: segments.indexOf(seg)
+        segmentIndex: segments.indexOf(seg),
       };
     }
 
@@ -182,7 +183,7 @@ function findSegmentAtPixel(segments, pixelX, totalDist, canvasWidth) {
 
 /**
  * Format elevation/grade values for hover tooltip display
- * 
+ *
  * @param {number} elevation - Elevation in meters
  * @param {number} grade - Gradient percentage
  * @param {number} distance - Distance from climb start in meters
@@ -192,23 +193,22 @@ function formatHoverValues(elevation, grade, distance) {
   return {
     elevStr: `${Math.round(elevation)}m`,
     gradeStr: `${Math.min(25, Math.max(0, grade)).toFixed(1)}%`, // Cap at 25% display
-    distStr: `${(distance / 1000).toFixed(2)}km`
+    distStr: `${(distance / 1000).toFixed(2)}km`,
   };
 }
 
 /**
  * Generate SVG defs section with all gradients needed
  * Must be inserted once at top of SVG element
- * 
+ *
  * @returns {string} - SVG defs XML string
  */
 function generateSVGDefs() {
-  const categories = ['HC', '1', '2', '3', '4'];
-  let defs = '<defs>';
+  const categories = ["HC", "1", "2", "3", "4"];
+  let defs = "<defs>";
 
   for (const cat of categories) {
     const gradient = getGradientForCategory(cat);
-    const stops = generateGradientStops(gradient.start);
 
     defs += `
     <linearGradient id="${gradient.id}" x1="0%" y1="0%" x2="0%" y2="100%">
@@ -218,6 +218,6 @@ function generateSVGDefs() {
     </linearGradient>`;
   }
 
-  defs += '</defs>';
+  defs += "</defs>";
   return defs;
 }

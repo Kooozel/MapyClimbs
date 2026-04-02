@@ -7,6 +7,8 @@
  *   showChartOverlay(container)
  *   hideChartOverlay()
  */
+/* global generateElevationChart */
+/* exported buildPanel, showChartOverlay, hideChartOverlay */
 
 // ── Category helpers ─────────────────────────────────────────────────────────
 
@@ -59,9 +61,13 @@ function calcFiets(climb) {
 
 // ── Panel sections ────────────────────────────────────────────────────────────
 
-function buildRouteOverview(totalDistance, totalElevGain, maxGradient, climbs) {
+function buildRouteOverview(totalDistance, totalElevGain, climbs) {
   const distKm     = (totalDistance / 1000).toFixed(1);
   const climbingKm = (climbs.reduce((s, c) => s + c.distance, 0) / 1000).toFixed(1);
+  const totalTimeMin = climbs.reduce((s, c) => s + estimateClimbTime(c), 0);
+  const totalTimeStr = totalTimeMin >= 60
+    ? `${Math.floor(totalTimeMin / 60)}h ${Math.round(totalTimeMin % 60)}min`
+    : `${Math.round(totalTimeMin)} min`;
 
   let stripSegments = '', stripLabels = '';
   climbs.forEach((climb, i) => {
@@ -82,7 +88,7 @@ function buildRouteOverview(totalDistance, totalElevGain, maxGradient, climbs) {
       <div class="route-stats-row">
         <div class="rstat"><span class="rstat-value">${distKm}</span><span class="rstat-label">km total</span></div>
         <div class="rstat"><span class="rstat-value">+${Math.round(totalElevGain)}</span><span class="rstat-label">m climbing</span></div>
-        <div class="rstat"><span class="rstat-value">${maxGradient.toFixed(1)}%</span><span class="rstat-label">max grade</span></div>
+        <div class="rstat"><span class="rstat-value">${totalTimeStr}</span><span class="rstat-label">climb time</span></div>
         <div class="rstat"><span class="rstat-value">${climbingKm}</span><span class="rstat-label">km climbs</span></div>
       </div>
       <div class="route-strip-wrap">
@@ -92,7 +98,7 @@ function buildRouteOverview(totalDistance, totalElevGain, maxGradient, climbs) {
     </div>`;
 }
 
-function buildClimbCard(climb, index, totalRouteDistance) {
+function buildClimbCard(climb, index, _totalRouteDistance) {
   const catClass = getCategoryClass(climb.category);
   const maxGrad  = calcMaxGradientOver(climb.segments, 200);
 
@@ -169,9 +175,8 @@ function buildPanel(climbs, totalRouteDistance) {
   const totalDist     = totalRouteDistance ||
                         Math.max(...climbs.flatMap(c => c.segments).map(s => s.endDistance));
   const totalElevGain = climbs.reduce((s, c) => s + c.elevation, 0);
-  const maxGradient   = calcMaxGradientOver(climbs.flatMap(c => c.segments), 200);
 
-  let inner = buildRouteOverview(totalDist, totalElevGain, maxGradient, climbs);
+  let inner = buildRouteOverview(totalDist, totalElevGain, climbs);
   inner += `<div class="section-label">${climbs.length} climb${climbs.length !== 1 ? 's' : ''} detected</div>`;
   climbs.forEach((climb, i) => { inner += buildClimbCard(climb, i, totalDist); });
 

@@ -1,88 +1,115 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Climb Analyzer</title>
-  <link rel="stylesheet" href="popup.css">
-</head>
-<body>
-  <div class="popup-container">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Climb Analyzer</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <div class="popup-container">
+      <header class="popup-header">
+        <div class="header-icon">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <polyline points="3 17 9 11 13 15 21 7" />
+            <polyline points="14 7 21 7 21 14" />
+          </svg>
+        </div>
+        <div class="header-text">
+          <h1>Climb Analyzer</h1>
+          <span class="version">v0.5.5</span>
+        </div>
+      </header>
 
-    <header class="popup-header">
-      <div class="header-icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="3 17 9 11 13 15 21 7"/>
-          <polyline points="14 7 21 7 21 14"/>
-        </svg>
-      </div>
-      <div class="header-text">
-        <h1>Climb Analyzer</h1>
-        <span class="version">v0.5.5</span>
-      </div>
-    </header>
+      <section class="status-section">
+        <div class="status-row" id="status-row">
+          <span class="status-dot" id="status-dot"></span>
+          <span class="status-text" id="status-text">No GPX captured yet</span>
+        </div>
+        <div class="spinner" id="analysis-spinner" style="display: none">
+          <div class="spinner-dot spinner-dot-1"></div>
+          <div class="spinner-dot spinner-dot-2"></div>
+          <div class="spinner-dot spinner-dot-3"></div>
+        </div>
+      </section>
 
-    <section class="status-section">
-      <div class="status-row" id="status-row">
-        <span class="status-dot" id="status-dot"></span>
-        <span class="status-text" id="status-text">No GPX captured yet</span>
-      </div>
-      <div class="spinner" id="analysis-spinner" style="display: none;">
-        <div class="spinner-dot spinner-dot-1"></div>
-        <div class="spinner-dot spinner-dot-2"></div>
-        <div class="spinner-dot spinner-dot-3"></div>
-      </div>
-    </section>
+      <section id="climb-stats" class="climb-stats" style="display: none">
+        <p>
+          <strong><span id="climb-count">0</span> climbs detected</strong> •
+          <span id="total-distance">0</span> km total distance
+        </p>
+      </section>
 
-    <section id="climb-stats" class="climb-stats" style="display: none;">
-      <p>
-        <strong><span id="climb-count">0</span> climbs detected</strong> • 
-        <span id="total-distance">0</span> km total distance
-      </p>
-    </section>
+      <section id="retry-section" style="display: none">
+        <button id="retry-btn" class="retry-btn">↻ Retry Analysis</button>
+      </section>
 
-    <section id="retry-section" style="display: none;">
-      <button id="retry-btn" class="retry-btn">↻ Retry Analysis</button>
-    </section>
+      <section class="info-section">
+        <p>
+          Automatically captures GPX exports from <strong>Mapy.cz</strong> route planner and detects
+          climbs with ProCyclingStats difficulty scoring.
+        </p>
+      </section>
 
-    <section class="info-section">
-      <p>
-        Automatically captures GPX exports from <strong>Mapy.cz</strong> route
-        planner and detects climbs with ProCyclingStats difficulty scoring.
-      </p>
-    </section>
+      <section class="how-to-section">
+        <h2>How to use</h2>
+        <ol>
+          <li>Open the <strong>Route Planner</strong> on Mapy.cz</li>
+          <li>Plan your route</li>
+          <li>
+            Click <strong>Climb Analyzer</strong> in the route toolbar — the extension fetches &amp;
+            analyzes the GPX silently
+          </li>
+          <li>Climb cards and map pins appear instantly in the sidebar</li>
+        </ol>
+      </section>
 
-    <section class="how-to-section">
-      <h2>How to use</h2>
-      <ol>
-        <li>Open the <strong>Route Planner</strong> on Mapy.cz</li>
-        <li>Plan your route</li>
-        <li>Click <strong>Climb Analyzer</strong> in the route toolbar — the
-            extension fetches &amp; analyzes the GPX silently</li>
-        <li>Climb cards and map pins appear instantly in the sidebar</li>
-      </ol>
-    </section>
+      <section class="categories-section">
+        <h2>Categories</h2>
+        <div class="cat-list">
+          <div class="cat-row">
+            <span class="cat-dot" style="background: #d42b2b"></span
+            ><span class="cat-label">HC</span><span class="cat-score">≥ 40 000</span>
+          </div>
+          <div class="cat-row">
+            <span class="cat-dot" style="background: #e85d17"></span
+            ><span class="cat-label">Cat 1</span><span class="cat-score">≥ 16 000</span>
+          </div>
+          <div class="cat-row">
+            <span class="cat-dot" style="background: #e8a117"></span
+            ><span class="cat-label">Cat 2</span><span class="cat-score">≥ 8 000</span>
+          </div>
+          <div class="cat-row">
+            <span class="cat-dot" style="background: #c8c022"></span
+            ><span class="cat-label">Cat 3</span><span class="cat-score">≥ 3 000</span>
+          </div>
+          <div class="cat-row">
+            <span class="cat-dot" style="background: #6b7280"></span
+            ><span class="cat-label">Cat 4</span><span class="cat-score">&lt; 3 000</span>
+          </div>
+        </div>
+        <p class="formula">Score = dist(km) × avg grade(%) × 100</p>
+      </section>
 
-    <section class="categories-section">
-      <h2>Categories</h2>
-      <div class="cat-list">
-        <div class="cat-row"><span class="cat-dot" style="background:#d42b2b"></span><span class="cat-label">HC</span><span class="cat-score">≥ 40 000</span></div>
-        <div class="cat-row"><span class="cat-dot" style="background:#e85d17"></span><span class="cat-label">Cat 1</span><span class="cat-score">≥ 16 000</span></div>
-        <div class="cat-row"><span class="cat-dot" style="background:#e8a117"></span><span class="cat-label">Cat 2</span><span class="cat-score">≥ 8 000</span></div>
-        <div class="cat-row"><span class="cat-dot" style="background:#c8c022"></span><span class="cat-label">Cat 3</span><span class="cat-score">≥ 3 000</span></div>
-        <div class="cat-row"><span class="cat-dot" style="background:#6b7280"></span><span class="cat-label">Cat 4</span><span class="cat-score">&lt; 3 000</span></div>
-      </div>
-      <p class="formula">Score = dist(km) × avg grade(%) × 100</p>
-    </section>
-
-    <footer class="popup-footer">
-      <a class="bmc-btn" href="https://buymeacoffee.com" target="_blank" rel="noopener noreferrer">
-        ☕ Buy me a coffee
-      </a>
-    </footer>
-
-  </div>
-  <script src="gpx-parser.js"></script>
-  <script src="popup.js"></script>
-</body>
+      <footer class="popup-footer">
+        <a
+          class="bmc-btn"
+          href="https://buymeacoffee.com"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          ☕ Buy me a coffee
+        </a>
+      </footer>
+    </div>
+    <script src="gpx-parser.js"></script>
+    <script src="popup.js"></script>
+  </body>
 </html>

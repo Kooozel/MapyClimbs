@@ -1,18 +1,24 @@
 /* popup.css — Climb Analyzer info popup */
 
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
 
 :root {
-  --bg0:    #111316;
-  --bg1:    #1c1f24;
-  --bg2:    #252930;
-  --bg3:    #2e333b;
+  --bg0: #111316;
+  --bg1: #1c1f24;
+  --bg2: #252930;
+  --bg3: #2e333b;
   --border: #333840;
-  --text1:  #f0f2f5;
-  --text2:  #9aa0ac;
-  --text3:  #5a6170;
+  --text1: #f0f2f5;
+  --text2: #9aa0ac;
+  --text3: #5a6170;
   --accent: #3d9e6e;
-  --accent2:#2d7a54;
+  --accent2: #2d7a54;
 }
 
 body {
@@ -101,8 +107,12 @@ body {
   background: var(--text3);
 }
 
-.status-dot.ok   { background: var(--accent); }
-.status-dot.none { background: var(--text3); }
+.status-dot.ok {
+  background: var(--accent);
+}
+.status-dot.none {
+  background: var(--text3);
+}
 
 .status-text {
   font-size: 11px;
@@ -227,7 +237,10 @@ body {
   font-size: 12px;
   color: var(--text2);
   text-decoration: none;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s;
 }
 
 .bmc-btn:hover {
@@ -254,13 +267,27 @@ body {
   animation: pulse-dots 1.2s infinite;
 }
 
-.spinner-dot-1 { animation-delay: 0s; }
-.spinner-dot-2 { animation-delay: 0.2s; }
-.spinner-dot-3 { animation-delay: 0.4s; }
+.spinner-dot-1 {
+  animation-delay: 0s;
+}
+.spinner-dot-2 {
+  animation-delay: 0.2s;
+}
+.spinner-dot-3 {
+  animation-delay: 0.4s;
+}
 
 @keyframes pulse-dots {
-  0%, 60%, 100% { opacity: 0.3; transform: scale(0.8); }
-  30% { opacity: 1; transform: scale(1); }
+  0%,
+  60%,
+  100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+  30% {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 /* ── Climb Stats ──────────────────────────────────────────── */
@@ -299,7 +326,9 @@ body {
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
 }
 
 .retry-btn:hover {
@@ -310,4 +339,3 @@ body {
 .retry-btn:active {
   background: var(--bg2);
 }
-
