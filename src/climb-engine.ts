@@ -1,5 +1,5 @@
 /**
- * climb-engine.ts — Mapy.cz Climb Analyzer
+ * climb-engine.ts — MapyClimbs
  * Pure climb-detection algorithm. No Chrome APIs — fully testable in isolation.
  *
  * Public API

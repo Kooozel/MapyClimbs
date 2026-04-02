@@ -5,6 +5,8 @@
  * chrome.runtime.sendMessage.
  */
 
+import { StorageKey, type GpxCapturedMessage } from "./types";
+
 function injectInterceptorScript(): void {
   try {
     const script = document.createElement("script");
@@ -18,26 +20,50 @@ function injectInterceptorScript(): void {
 
 injectInterceptorScript();
 
+// ── Type guard for page-context postMessages ──────────────────────────────────
+
+interface PageGpxFetchedEvent {
+  type: "GPX_FETCHED";
+  gpxContent: string;
+  timestamp?: number;
+}
+
+function isGpxFetchedEvent(data: unknown): data is PageGpxFetchedEvent {
+  return (
+    typeof data === "object" &&
+    data !== null &&
+    (data as Record<string, unknown>)["type"] === "GPX_FETCHED" &&
+    typeof (data as Record<string, unknown>)["gpxContent"] === "string"
+  );
+}
+
 window.addEventListener("message", (event: MessageEvent) => {
   if (event.source !== window) return;
+  if (event.origin !== location.origin) return;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const data = event.data as any;
-  if (data?.type === "GPX_FETCHED") {
-    storeAndNotifyGPX(String(data.gpxContent), typeof data.timestamp === "number" ? data.timestamp : undefined);
+  if (isGpxFetchedEvent(event.data)) {
+    const ts =
+      typeof event.data.timestamp === "number" ? event.data.timestamp : Date.now();
+    storeAndNotifyGPX(event.data.gpxContent, ts);
   }
 });
 
-function storeAndNotifyGPX(gpxContent: string, timestamp?: number): void {
-  if (!gpxContent || gpxContent.length === 0) return;
+// ── Storage write + background notification ───────────────────────────────────
 
-  const ts = timestamp ?? Date.now();
+function storeAndNotifyGPX(gpxContent: string, timestamp: number): void {
+  if (gpxContent.length === 0) return;
 
-  chrome.storage.local.set({ pendingGPX: gpxContent, gpxCaptureTime: ts }, () => {
-    void chrome.runtime.lastError;
-  });
-
-  chrome.runtime.sendMessage({ type: "GPX_CAPTURED", gpxContent, timestamp: ts }, () => {
-    void chrome.runtime.lastError;
-  });
+  // Write to storage first — this is the durable path.
+  // If the service worker is sleeping, the data is safe in storage even if the
+  // message below fails to wake it in time.
+  chrome.storage.local.set(
+    { [StorageKey.PendingGPX]: gpxContent, [StorageKey.GpxCaptureTime]: timestamp },
+    () => {
+      if (chrome.runtime.lastError) return;
+      const message: GpxCapturedMessage = { type: "GPX_CAPTURED", timestamp };
+      chrome.runtime.sendMessage(message, () => {
+        void chrome.runtime.lastError; // background may still be starting up
+      });
+    }
+  );
 }

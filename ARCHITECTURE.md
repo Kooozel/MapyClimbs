@@ -1,4 +1,4 @@
-# Architecture — Mapy.cz Climb Analyzer
+# Architecture — MapyClimbs
 
 ## System Overview
 
@@ -79,7 +79,7 @@ Extension icon shows notification (optional)
 ### 2. Analysis & Display Flow
 
 ```
-User clicks "Climb Analyzer" button injected in the route toolbar
+User clicks "MapyClimbs" button injected in the route toolbar
          ↓
 map-inject.js: onClimbButtonClick() → pollForGPX()
          ↓
@@ -222,7 +222,7 @@ Only `detectClimbs` is exported; all other functions are private to the module.
 - `analyzeGPX(gpxText)` → `parseGPX()` → sends message → on response calls `renderPanel` + `renderMapOverlay`
 - `renderPanel()` / `tryInjectPanel()` — calls `buildPanel(climbs, totalRouteDistance)` from `map-inject-panel.js`
 - `renderMapOverlay(climbs)` — reads viewport from URL `x`/`y`/`z` params; places Web Mercator SVG pins
-- `tryInjectButton()` / `buildButton()` — injects "Climb Analyzer" button next to export button in toolbar
+- `tryInjectButton()` / `buildButton()` — injects "MapyClimbs" button next to export button in toolbar
 - `clearRoutePlannerState()` — removes panel, overlay, and storage keys when route planner closes
 - `onMutation()` — re-injects button/panel if Mapy.cz SPA navigation removes them
 

@@ -1,6 +1,6 @@
-# Changelog — Mapy.cz Climb Analyzer
+# Changelog — MapyClimbs
 
-All notable changes to the Climb Analyzer extension are documented here.
+All notable changes to the MapyClimbs extension are documented here.
 
 ## [0.5.5] — 2026-04-01 (CSS Cleanup)
 
@@ -88,7 +88,7 @@ All notable changes to the Climb Analyzer extension are documented here.
 ### Added
 
 - Info popup (`popup.html` / `popup.css` / `popup.js`): status dot, usage guide, category scoring table
-- One-click analysis: injected _Climb Analyzer_ button silently triggers and confirms the Mapy.cz Export modal
+- One-click analysis: injected _MapyClimbs_ button silently triggers and confirms the Mapy.cz Export modal
 - `gpx-interceptor-injected.js`: intercepts `HTMLAnchorElement.click` to suppress blob download when triggered by the extension
 
 ### Changed

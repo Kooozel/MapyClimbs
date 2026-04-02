@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Climb Analyzer</title>
+    <title>MapyClimbs</title>
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
@@ -23,15 +23,15 @@
           </svg>
         </div>
         <div class="header-text">
-          <h1>Climb Analyzer</h1>
-          <span class="version">v0.5.6</span>
+          <h1>MapyClimbs</h1>
+          <span class="version" id="ext-version"></span>
         </div>
       </header>
 
       <section class="status-section">
         <div class="status-row" id="status-row">
           <span class="status-dot" id="status-dot"></span>
-          <span class="status-text" id="status-text">No GPX captured yet</span>
+          <span class="status-text" id="status-text" data-i18n="popupStatusNone">No GPX captured yet</span>
         </div>
         <div class="spinner" id="analysis-spinner" style="display: none">
           <div class="spinner-dot spinner-dot-1"></div>
@@ -41,38 +41,31 @@
       </section>
 
       <section id="climb-stats" class="climb-stats" style="display: none">
-        <p>
-          <strong><span id="climb-count">0</span> climbs detected</strong> •
-          <span id="total-distance">0</span> km total distance
-        </p>
+        <p id="climb-stats-text"></p>
       </section>
 
       <section id="retry-section" style="display: none">
-        <button id="retry-btn" class="retry-btn">↻ Retry Analysis</button>
+        <button id="retry-btn" class="retry-btn" data-i18n="popupRetryBtn">↻ Retry Analysis</button>
       </section>
 
       <section class="info-section">
-        <p>
-          Automatically captures GPX exports from <strong>Mapy.cz</strong> route planner and
-          detects climbs with ProCyclingStats difficulty scoring.
+        <p data-i18n="popupInfoText">
+          Automatically captures GPX exports from Mapy.cz route planner and detects climbs with ProCyclingStats difficulty scoring.
         </p>
       </section>
 
       <section class="how-to-section">
-        <h2>How to use</h2>
+        <h2 data-i18n="popupHowToTitle">How to use</h2>
         <ol>
-          <li>Open the <strong>Route Planner</strong> on Mapy.cz</li>
-          <li>Plan your route</li>
-          <li>
-            Click <strong>Climb Analyzer</strong> in the route toolbar — the extension fetches &amp;
-            analyzes the GPX silently
-          </li>
-          <li>Climb cards and map pins appear instantly in the sidebar</li>
+          <li data-i18n-html="popupHowToStep1">Open the <strong>Route Planner</strong> on Mapy.cz</li>
+          <li data-i18n="popupHowToStep2">Plan your route</li>
+          <li data-i18n-html="popupHowToStep3">Click <strong>Climb Analyzer</strong> in the route toolbar — the extension fetches &amp; analyzes the GPX silently</li>
+          <li data-i18n="popupHowToStep4">Climb cards and map pins appear instantly in the sidebar</li>
         </ol>
       </section>
 
       <section class="categories-section">
-        <h2>Categories</h2>
+        <h2 data-i18n="popupCatTitle">Categories</h2>
         <div class="cat-list">
           <div class="cat-row">
             <span class="cat-dot" style="background: #d42b2b"></span
@@ -95,17 +88,23 @@
             ><span class="cat-label">Cat 4</span><span class="cat-score">&lt; 3 000</span>
           </div>
         </div>
-        <p class="formula">Score = dist(km) × avg grade(%) × 100</p>
+        <p class="formula" data-i18n="popupFormula">Score = dist(km) × avg grade(%) × 100</p>
       </section>
 
       <footer class="popup-footer">
+        <p class="bmc-heading" data-i18n="popupBmcHeading">Enjoying Climb Analyzer?</p>
+        <p class="bmc-desc" data-i18n="popupBmcDesc">
+          It took hundreds of hours to build this for you. If it saves you time, consider buying
+          me a coffee to keep the project alive! ☕
+        </p>
         <a
           class="bmc-btn"
-          href="https://buymeacoffee.com"
+          href="https://buymeacoffee.com/frantisek.sikula"
           target="_blank"
           rel="noopener noreferrer"
+          data-i18n="popupBmcBtn"
         >
-          ☕ Buy me a coffee
+          ☕ Support this project
         </a>
       </footer>
     </div>

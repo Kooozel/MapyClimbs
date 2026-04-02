@@ -1,0 +1,142 @@
+{
+  "extName": {
+    "message": "Mapy.cz Climb Analyzer",
+    "description": "Extension name"
+  },
+  "extDescription": {
+    "message": "Analyzes GPX files exported from Mapy.cz and displays climbs with gradient-colored segments and difficulty scores.",
+    "description": "Extension description"
+  },
+
+  "popupStatusNone": {
+    "message": "No GPX captured yet",
+    "description": "Status when no GPX has been captured"
+  },
+  "popupStatusCaptured": {
+    "message": "GPX captured at $TIME$, $DATE$",
+    "description": "Status when a GPX was captured",
+    "placeholders": {
+      "time": { "content": "$1", "example": "14:32" },
+      "date": { "content": "$2", "example": "Apr 2" }
+    }
+  },
+  "popupClimbsDetected": {
+    "message": "$COUNT$ climbs detected • $DISTANCE$ km total distance",
+    "description": "Climb stats summary line",
+    "placeholders": {
+      "count": { "content": "$1", "example": "3" },
+      "distance": { "content": "$2", "example": "42.5" }
+    }
+  },
+  "popupInfoText": {
+    "message": "Automatically captures GPX exports from Mapy.cz route planner and detects climbs with ProCyclingStats difficulty scoring.",
+    "description": "Info section description"
+  },
+  "popupRetryBtn": {
+    "message": "↻ Retry Analysis",
+    "description": "Retry analysis button"
+  },
+  "popupHowToTitle": {
+    "message": "How to use",
+    "description": "How-to section heading"
+  },
+  "popupHowToStep1": {
+    "message": "Open the <strong>Route Planner</strong> on Mapy.cz",
+    "description": "How-to step 1 (may contain HTML)"
+  },
+  "popupHowToStep2": {
+    "message": "Plan your route",
+    "description": "How-to step 2"
+  },
+  "popupHowToStep3": {
+    "message": "Click <strong>Climb Analyzer</strong> in the route toolbar — the extension fetches &amp; analyzes the GPX silently",
+    "description": "How-to step 3 (may contain HTML)"
+  },
+  "popupHowToStep4": {
+    "message": "Climb cards and map pins appear instantly in the sidebar",
+    "description": "How-to step 4"
+  },
+  "popupCatTitle": {
+    "message": "Categories",
+    "description": "Categories section heading"
+  },
+  "popupFormula": {
+    "message": "Score = dist(km) × avg grade(%) × 100",
+    "description": "Scoring formula label"
+  },
+  "popupBmcHeading": {
+    "message": "Enjoying Climb Analyzer?",
+    "description": "Support section heading"
+  },
+  "popupBmcDesc": {
+    "message": "It took hundreds of hours to build this for you. If it saves you time, consider buying me a coffee to keep the project alive! ☕",
+    "description": "Support section description"
+  },
+  "popupBmcBtn": {
+    "message": "☕ Support this project",
+    "description": "Buy me a coffee button"
+  },
+
+  "panelTitle": {
+    "message": "Climb Analyzer",
+    "description": "Sidebar panel and toolbar button title"
+  },
+  "panelRouteOverview": {
+    "message": "Route overview",
+    "description": "Route overview section heading"
+  },
+  "panelKmTotal": {
+    "message": "km total",
+    "description": "Stat label for total distance"
+  },
+  "panelMClimbing": {
+    "message": "m climbing",
+    "description": "Stat label for total elevation gain"
+  },
+  "panelMaxGrade": {
+    "message": "max grade",
+    "description": "Stat label for maximum gradient"
+  },
+  "panelKmClimbs": {
+    "message": "km climbs",
+    "description": "Stat label for total climbing distance"
+  },
+  "panelClimb": {
+    "message": "Climb $NUMBER$",
+    "description": "Climb card title",
+    "placeholders": {
+      "number": { "content": "$1", "example": "1" }
+    }
+  },
+  "panelCat": {
+    "message": "Cat $CAT$",
+    "description": "Category badge label",
+    "placeholders": {
+      "cat": { "content": "$1", "example": "HC" }
+    }
+  },
+  "panelDistance": { "message": "Distance", "description": "Climb stat label" },
+  "panelElevation": { "message": "Elevation", "description": "Climb stat label" },
+  "panelAvgGrade": { "message": "Avg grade", "description": "Climb stat label" },
+  "panelMaxGradeLabel": { "message": "Max grade", "description": "Climb stat label" },
+  "panelSummit": { "message": "Summit", "description": "Climb stat label" },
+  "panelSummitAt": { "message": "Summit at", "description": "Climb stat label for summit km" },
+  "panelEstTime": { "message": "Est. time", "description": "Climb meta label for estimated time" },
+  "panelVam": { "message": "VAM", "description": "Climb meta label" },
+  "panelFietsIndex": { "message": "Fiets index", "description": "Climb meta label" },
+  "panelNoClimbs": {
+    "message": "No climbs detected on this route.",
+    "description": "Message shown when no climbs are found"
+  },
+  "panelClimbsDetectedSingular": {
+    "message": "1 climb detected",
+    "description": "Section label when exactly one climb is found"
+  },
+  "panelClimbsDetectedPlural": {
+    "message": "$COUNT$ climbs detected",
+    "description": "Section label when multiple climbs are found",
+    "placeholders": {
+      "count": { "content": "$1", "example": "3" }
+    }
+  }
+}

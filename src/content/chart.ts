@@ -148,37 +148,85 @@ function renderElevationSVG(
       yAxis += `<line x1="${M.left}" y1="${y}" x2="${W - M.right}" y2="${y}" stroke="rgba(0,0,0,0.07)" stroke-width="0.5"/>`;
   }
 
-  // X-axis at grade-color-change boundaries
-  const segColors = profile.slice(0, -1).map((a, i) => {
+  // X-axis: ticks at gradient-zone boundaries so you can read climb progression
+  // Build zones: consecutive segments sharing the same color band
+  const zones: { color: string; start: number; end: number }[] = [];
+  for (let i = 0; i < profile.length - 1; i++) {
+    const a = profile[i];
     const b = profile[i + 1];
     const dD = b.distance - a.distance;
     const g = dD > 0 ? ((b.elevation - a.elevation) / dD) * 100 : 0;
-    return getColorForGrade(g);
-  });
-  const boundaries = [profile[0].distance];
-  for (let i = 1; i < profile.length - 1; i++) {
-    if (segColors[i] !== segColors[i - 1]) boundaries.push(profile[i].distance);
+    const col = getColorForGrade(g);
+    if (zones.length === 0 || zones[zones.length - 1].color !== col) {
+      zones.push({ color: col, start: a.distance, end: b.distance });
+    } else {
+      zones[zones.length - 1].end = b.distance;
+    }
   }
-  boundaries.push(profile[profile.length - 1].distance);
 
-  const MIN_PX = 44;
-  const kept = [boundaries[0]];
-  for (let i = 1; i < boundaries.length - 1; i++) {
-    if (sx(boundaries[i]) - sx(kept[kept.length - 1]) >= MIN_PX) kept.push(boundaries[i]);
+  // Iteratively merge the shortest zone into its larger neighbour until no zone
+  // is shorter than the threshold — keeps only meaningful transitions visible.
+  const minZone = Math.max(300, totalDistance * 0.07);
+  let changed = true;
+  while (changed && zones.length > 1) {
+    changed = false;
+    const shortestIdx = zones.reduce(
+      (mi, z, i) => (z.end - z.start < zones[mi].end - zones[mi].start ? i : mi),
+      0
+    );
+    if (zones[shortestIdx].end - zones[shortestIdx].start < minZone) {
+      const hasLeft = shortestIdx > 0;
+      const hasRight = shortestIdx < zones.length - 1;
+      if (hasLeft && hasRight) {
+        const leftLen = zones[shortestIdx - 1].end - zones[shortestIdx - 1].start;
+        const rightLen = zones[shortestIdx + 1].end - zones[shortestIdx + 1].start;
+        if (leftLen >= rightLen) {
+          zones[shortestIdx - 1].end = zones[shortestIdx].end;
+        } else {
+          zones[shortestIdx + 1].start = zones[shortestIdx].start;
+        }
+      } else if (hasLeft) {
+        zones[shortestIdx - 1].end = zones[shortestIdx].end;
+      } else {
+        zones[shortestIdx + 1].start = zones[shortestIdx].start;
+      }
+      zones.splice(shortestIdx, 1);
+      changed = true;
+    }
   }
-  const endD = boundaries[boundaries.length - 1];
-  if (sx(endD) - sx(kept[kept.length - 1]) < MIN_PX) {
-    kept[kept.length - 1] = endD;
+
+  // Boundaries: start of every zone + the final end
+  const boundaryDists = zones.map((z) => z.start);
+  boundaryDists.push(zones[zones.length - 1].end);
+
+  // Drop boundaries that are too close together in pixels
+  const MIN_TICK_PX = 38;
+  const finalTicks: number[] = [boundaryDists[0]];
+  for (let i = 1; i < boundaryDists.length - 1; i++) {
+    if (sx(boundaryDists[i]) - sx(finalTicks[finalTicks.length - 1]) >= MIN_TICK_PX) {
+      finalTicks.push(boundaryDists[i]);
+    }
+  }
+  const endD = boundaryDists[boundaryDists.length - 1];
+  if (sx(endD) - sx(finalTicks[finalTicks.length - 1]) < MIN_TICK_PX) {
+    finalTicks[finalTicks.length - 1] = endD;
   } else {
-    kept.push(endD);
+    finalTicks.push(endD);
   }
+
+  const fmtDist = (d: number): string => {
+    if (totalDistance >= 1000) {
+      const km = d / 1000;
+      return Number.isInteger(km) ? `${km}km` : `${km.toFixed(1)}km`;
+    }
+    return `${Math.round(d)}m`;
+  };
 
   let xAxis = "";
-  for (const d of kept) {
+  for (const d of finalTicks) {
     const x = sx(d).toFixed(1);
-    const lbl = totalDistance >= 1000 ? `${(d / 1000).toFixed(1)}km` : `${Math.round(d)}m`;
     xAxis += `<line x1="${x}" y1="${base}" x2="${x}" y2="${base + 3}" stroke="rgba(0,0,0,0.25)" stroke-width="0.5"/>`;
-    xAxis += `<text x="${x}" y="${H - 6}" font-size="9" fill="#666" text-anchor="middle">${lbl}</text>`;
+    xAxis += `<text x="${x}" y="${H - 6}" font-size="9" fill="#666" text-anchor="middle">${fmtDist(d)}</text>`;
   }
 
   return `
@@ -213,5 +261,12 @@ function renderElevationSVG(
 
         ${xAxis}
       </svg>
+      <div class="climb-legend">
+        <span><span class="csw" style="background:#4CAF50"></span>&lt;3%</span>
+        <span><span class="csw" style="background:#FBC02D"></span>3–6%</span>
+        <span><span class="csw" style="background:#F57C00"></span>6–9%</span>
+        <span><span class="csw" style="background:#D32F2F"></span>9–12%</span>
+        <span><span class="csw" style="background:#800020"></span>≥12%</span>
+      </div>
     </div>`;
 }

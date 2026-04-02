@@ -1,0 +1,142 @@
+{
+  "extName": {
+    "message": "Mapy.cz Climb Analyzer",
+    "description": "Extension name"
+  },
+  "extDescription": {
+    "message": "Analyzuje GPX soubory exportované z Mapy.cz a zobrazuje stoupání s barevnými segmenty dle sklonu a skórem obtížnosti.",
+    "description": "Extension description"
+  },
+
+  "popupStatusNone": {
+    "message": "Žádná GPX trasa zatím nebyla zachycena",
+    "description": "Status when no GPX has been captured"
+  },
+  "popupStatusCaptured": {
+    "message": "GPX zachyceno v $TIME$, $DATE$",
+    "description": "Status when a GPX was captured",
+    "placeholders": {
+      "time": { "content": "$1", "example": "14:32" },
+      "date": { "content": "$2", "example": "2. dub" }
+    }
+  },
+  "popupClimbsDetected": {
+    "message": "Zjištěno $COUNT$ stoupání • $DISTANCE$ km celková vzdálenost",
+    "description": "Climb stats summary line",
+    "placeholders": {
+      "count": { "content": "$1", "example": "3" },
+      "distance": { "content": "$2", "example": "42.5" }
+    }
+  },
+  "popupInfoText": {
+    "message": "Automaticky zachytí GPX exporty z plánovače tras Mapy.cz a detekuje stoupání s bodováním obtížnosti ProCyclingStats.",
+    "description": "Info section description"
+  },
+  "popupRetryBtn": {
+    "message": "↻ Znovu analyzovat",
+    "description": "Retry analysis button"
+  },
+  "popupHowToTitle": {
+    "message": "Jak používat",
+    "description": "How-to section heading"
+  },
+  "popupHowToStep1": {
+    "message": "Otevřete <strong>Plánovač tras</strong> na Mapy.cz",
+    "description": "How-to step 1 (may contain HTML)"
+  },
+  "popupHowToStep2": {
+    "message": "Naplánujte trasu",
+    "description": "How-to step 2"
+  },
+  "popupHowToStep3": {
+    "message": "Klikněte na <strong>Climb Analyzer</strong> v panelu trasy — doplněk automaticky stáhne a analyzuje GPX",
+    "description": "How-to step 3 (may contain HTML)"
+  },
+  "popupHowToStep4": {
+    "message": "Karty stoupání a špendlíky na mapě se okamžitě zobrazí v postranním panelu",
+    "description": "How-to step 4"
+  },
+  "popupCatTitle": {
+    "message": "Kategorie",
+    "description": "Categories section heading"
+  },
+  "popupFormula": {
+    "message": "Skóre = vzdálenost(km) × průměrný sklon(%) × 100",
+    "description": "Scoring formula label"
+  },
+  "popupBmcHeading": {
+    "message": "Líbí se vám Climb Analyzer?",
+    "description": "Support section heading"
+  },
+  "popupBmcDesc": {
+    "message": "Stovky hodin práce pro vás. Pokud vám šetří čas, zvažte koupi kávy pro udržení projektu! ☕",
+    "description": "Support section description"
+  },
+  "popupBmcBtn": {
+    "message": "☕ Podpořit projekt",
+    "description": "Buy me a coffee button"
+  },
+
+  "panelTitle": {
+    "message": "Climb Analyzer",
+    "description": "Sidebar panel and toolbar button title"
+  },
+  "panelRouteOverview": {
+    "message": "Přehled trasy",
+    "description": "Route overview section heading"
+  },
+  "panelKmTotal": {
+    "message": "km celkem",
+    "description": "Stat label for total distance"
+  },
+  "panelMClimbing": {
+    "message": "m převýšení",
+    "description": "Stat label for total elevation gain"
+  },
+  "panelMaxGrade": {
+    "message": "max sklon",
+    "description": "Stat label for maximum gradient"
+  },
+  "panelKmClimbs": {
+    "message": "km stoupání",
+    "description": "Stat label for total climbing distance"
+  },
+  "panelClimb": {
+    "message": "Stoupání $NUMBER$",
+    "description": "Climb card title",
+    "placeholders": {
+      "number": { "content": "$1", "example": "1" }
+    }
+  },
+  "panelCat": {
+    "message": "Kat. $CAT$",
+    "description": "Category badge label",
+    "placeholders": {
+      "cat": { "content": "$1", "example": "HC" }
+    }
+  },
+  "panelDistance": { "message": "Vzdálenost", "description": "Climb stat label" },
+  "panelElevation": { "message": "Převýšení", "description": "Climb stat label" },
+  "panelAvgGrade": { "message": "Průměrný sklon", "description": "Climb stat label" },
+  "panelMaxGradeLabel": { "message": "Max sklon", "description": "Climb stat label" },
+  "panelSummit": { "message": "Vrchol", "description": "Climb stat label" },
+  "panelSummitAt": { "message": "Vrchol v km", "description": "Climb stat label for summit km" },
+  "panelEstTime": { "message": "Odh. čas", "description": "Climb meta label for estimated time" },
+  "panelVam": { "message": "VAM", "description": "Climb meta label" },
+  "panelFietsIndex": { "message": "Fiets index", "description": "Climb meta label" },
+  "panelNoClimbs": {
+    "message": "Na této trase nebylo zjištěno žádné stoupání.",
+    "description": "Message shown when no climbs are found"
+  },
+  "panelClimbsDetectedSingular": {
+    "message": "zjištěno 1 stoupání",
+    "description": "Section label when exactly one climb is found"
+  },
+  "panelClimbsDetectedPlural": {
+    "message": "zjištěno $COUNT$ stoupání",
+    "description": "Section label when multiple climbs are found",
+    "placeholders": {
+      "count": { "content": "$1", "example": "3" }
+    }
+  }
+}

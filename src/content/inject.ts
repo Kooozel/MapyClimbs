@@ -7,7 +7,7 @@
 
 import { parseGPX } from "../gpx-parser";
 import { buildPanel, showChartOverlay, hideChartOverlay } from "./panel";
-import type { Climb, ElevationTuple } from "../types";
+import { StorageKey, type Climb, type ElevationTuple, type ProcessClimbsMessage, type ClimbsResponse } from "../types";
 
 // ── Route-planner guard ────────────────────────────────────────────────────────
 
@@ -29,15 +29,15 @@ let _totalRouteDistance = 0;
 init();
 
 function init(): void {
-  chrome.storage.local.get(["lastClimbResult"], (data) => {
-    const cached = data["lastClimbResult"] as Climb[] | undefined;
+  chrome.storage.local.get([StorageKey.LastClimbResult], (data) => {
+    const cached = data[StorageKey.LastClimbResult] as Climb[] | undefined;
     if (
       cached &&
       Array.isArray(cached) &&
       cached.length > 0 &&
       !cached[0].markerCoords
     ) {
-      chrome.storage.local.remove("lastClimbResult");
+      chrome.storage.local.remove(StorageKey.LastClimbResult);
     }
   });
 
@@ -70,10 +70,10 @@ function init(): void {
         const overlay = document.getElementById("climb-marker-overlay");
         if (overlay) overlay.innerHTML = "";
         chrome.storage.local.remove([
-          "pendingGPX",
-          "gpxCaptureTime",
-          "lastClimbResult",
-          "lastTotalDistance",
+          StorageKey.PendingGPX,
+          StorageKey.GpxCaptureTime,
+          StorageKey.LastClimbResult,
+          StorageKey.LastTotalDistance,
         ]);
       } else if (_climbs) {
         renderMapOverlay();
@@ -94,12 +94,14 @@ function onRouteChange(): void {
 // ── Storage polling ────────────────────────────────────────────────────────────
 
 function pollForGPX(): void {
-  chrome.storage.local.get(["pendingGPX", "lastClimbResult", "lastTotalDistance"], (data) => {
+  chrome.storage.local.get(
+    [StorageKey.PendingGPX, StorageKey.LastClimbResult, StorageKey.LastTotalDistance],
+    (data) => {
     if (!isRoutePlannerActive()) return;
 
-    const pendingGPX = data["pendingGPX"] as string | undefined;
-    const lastClimbResult = data["lastClimbResult"] as Climb[] | undefined;
-    const lastTotalDistance = data["lastTotalDistance"] as number | undefined;
+    const pendingGPX = data[StorageKey.PendingGPX] as string | undefined;
+    const lastClimbResult = data[StorageKey.LastClimbResult] as Climb[] | undefined;
+    const lastTotalDistance = data[StorageKey.LastTotalDistance] as number | undefined;
 
     if (pendingGPX && pendingGPX.length !== _lastGPXLength) {
       _lastGPXLength = pendingGPX.length;
@@ -128,16 +130,14 @@ function analyzeGPX(gpxContent: string): void {
     return;
   }
 
-  chrome.runtime.sendMessage(
-    { type: "PROCESS_CLIMBS", elevation: elevationProfile },
-    (response: { climbs?: Climb[]; totalDistance?: number } | undefined) => {
-      if (chrome.runtime.lastError || !response?.climbs) return;
-      _climbs = response.climbs;
-      _totalRouteDistance = response.totalDistance ?? 0;
-      renderPanel();
-      renderMapOverlay();
-    }
-  );
+  const message: ProcessClimbsMessage = { type: "PROCESS_CLIMBS", elevation: elevationProfile };
+  chrome.runtime.sendMessage(message, (response: ClimbsResponse | undefined) => {
+    if (chrome.runtime.lastError || !response?.climbs) return;
+    _climbs = response.climbs;
+    _totalRouteDistance = response.totalDistance ?? 0;
+    renderPanel();
+    renderMapOverlay();
+  });
 }
 
 // ── Panel ─────────────────────────────────────────────────────────────────────
@@ -324,10 +324,10 @@ function clearRoutePlannerState(): void {
   const overlay = document.getElementById("climb-marker-overlay");
   if (overlay) overlay.innerHTML = "";
   chrome.storage.local.remove([
-    "pendingGPX",
-    "gpxCaptureTime",
-    "lastClimbResult",
-    "lastTotalDistance",
+    StorageKey.PendingGPX,
+    StorageKey.GpxCaptureTime,
+    StorageKey.LastClimbResult,
+    StorageKey.LastTotalDistance,
   ]);
 }
 
@@ -362,7 +362,7 @@ function buildButton(): HTMLDivElement {
         <polyline points="3 17 9 11 13 15 21 7"/>
         <polyline points="14 7 21 7 21 14"/>
       </svg>
-      <span>Climb Analyzer</span>
+      <span>${chrome.i18n.getMessage("panelTitle")}</span>
     </button>`;
   btn.querySelector("button")!.addEventListener("click", onClimbButtonClick);
   return btn;
@@ -387,7 +387,7 @@ function onClimbButtonClick(): void {
       }
     }
 
-    window.postMessage({ type: "CLIMB_SUPPRESS_DOWNLOAD" }, "*");
+    window.postMessage({ type: "CLIMB_SUPPRESS_DOWNLOAD" }, location.origin);
     saveBtn.click();
   });
 
@@ -401,7 +401,7 @@ function findGPXExportButton(): Element | null {
   if (confirmed) return confirmed;
   const bySvg = document.querySelector("button .icon-export2");
   if (bySvg) return bySvg.closest("button");
-  for (const el of document.querySelectorAll('button, a, [role="button"]')) {
+  for (const el of Array.from(document.querySelectorAll('button, a, [role="button"]'))) {
     const t = el.textContent?.trim() ?? "";
     if (t === "Export" || t === "GPX" || t === "Export GPX") return el;
   }

@@ -1,4 +1,4 @@
-/* map-inject.css — Climb Analyzer injected panel (mirrors popup design, scoped) */
+/* map-inject.css — MapyClimbs injected panel (mirrors popup design, scoped) */
 #climb-inject-button {
   display: flex;
   cursor: pointer;
@@ -448,6 +448,30 @@
 #climb-inject-panel .profile-svg line {
   shape-rendering: geometricPrecision;
   vector-effect: non-scaling-stroke;
+}
+
+#climb-inject-panel .climb-legend {
+  display: flex;
+  gap: 8px;
+  padding: 5px 2px 2px;
+  flex-wrap: wrap;
+  font-size: 9.5px;
+  color: var(--text2);
+  line-height: 1;
+}
+
+#climb-inject-panel .climb-legend > span {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+#climb-inject-panel .climb-legend .csw {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
 }
 
 /* ── Analyze button (injected next to Exportovat) ──────────────────────── */

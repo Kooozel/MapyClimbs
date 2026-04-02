@@ -1,8 +1,10 @@
 {
   "manifest_version": 3,
-  "name": "Mapy.cz Climb Analyzer",
+  "name": "__MSG_extName__",
   "version": "0.5.6",
-  "description": "Analyzes GPX files exported from Mapy.cz and displays climbs with gradient-colored segments and difficulty scores.",
+  "description": "__MSG_extDescription__",
+  "default_locale": "en",
+  "minimum_chrome_version": "88",
   "permissions": ["storage"],
   "host_permissions": [
     "https://mapy.cz/*",
@@ -10,13 +12,16 @@
     "https://mapy.com/*",
     "https://*.mapy.com/*"
   ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'"
+  },
   "action": {
-    "default_title": "Climb Analyzer",
+    "default_title": "MapyClimbs",
     "default_popup": "popup.html",
     "default_icon": {
-      "16": "images/icon-16.svg",
-      "48": "images/icon-48.svg",
-      "128": "images/icon-128.svg"
+      "16": "images/icon-16.png",
+      "48": "images/icon-48.png",
+      "128": "images/icon-128.png"
     }
   },
   "background": {
@@ -48,7 +53,7 @@
   ],
   "web_accessible_resources": [
     {
-      "resources": ["gpx-interceptor-injected.ts"],
+      "resources": ["gpx-interceptor-injected.js"],
       "matches": [
         "https://mapy.cz/*",
         "https://*.mapy.cz/*",
@@ -58,8 +63,8 @@
     }
   ],
   "icons": {
-    "16": "images/icon-16.svg",
-    "48": "images/icon-48.svg",
-    "128": "images/icon-128.svg"
+    "16": "images/icon-16.png",
+    "48": "images/icon-48.png",
+    "128": "images/icon-128.png"
   }
 }

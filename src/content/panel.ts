@@ -87,7 +87,7 @@ function buildRouteOverview(
     const widthPct = endPct - startPct;
     const color = getCategoryColor(climb.category);
     const midPct = startPct + widthPct / 2;
-    stripSegments += `<div class="strip-segment" style="left:${startPct.toFixed(1)}%;width:${widthPct.toFixed(1)}%;background:${color};opacity:0.85;" title="Climb ${i + 1}: Cat ${climb.category}"></div>`;
+    stripSegments += `<div class="strip-segment" style="left:${startPct.toFixed(1)}%;width:${widthPct.toFixed(1)}%;background:${color};opacity:0.85;" title="${chrome.i18n.getMessage("panelClimb", [String(i + 1)])}: ${chrome.i18n.getMessage("panelCat", [climb.category])}"></div>`;
     if (widthPct > 4) {
       stripLabels += `<span class="strip-label" style="left:${midPct.toFixed(1)}%">${i + 1}</span>`;
     }
@@ -95,12 +95,12 @@ function buildRouteOverview(
 
   return `
     <div class="route-overview">
-      <div class="route-overview-title">Route overview</div>
+      <div class="route-overview-title">${chrome.i18n.getMessage("panelRouteOverview")}</div>
       <div class="route-stats-row">
-        <div class="rstat"><span class="rstat-value">${distKm}</span><span class="rstat-label">km total</span></div>
-        <div class="rstat"><span class="rstat-value">+${Math.round(totalElevGain)}</span><span class="rstat-label">m climbing</span></div>
-        <div class="rstat"><span class="rstat-value">${maxGradient.toFixed(1)}%</span><span class="rstat-label">max grade</span></div>
-        <div class="rstat"><span class="rstat-value">${climbingKm}</span><span class="rstat-label">km climbs</span></div>
+        <div class="rstat"><span class="rstat-value">${distKm}</span><span class="rstat-label">${chrome.i18n.getMessage("panelKmTotal")}</span></div>
+        <div class="rstat"><span class="rstat-value">+${Math.round(totalElevGain)}</span><span class="rstat-label">${chrome.i18n.getMessage("panelMClimbing")}</span></div>
+        <div class="rstat"><span class="rstat-value">${maxGradient.toFixed(1)}%</span><span class="rstat-label">${chrome.i18n.getMessage("panelMaxGrade")}</span></div>
+        <div class="rstat"><span class="rstat-value">${climbingKm}</span><span class="rstat-label">${chrome.i18n.getMessage("panelKmClimbs")}</span></div>
       </div>
       <div class="route-strip-wrap">
         <div class="route-strip">${stripSegments}</div>
@@ -144,24 +144,24 @@ function buildClimbCard(climb: Climb, index: number, _totalRouteDistance: number
     <div class="climb-item ${catClass}">
       <div class="climb-header">
         <div class="climb-title-group">
-          <span class="climb-name">Climb ${index + 1}</span>
-          <span class="climb-badge">Cat ${climb.category}</span>
+          <span class="climb-name">${chrome.i18n.getMessage("panelClimb", [String(index + 1)])}</span>
+          <span class="climb-badge">${chrome.i18n.getMessage("panelCat", [climb.category])}</span>
         </div>
       </div>
       <div class="climb-stats">
-        <div class="stat"><span class="stat-label">Distance</span><span class="stat-value">${(climb.distance / 1000).toFixed(2)} km</span></div>
-        <div class="stat"><span class="stat-label">Elevation</span><span class="stat-value highlight">+${Math.round(climb.elevation)} m</span></div>
-        <div class="stat"><span class="stat-label">Avg grade</span><span class="stat-value">${climb.avgGrade.toFixed(1)}%</span></div>
+        <div class="stat"><span class="stat-label">${chrome.i18n.getMessage("panelDistance")}</span><span class="stat-value">${(climb.distance / 1000).toFixed(2)} km</span></div>
+        <div class="stat"><span class="stat-label">${chrome.i18n.getMessage("panelElevation")}</span><span class="stat-value highlight">+${Math.round(climb.elevation)} m</span></div>
+        <div class="stat"><span class="stat-label">${chrome.i18n.getMessage("panelAvgGrade")}</span><span class="stat-value">${climb.avgGrade.toFixed(1)}%</span></div>
       </div>
       <div class="climb-stats secondary-stats">
-        <div class="stat"><span class="stat-label">Max grade</span><span class="stat-value stat-secondary">${maxGrad.toFixed(1)}%</span></div>
-        <div class="stat"><span class="stat-label">Summit</span><span class="stat-value stat-secondary stat-summit">${peakSvg}${Math.round(summitElev)} m</span></div>
-        <div class="stat"><span class="stat-label">Summit at</span><span class="stat-value stat-secondary">${(summitDist / 1000).toFixed(1)} km</span></div>
+        <div class="stat"><span class="stat-label">${chrome.i18n.getMessage("panelMaxGradeLabel")}</span><span class="stat-value stat-secondary">${maxGrad.toFixed(1)}%</span></div>
+        <div class="stat"><span class="stat-label">${chrome.i18n.getMessage("panelSummit")}</span><span class="stat-value stat-secondary stat-summit">${peakSvg}${Math.round(summitElev)} m</span></div>
+        <div class="stat"><span class="stat-label">${chrome.i18n.getMessage("panelSummitAt")}</span><span class="stat-value stat-secondary">${(summitDist / 1000).toFixed(1)} km</span></div>
       </div>
       <div class="climb-meta">
-        <div class="climb-meta-item"><span class="climb-meta-label">Est. time</span><span class="climb-meta-value">${timeStr}</span></div>
-        <div class="climb-meta-item"><span class="climb-meta-label">VAM</span><span class="climb-meta-value">${calcVAM(climb)} m/h</span></div>
-        <div class="climb-meta-item"><span class="climb-meta-label">Fiets index</span><span class="climb-meta-value">${calcFiets(climb).toFixed(1)}</span></div>
+        <div class="climb-meta-item"><span class="climb-meta-label">${chrome.i18n.getMessage("panelEstTime")}</span><span class="climb-meta-value">${timeStr}</span></div>
+        <div class="climb-meta-item"><span class="climb-meta-label">${chrome.i18n.getMessage("panelVam")}</span><span class="climb-meta-value">${calcVAM(climb)} m/h</span></div>
+        <div class="climb-meta-item"><span class="climb-meta-label">${chrome.i18n.getMessage("panelFietsIndex")}</span><span class="climb-meta-value">${calcFiets(climb).toFixed(1)}</span></div>
       </div>
       ${chart}
     </div>`;
@@ -179,9 +179,9 @@ export function buildPanel(climbs: Climb[] | null, totalRouteDistance: number): 
           <polyline points="3 17 9 11 13 15 21 7"/>
           <polyline points="14 7 21 7 21 14"/>
         </svg>
-        <span>Climb Analyzer</span>
+        <span>${chrome.i18n.getMessage("panelTitle")}</span>
       </div>
-      <p class="cip-empty">No climbs detected on this route.</p>`;
+      <p class="cip-empty">${chrome.i18n.getMessage("panelNoClimbs")}</p>`;
     return panel;
   }
 
@@ -194,8 +194,11 @@ export function buildPanel(climbs: Climb[] | null, totalRouteDistance: number): 
     200
   );
 
+  const climbsLabel = climbs.length === 1
+    ? chrome.i18n.getMessage("panelClimbsDetectedSingular")
+    : chrome.i18n.getMessage("panelClimbsDetectedPlural", [String(climbs.length)]);
   let inner = buildRouteOverview(totalDist, totalElevGain, maxGradient, climbs);
-  inner += `<div class="section-label">${climbs.length} climb${climbs.length !== 1 ? "s" : ""} detected</div>`;
+  inner += `<div class="section-label">${climbsLabel}</div>`;
   climbs.forEach((climb, i) => {
     inner += buildClimbCard(climb, i, totalDist);
   });
@@ -206,7 +209,7 @@ export function buildPanel(climbs: Climb[] | null, totalRouteDistance: number): 
         <polyline points="3 17 9 11 13 15 21 7"/>
         <polyline points="14 7 21 7 21 14"/>
       </svg>
-      <span>Climb Analyzer</span>
+      <span>${chrome.i18n.getMessage("panelTitle")}</span>
       <svg class="cip-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
         <polyline points="6 9 12 15 18 9"/>
       </svg>

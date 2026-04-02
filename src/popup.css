@@ -1,4 +1,4 @@
-/* popup.css — Climb Analyzer info popup */
+/* popup.css — MapyClimbs info popup */
 
 *,
 *::before,
@@ -221,9 +221,24 @@ body {
 /* ── Footer ───────────────────────────────────────────────── */
 
 .popup-footer {
-  padding: 10px 14px;
+  padding: 12px 14px;
   display: flex;
-  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+
+.bmc-heading {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text1);
+}
+
+.bmc-desc {
+  font-size: 11px;
+  color: var(--text2);
+  line-height: 1.55;
 }
 
 .bmc-btn {

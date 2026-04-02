@@ -1,20 +1,29 @@
 /**
- * background.ts — Mapy.cz Climb Analyzer service worker.
+ * background.ts — MapyClimbs service worker.
  * Chrome messaging + storage glue only. All detection logic lives in climb-engine.ts.
  */
 
 import { detectClimbs } from "./climb-engine";
-import type { Climb, ElevationTuple } from "./types";
+import { parseGPX } from "./gpx-parser";
+import {
+  StorageKey,
+  type ExtensionMessage,
+  type ClimbsResponse,
+  type GpxStoredResponse,
+  type PortMessage,
+} from "./types";
 
 // ── Storage version guard ─────────────────────────────────────────────────────
 
 const STORAGE_VERSION = 1;
 
-chrome.storage.local.get("storageVersion", (result) => {
-  if (result["storageVersion"] !== STORAGE_VERSION) {
-    console.log("[ClimbAnalyzer] Storage version mismatch, clearing old cache");
+chrome.storage.local.get(StorageKey.StorageVersion, (result) => {
+  if (chrome.runtime.lastError) return;
+  if (result[StorageKey.StorageVersion] !== STORAGE_VERSION) {
+    console.log("[MapyClimbs] Storage version mismatch, clearing old cache");
     chrome.storage.local.clear(() => {
-      chrome.storage.local.set({ storageVersion: STORAGE_VERSION });
+      if (chrome.runtime.lastError) return;
+      chrome.storage.local.set({ [StorageKey.StorageVersion]: STORAGE_VERSION });
     });
   }
 });
@@ -32,29 +41,14 @@ chrome.runtime.onConnect.addListener((port) => {
   }
 });
 
-// ── Message types ─────────────────────────────────────────────────────────────
-
-interface ProcessClimbsMessage {
-  type: "PROCESS_CLIMBS";
-  elevation: ElevationTuple[];
-}
-
-interface GpxCapturedMessage {
-  type: "GPX_CAPTURED";
-  gpxContent: string;
-  timestamp: number;
-}
-
-type ExtensionMessage = ProcessClimbsMessage | GpxCapturedMessage;
-
-interface ProcessClimbsResponse {
-  climbs: Climb[];
-  totalDistance: number;
-  error?: string;
-}
-
-interface GpxCapturedResponse {
-  success: true;
+function notifyPopupPorts(message: PortMessage): void {
+  popupPorts.forEach((port) => {
+    try {
+      port.postMessage(message);
+    } catch {
+      // Port may have been disconnected between the filter and postMessage
+    }
+  });
 }
 
 // ── Message handler ───────────────────────────────────────────────────────────
@@ -63,7 +57,7 @@ chrome.runtime.onMessage.addListener(
   (
     request: ExtensionMessage,
     _sender: chrome.runtime.MessageSender,
-    sendResponse: (response: ProcessClimbsResponse | GpxCapturedResponse) => void
+    sendResponse: (response: ClimbsResponse | GpxStoredResponse) => void
   ) => {
     if (request.type === "PROCESS_CLIMBS") {
       try {
@@ -72,10 +66,31 @@ chrome.runtime.onMessage.addListener(
           request.elevation.length > 0
             ? request.elevation[request.elevation.length - 1][0]
             : 0;
-        chrome.storage.local.set({ lastClimbResult: climbs, lastTotalDistance: totalDistance });
+        chrome.storage.local.set({
+          [StorageKey.LastClimbResult]: climbs,
+          [StorageKey.LastTotalDistance]: totalDistance,
+        });
         sendResponse({ climbs, totalDistance });
       } catch (error) {
-        console.error("[ClimbAnalyzer] Climb detection error:", error);
+        console.error("[MapyClimbs] Climb detection error:", error);
+        sendResponse({
+          climbs: [],
+          totalDistance: 0,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    } else if (request.type === "ANALYZE_GPX") {
+      try {
+        const elevation = parseGPX(request.gpxContent);
+        const climbs = detectClimbs(elevation);
+        const totalDistance = elevation.length > 0 ? elevation[elevation.length - 1][0] : 0;
+        chrome.storage.local.set({
+          [StorageKey.LastClimbResult]: climbs,
+          [StorageKey.LastTotalDistance]: totalDistance,
+        });
+        sendResponse({ climbs, totalDistance });
+      } catch (error) {
+        console.error("[MapyClimbs] GPX analysis error:", error);
         sendResponse({
           climbs: [],
           totalDistance: 0,
@@ -83,16 +98,7 @@ chrome.runtime.onMessage.addListener(
         });
       }
     } else if (request.type === "GPX_CAPTURED") {
-      chrome.storage.local.set(
-        { pendingGPX: request.gpxContent, gpxCaptureTime: request.timestamp },
-        () => {
-          popupPorts.forEach((port) => {
-            try {
-              port.postMessage({ type: "GPX_CAPTURED", timestamp: request.timestamp });
-            } catch {}
-          });
-        }
-      );
+      notifyPopupPorts({ type: "GPX_CAPTURED", timestamp: request.timestamp });
       sendResponse({ success: true });
     }
     return true; // keep message channel open for async sendResponse

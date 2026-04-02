@@ -1,7 +1,7 @@
 {
   "name": "climb",
   "version": "0.5.5",
-  "description": "Mapy.cz Climb Analyzer Chrome extension",
+  "description": "MapyClimbs Chrome extension",
   "private": true,
   "type": "module",
   "scripts": {

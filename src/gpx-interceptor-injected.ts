@@ -62,9 +62,10 @@ interface XMLHttpRequest {
 let _suppressNextDownload = false;
 
 window.addEventListener("message", (event: MessageEvent) => {
+  if (event.source !== window || event.origin !== location.origin) return;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const data = event.data as any;
-  if (event.source === window && data && data.type === "CLIMB_SUPPRESS_DOWNLOAD") {
+  if (data && data.type === "CLIMB_SUPPRESS_DOWNLOAD") {
     _suppressNextDownload = true;
   }
 });
@@ -106,7 +107,7 @@ window.fetch = (...args: Parameters<typeof fetch>): ReturnType<typeof fetch> => 
               if (gpxContent.length > 0) {
                 window.postMessage(
                   { type: "GPX_FETCHED", gpxContent, source: "fetch-blob", timestamp: Date.now() },
-                  "*"
+                  location.origin
                 );
               }
             })
@@ -118,7 +119,7 @@ window.fetch = (...args: Parameters<typeof fetch>): ReturnType<typeof fetch> => 
               if (gpxContent.length > 0) {
                 window.postMessage(
                   { type: "GPX_FETCHED", gpxContent, source: "fetch-text", timestamp: Date.now() },
-                  "*"
+                  location.origin
                 );
               }
             })
@@ -162,7 +163,7 @@ XMLHttpRequest.prototype.send = function (
             if (text.length > 0) {
               window.postMessage(
                 { type: "GPX_FETCHED", gpxContent: text, source: "xhr-blob", timestamp: Date.now() },
-                "*"
+                location.origin
               );
             }
           })
@@ -177,7 +178,7 @@ XMLHttpRequest.prototype.send = function (
               source: "xhr-text",
               timestamp: Date.now(),
             },
-            "*"
+            location.origin
           );
         }
       } else if (typeof this.response === "string" && this.response.length > 0) {
@@ -188,7 +189,7 @@ XMLHttpRequest.prototype.send = function (
             source: "xhr-response",
             timestamp: Date.now(),
           },
-          "*"
+          location.origin
         );
       }
     };
@@ -291,7 +292,7 @@ function discoverMapInstance(): SMapInstance | null {
     }
   }
 
-  const candidates = document.querySelectorAll('div[id], div[class*="map"], div[class*="Map"]');
+  const candidates = Array.from(document.querySelectorAll('div[id], div[class*="map"], div[class*="Map"]'));
   for (const el of candidates) {
     for (const prop of Object.getOwnPropertyNames(el)) {
       try {

@@ -1,4 +1,4 @@
-# Mapy.cz Climb Analyzer
+# MapyClimbs
 
 Chrome extension that intercepts GPX exports from Mapy.cz, detects climbs, and injects analysis directly into the route-planner sidebar with live map pins.
 
@@ -8,7 +8,7 @@ Chrome extension that intercepts GPX exports from Mapy.cz, detects climbs, and i
 
 1. Open chrome://extensions/, enable **Developer mode**, click **Load unpacked**, select the extension/ folder
 2. Go to [mapy.cz](https://mapy.cz), open the route planner, plan a route
-3. Click **Climb Analyzer** in the toolbar — the extension fetches and analyzes the GPX automatically
+3. Click **MapyClimbs** in the toolbar — the extension fetches and analyzes the GPX automatically
 4. Climb cards and map pins appear in the sidebar instantly
 
 ## Project Structure
