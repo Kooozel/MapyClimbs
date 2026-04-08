@@ -28,9 +28,9 @@ export default tseslint.config(
     },
   },
 
-  // Node.js context: Vite config and ESLint config itself
+  // Node.js context: WXT config and ESLint config itself
   {
-    files: ["vite.config.ts", "eslint.config.js"],
+    files: ["wxt.config.ts", "eslint.config.js"],
     languageOptions: {
       globals: {
         ...globals.node,

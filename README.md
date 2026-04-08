@@ -6,10 +6,22 @@ Chrome extension that intercepts GPX exports from Mapy.cz, detects climbs, and i
 
 ## Quick Start
 
-1. Open chrome://extensions/, enable **Developer mode**, click **Load unpacked**, select the extension/ folder
-2. Go to [mapy.cz](https://mapy.cz), open the route planner, plan a route
-3. Click **MapyClimbs** in the toolbar — the extension fetches and analyzes the GPX automatically
-4. Climb cards and map pins appear in the sidebar instantly
+### Development build
+```sh
+npm install
+npm run dev   # builds + opens Chrome with extension loaded
+```
+
+### Production build
+```sh
+npm run build   # → dist/chrome-mv3/
+npm run zip     # → zip ready for Chrome Web Store
+```
+
+### Load manually
+Open `chrome://extensions/`, enable **Developer mode**, click **Load unpacked**, select `dist/chrome-mv3/`.
+
+Then: go to [mapy.cz](https://mapy.cz), open the route planner, plan a route, click **MapyClimbs** in the toolbar. Climb cards and map pins appear in the sidebar instantly.
 
 ## Project Structure
 
@@ -17,27 +29,33 @@ Chrome extension that intercepts GPX exports from Mapy.cz, detects climbs, and i
 climb/
 ├── README.md
 ├── CHANGELOG.md
-├── ARCHITECTURE.md       ← Architecture, algorithm, data flow, file responsibilities
-├── manifest.json
+├── ARCHITECTURE.md              ← Architecture, algorithm, data flow, file responsibilities
+├── wxt.config.ts                ← WXT + manifest configuration
 ├── package.json
-├── tsconfig.json
-├── vite.config.ts
+├── tsconfig.json                ← extends .wxt/tsconfig.json (auto-generated)
+├── vitest.config.js
+├── public/
+│   ├── images/                  ← Extension icons (copied as-is to dist)
+│   └── _locales/
+│       ├── cs/messages.json     ← Czech UI strings
+│       └── en/messages.json     ← English UI strings
 └── src/
-    ├── types.ts                     ← Shared domain types and message interfaces
-    ├── background.ts                ← Service worker (imports climb-engine)
-    ├── climb-engine.ts              ← Pure module: all climb-detection logic
-    ├── interceptor.ts               ← Content script: injects page-level interceptor
-    ├── gpx-interceptor-injected.ts  ← Page-context fetch/XHR interceptor
-    ├── gpx-parser.ts                ← GPX XML parser (Haversine distances)
-    ├── popup.ts / popup.html / popup.css  ← Extension info popup
-    ├── map-inject.css               ← Injected panel styles
-    ├── _locales/
-    │   ├── cs/messages.json         ← Czech UI strings
-    │   └── en/messages.json         ← English UI strings
+    ├── types.ts                 ← Shared domain types and message interfaces
+    ├── climb-engine.ts          ← Pure module: all climb-detection logic
+    ├── gpx-parser.ts            ← GPX XML parser (Haversine distances)
+    ├── map-inject.css           ← Injected panel styles
+    ├── entrypoints/
+    │   ├── background.ts        ← Service worker (defineBackground)
+    │   ├── interceptor.content.ts   ← Content script, document_start (defineContentScript)
+    │   ├── inject.content.ts        ← Content script, document_idle (defineContentScript)
+    │   ├── gpx-interceptor-injected.ts  ← Unlisted page-context script (defineUnlistedScript)
+    │   └── popup/
+    │       ├── index.html       ← Popup HTML
+    │       ├── popup.ts         ← Popup logic
+    │       └── popup.css        ← Popup styles
     └── content/
-        ├── chart.ts                 ← SVG elevation chart renderer
-        ├── panel.ts                 ← Sidebar panel DOM builder
-        └── inject.ts                ← SPA lifecycle: GPX polling, map overlay, button injection
+        ├── chart.ts             ← SVG elevation chart renderer
+        └── panel.ts             ← Sidebar panel DOM builder
 ```
 
 ## Documentation
@@ -61,9 +79,9 @@ climb/
 
 ### GPX Capture
 
-`gpx-interceptor-injected.js` monkey-patches `fetch` and `XHR` in page context. When a `/tplannerexport?export=gpx` response completes, the GPX is posted to `gpx-interceptor.js` via `postMessage`, which stores it in `chrome.storage.local` and notifies the background worker.
+`gpx-interceptor-injected.ts` monkey-patches `fetch` and `XHR` in page context. When a `/tplannerexport?export=gpx` response completes, the GPX is posted to `interceptor.content.ts` via `postMessage`, which stores it in `chrome.storage.local` and notifies the background worker.
 
-### Climb Detection (`climb-engine.js`) — 7-step pipeline
+### Climb Detection (`climb-engine.ts`) — 7-step pipeline
 
 1. **Resample** — merge GPS points < 12 m apart (removes micro-jitter)
 2. **Smooth** — adaptive rolling average (50–250 m window, terrain-weighted)
@@ -75,7 +93,7 @@ climb/
 
 ### Sidebar & Map
 
-`map-inject.js` polls for a new GPX every 500 ms after the Analyze button is clicked. On receipt, it calls `detectClimbs`, then `buildPanel` (`map-inject-panel.js`) and `renderMapOverlay` to place Web Mercator pins. A `MutationObserver` re-injects the panel if Mapy.cz removes it during SPA navigation.
+`inject.content.ts` polls for a new GPX every 2 s after the MapyClimbs button is clicked. On receipt, it calls `detectClimbs`, then `buildPanel` (`content/panel.ts`) and `renderMapOverlay` to place Web Mercator pins. A `MutationObserver` re-injects the panel if Mapy.cz removes it during SPA navigation.
 
 ## Climb Categories
 

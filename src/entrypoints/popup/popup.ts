@@ -9,7 +9,7 @@ import {
   type AnalyzeGpxMessage,
   type ClimbsResponse,
   type PortMessage,
-} from "./types";
+} from "../../types";
 
 const dot = document.getElementById("status-dot")!;
 const text = document.getElementById("status-text")!;
