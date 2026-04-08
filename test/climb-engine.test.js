@@ -1,7 +1,7 @@
 /**
  * test/climb-engine.test.js
  *
- * Unit tests for the climb-detection pipeline in climb-engine.js.
+ * Unit tests for the climb-detection pipeline in `src/climb-engine.ts`.
  * Each internal step is tested in isolation; detectClimbs covers the full pipeline.
  *
  * Run: npm test
@@ -15,7 +15,7 @@ import {
   smoothElevationProfile,
   mergeNearbyClimbs,
   categorizeClimb,
-} from '../extension/climb-engine.js';
+} from '../src/climb-engine.ts';
 
 // ─── Shared helpers ──────────────────────────────────────────────────────────
 
