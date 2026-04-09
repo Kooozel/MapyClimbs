@@ -68,7 +68,7 @@ const FLAT_ROUTE = Array.from({ length: 200 }, (_, i) => [i * 30, 250, 48.0 + i 
 /**
  * Fixture 2 — single steady climb.
  * 1 km flat lead-in → 8 km ramp at 7.5 % → short flat tail.
- * Expected: 1 climb, Cat 3 (difficulty ≈ 4 500, within [3 000, 8 000)).
+ * Expected: 1 climb, Cat 2 (score ≈ 450, within [300, 600)).
  *
  * Points are spaced 25 m apart (well above the 12 m resample threshold so
  * none are dropped and the gradient is preserved accurately through the pipeline).
@@ -334,48 +334,48 @@ describe('categorizeClimb', () => {
     expect(categorizeClimb(null)).toBeNull();
   });
 
-  it('assigns category 4 when difficulty < 3 000', () => {
-    // 5 km × 2 % × 100 = 1 000  →  Cat 4
+  it('assigns category 4 when score < 75', () => {
+    // 5 km × 2 %² = 5 × 4 = 20  →  Cat 4
     const climb = makeClimb(5000, 100);
     const result = categorizeClimb(climb);
     expect(result.category).toBe('4');
-    expect(result.difficulty).toBeCloseTo(1000, 0);
+    expect(result.difficulty).toBeCloseTo(20, 0);
   });
 
-  it('assigns category 3 at the lower boundary (difficulty = 3 000)', () => {
-    // 10 km × 3 % × 100 = 3 000  →  Cat 3
-    const climb = makeClimb(10000, 300);
+  it('assigns category 3 at the lower boundary (score = 75)', () => {
+    // 3 km × 5 %² = 3 × 25 = 75  →  Cat 3
+    const climb = makeClimb(3000, 150);
     const result = categorizeClimb(climb);
     expect(result.category).toBe('3');
-    expect(result.difficulty).toBeCloseTo(3000, 0);
+    expect(result.difficulty).toBeCloseTo(75, 0);
   });
 
-  it('assigns category 2 at the lower boundary (difficulty = 8 000)', () => {
-    // 10 km × 8 % × 100 = 8 000  →  Cat 2
-    const climb = makeClimb(10000, 800);
+  it('assigns category 2 at the lower boundary (score = 150)', () => {
+    // 6 km × 5 %² = 6 × 25 = 150  →  Cat 2
+    const climb = makeClimb(6000, 300);
     const result = categorizeClimb(climb);
     expect(result.category).toBe('2');
-    expect(result.difficulty).toBeCloseTo(8000, 0);
+    expect(result.difficulty).toBeCloseTo(150, 0);
   });
 
-  it('assigns category 1 at the lower boundary (difficulty = 16 000)', () => {
-    // 20 km × 8 % × 100 = 16 000  →  Cat 1
-    const climb = makeClimb(20000, 1600);
+  it('assigns category 1 at the lower boundary (score = 300)', () => {
+    // 12 km × 5 %² = 12 × 25 = 300  →  Cat 1
+    const climb = makeClimb(12000, 600);
     const result = categorizeClimb(climb);
     expect(result.category).toBe('1');
-    expect(result.difficulty).toBeCloseTo(16000, 0);
+    expect(result.difficulty).toBeCloseTo(300, 0);
   });
 
-  it('assigns HC at the lower boundary (difficulty = 40 000)', () => {
-    // 20 km × 20 % × 100 = 40 000  →  HC
-    const climb = makeClimb(20000, 4000);
+  it('assigns HC at the lower boundary (score = 600)', () => {
+    // 24 km × 5 %² = 24 × 25 = 600  →  HC
+    const climb = makeClimb(24000, 1200);
     const result = categorizeClimb(climb);
     expect(result.category).toBe('HC');
-    expect(result.difficulty).toBeCloseTo(40000, 0);
+    expect(result.difficulty).toBeCloseTo(600, 0);
   });
 
   it('returns a complete climb object with all required fields', () => {
-    const climb = makeClimb(8000, 480);   // 8 km × 6 % × 100 = 4 800 → Cat 3
+    const climb = makeClimb(8000, 480);   // 8 km × 6 %² = 8 × 36 = 288 → Cat 2
     const result = categorizeClimb(climb);
 
     expect(result).toMatchObject({
@@ -394,6 +394,34 @@ describe('categorizeClimb', () => {
     // 6 000 m gain 300 m → avgGrade = 5 %
     const result = categorizeClimb(makeClimb(6000, 300));
     expect(result.avgGrade).toBeCloseTo(5, 5);
+  });
+
+  // ── Garmin model ──────────────────────────────────────────────────────────
+
+  it('[garmin] assigns category 4 when score ≥ 8 000', () => {
+    // 1 000 m × 10 % = 10 000 → Cat 4
+    const result = categorizeClimb(makeClimb(1000, 100), 'garmin');
+    expect(result.category).toBe('4');
+    expect(result.difficulty).toBeCloseTo(10000, 0);
+  });
+
+  it('[garmin] assigns category 3 at the lower boundary (score = 16 000)', () => {
+    // 2 000 m × 8 % = 16 000 → Cat 3
+    const result = categorizeClimb(makeClimb(2000, 160), 'garmin');
+    expect(result.category).toBe('3');
+    expect(result.difficulty).toBeCloseTo(16000, 0);
+  });
+
+  it('[garmin] assigns HC at the lower boundary (score = 64 000)', () => {
+    // 8 000 m × 8 % = 64 000 → HC
+    const result = categorizeClimb(makeClimb(8000, 640), 'garmin');
+    expect(result.category).toBe('HC');
+    expect(result.difficulty).toBeCloseTo(64000, 0);
+  });
+
+  it('[garmin] returns null when score < 1 500', () => {
+    // 200 m × 5 % = 1 000 < 1 500 → discard
+    expect(categorizeClimb(makeClimb(200, 10), 'garmin')).toBeNull();
   });
 });
 

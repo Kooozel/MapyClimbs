@@ -12,6 +12,7 @@ import {
   type ElevationTuple,
   type ProcessClimbsMessage,
   type ClimbsResponse,
+  type CategorizationUpdatedMessage,
 } from "../types";
 
 const MAPY_MATCHES = [
@@ -59,6 +60,24 @@ function init(): void {
   observer.observe(document.body, { childList: true, subtree: true });
 
   setInterval(pollForGPX, 2000);
+
+  // Re-render when the scoring model changes (background sends this after
+  // recategorising stored climbs — no full re-detection needed).
+  chrome.runtime.onMessage.addListener((msg: CategorizationUpdatedMessage) => {
+    if (msg.type !== "CATEGORIZATION_UPDATED") return;
+    chrome.storage.local.get(
+      [StorageKey.LastClimbResult, StorageKey.LastTotalDistance],
+      (data) => {
+        const updated = data[StorageKey.LastClimbResult] as Climb[] | undefined;
+        const dist = data[StorageKey.LastTotalDistance] as number | undefined;
+        if (!updated) return;
+        _climbs = updated;
+        _totalRouteDistance = dist ?? _totalRouteDistance;
+        renderPanel();
+        renderMapOverlay();
+      }
+    );
+  });
 
   window.addEventListener("popstate", onRouteChange);
   const _origPushState = history.pushState.bind(history);

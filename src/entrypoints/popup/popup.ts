@@ -9,7 +9,10 @@ import {
   type AnalyzeGpxMessage,
   type ClimbsResponse,
   type PortMessage,
+  type ScoringModel,
+  type RecategorizeMessage,
 } from "../../types";
+import { SCORING_CONFIGS } from "../../scoring";
 
 const dot = document.getElementById("status-dot")!;
 const text = document.getElementById("status-text")!;
@@ -18,6 +21,9 @@ const climbStatsSection = document.getElementById("climb-stats")!;
 const climbStatsText = document.getElementById("climb-stats-text")!;
 const retrySection = document.getElementById("retry-section")!;
 const retryBtn = document.getElementById("retry-btn")!;
+const catList = document.getElementById("cat-list")!;
+const catFormula = document.getElementById("cat-formula")!;
+const modelDesc = document.getElementById("model-desc")!;
 
 // Apply Chrome i18n translations to all data-i18n / data-i18n-html elements
 function applyI18n(): void {
@@ -35,6 +41,90 @@ applyI18n();
 // Populate version from manifest — avoids hardcoded string drifting out of sync
 const versionEl = document.getElementById("ext-version");
 if (versionEl) versionEl.textContent = `v${chrome.runtime.getManifest().version}`;
+
+// ── Categories rendering ───────────────────────────────────────────────────
+
+const CAT_COLORS: Record<string, string> = {
+  HC: "#d42b2b",
+  "1": "#e85d17",
+  "2": "#e8a117",
+  "3": "#c8c022",
+  "4": "#6b7280",
+};
+
+/** Format a threshold minimum as a display string.
+ *  The last threshold in each model has a special label:
+ *  - ASO Cat 4 (min = 0) → "< {prev_min}" since 0 is not a meaningful lower bound.
+ *  - Garmin Cat 4 (min = 8 000) → "≥ 8 000" (a real floor, below it is uncategorized).
+ */
+function formatThreshold(min: number, index: number, allMins: readonly number[]): string {
+  if (index === allMins.length - 1 && min === 0) {
+    return `< ${allMins[index - 1].toLocaleString("en")}`;
+  }
+  return `\u2265 ${min.toLocaleString("en")}`;
+}
+
+function renderCategories(model: ScoringModel): void {
+  const cfg = SCORING_CONFIGS[model];
+  const mins = cfg.thresholds.map((t) => t.min);
+  catList.innerHTML = cfg.thresholds
+    .map((t, i) => {
+      const label = t.category === "HC" ? "HC" : `Cat ${t.category}`;
+      const score = formatThreshold(t.min, i, mins);
+      return (
+        `<div class="cat-row">` +
+        `<span class="cat-dot" style="background:${CAT_COLORS[t.category] ?? CAT_COLORS["4"]}"></span>` +
+        `<span class="cat-label">${label}</span>` +
+        `<span class="cat-score">${score}</span>` +
+        `</div>`
+      );
+    })
+    .join("");
+
+  if (model === "garmin") {
+    catFormula.textContent = chrome.i18n.getMessage("popupFormulaGarmin");
+    modelDesc.textContent = chrome.i18n.getMessage("popupModelDescGarmin");
+  } else {
+    catFormula.textContent = chrome.i18n.getMessage("popupFormulaASO");
+    modelDesc.textContent = chrome.i18n.getMessage("popupModelDescASO");
+  }
+}
+
+// ── Scoring model toggle ───────────────────────────────────────────────────
+
+function setActiveModelBtn(model: ScoringModel): void {
+  document.querySelectorAll<HTMLButtonElement>(".model-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.model === model);
+  });
+}
+
+function recategorizeWithModel(): void {
+  const message: RecategorizeMessage = { type: "RECATEGORIZE_CLIMBS" };
+  chrome.runtime.sendMessage(message, (response: ClimbsResponse | undefined) => {
+    if (chrome.runtime.lastError || !response) return;
+    updateClimbStats();
+  });
+}
+
+document.querySelectorAll<HTMLButtonElement>(".model-btn").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const model = btn.dataset.model as ScoringModel;
+    chrome.storage.local.set({ [StorageKey.ScoringModel]: model }, () => {
+      setActiveModelBtn(model);
+      renderCategories(model);
+      recategorizeWithModel();
+    });
+  });
+});
+
+// Initialise toggle state from storage
+chrome.storage.local.get(StorageKey.ScoringModel, (pref) => {
+  const model = (pref[StorageKey.ScoringModel] as ScoringModel | undefined) ?? "aso";
+  setActiveModelBtn(model);
+  renderCategories(model);
+});
+
+// ── Spinner helpers ────────────────────────────────────────────────────────
 
 function showSpinner(): void {
   spinner.style.display = "flex";

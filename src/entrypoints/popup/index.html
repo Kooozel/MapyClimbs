@@ -76,29 +76,17 @@
 
       <section class="categories-section">
         <h2 data-i18n="popupCatTitle">Categories</h2>
-        <div class="cat-list">
-          <div class="cat-row">
-            <span class="cat-dot" style="background: #d42b2b"></span
-            ><span class="cat-label">HC</span><span class="cat-score">≥ 40 000</span>
-          </div>
-          <div class="cat-row">
-            <span class="cat-dot" style="background: #e85d17"></span
-            ><span class="cat-label">Cat 1</span><span class="cat-score">≥ 16 000</span>
-          </div>
-          <div class="cat-row">
-            <span class="cat-dot" style="background: #e8a117"></span
-            ><span class="cat-label">Cat 2</span><span class="cat-score">≥ 8 000</span>
-          </div>
-          <div class="cat-row">
-            <span class="cat-dot" style="background: #c8c022"></span
-            ><span class="cat-label">Cat 3</span><span class="cat-score">≥ 3 000</span>
-          </div>
-          <div class="cat-row">
-            <span class="cat-dot" style="background: #6b7280"></span
-            ><span class="cat-label">Cat 4</span><span class="cat-score">&lt; 3 000</span>
-          </div>
+        <div class="cat-list" id="cat-list"></div>
+        <p class="formula" id="cat-formula"></p>
+      </section>
+
+      <section class="settings-section">
+        <h2 data-i18n="popupSettingsTitle">Scoring Model</h2>
+        <div class="model-toggle" id="model-toggle">
+          <button class="model-btn" id="model-btn-aso" data-model="aso" data-i18n="popupModelASO">ASO</button>
+          <button class="model-btn" id="model-btn-garmin" data-model="garmin" data-i18n="popupModelGarmin">Garmin</button>
         </div>
-        <p class="formula" data-i18n="popupFormula">Score = dist(km) × avg grade(%) × 100</p>
+        <p class="model-desc" id="model-desc"></p>
       </section>
 
       <footer class="popup-footer">

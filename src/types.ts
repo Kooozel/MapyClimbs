@@ -15,6 +15,7 @@ export const StorageKey = {
   GpxCaptureTime: "gpxCaptureTime",
   LastClimbResult: "lastClimbResult",
   LastTotalDistance: "lastTotalDistance",
+  ScoringModel: "scoringModel",
 } as const;
 
 export type StorageKey = (typeof StorageKey)[keyof typeof StorageKey];
@@ -45,7 +46,23 @@ export interface GpxCapturedMessage {
   timestamp: number;
 }
 
-export type ExtensionMessage = ProcessClimbsMessage | AnalyzeGpxMessage | GpxCapturedMessage;
+/**
+ * Request re-categorisation of already-stored climbs using the current
+ * ScoringModel preference — no GPX re-parse or re-detection is performed.
+ */
+export interface RecategorizeMessage {
+  type: "RECATEGORIZE_CLIMBS";
+}
+
+export type ExtensionMessage = ProcessClimbsMessage | AnalyzeGpxMessage | GpxCapturedMessage | RecategorizeMessage;
+
+/**
+ * Sent by background → active mapy tab content script after re-categorisation
+ * completes, so the overlay/panel can refresh without a full re-analysis.
+ */
+export interface CategorizationUpdatedMessage {
+  type: "CATEGORIZATION_UPDATED";
+}
 
 /** Response shape for PROCESS_CLIMBS and ANALYZE_GPX messages. */
 export interface ClimbsResponse {
@@ -67,8 +84,28 @@ export interface PortMessage {
   timestamp: number;
 }
 
-/** ProCyclingStats climb difficulty category. */
-export type ClimbCategory = "HC" | "1" | "2" | "3" | "4";
+/**
+ * Climb difficulty category — enum-like const so callers can reference values
+ * as `ClimbCategory.HC` etc. while the type still resolves to the string union
+ * used throughout storage and the UI.
+ */
+export const ClimbCategory = {
+  HC:   "HC",
+  Cat1: "1",
+  Cat2: "2",
+  Cat3: "3",
+  Cat4: "4",
+} as const;
+export type ClimbCategory = (typeof ClimbCategory)[keyof typeof ClimbCategory];
+
+/**
+ * Scoring model used to classify climbs.
+ * - "aso": ASO/Tour de France formula — score = dist(km) × avgGrade²
+ *   Thresholds: HC ≥ 600 | Cat 1 ≥ 300 | Cat 2 ≥ 150 | Cat 3 ≥ 75 | Cat 4 < 75
+ * - "garmin": Garmin ClimbPro formula — score = dist(m) × avgGrade(%)
+ *   Thresholds: HC ≥ 64 000 | Cat 1 ≥ 48 000 | Cat 2 ≥ 32 000 | Cat 3 ≥ 16 000 | Cat 4 ≥ 8 000
+ */
+export type ScoringModel = "aso" | "garmin";
 
 /**
  * Raw elevation tuple as produced by gpx-parser.
