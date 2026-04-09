@@ -125,21 +125,11 @@ export default defineBackground(() => {
             chrome.storage.local.set({ [StorageKey.LastClimbResult]: climbs }, () => {
               // Notify all active mapy tabs so the overlay refreshes
               const msg: CategorizationUpdatedMessage = { type: "CATEGORIZATION_UPDATED" };
-              chrome.tabs.query(
-                {
-                  url: [
-                    "https://mapy.cz/*",
-                    "https://*.mapy.cz/*",
-                    "https://mapy.com/*",
-                    "https://*.mapy.com/*",
-                  ],
-                },
-                (tabs) => {
-                  tabs.forEach((tab) => {
-                    if (tab.id != null) chrome.tabs.sendMessage(tab.id, msg).catch(() => {});
-                  });
-                }
-              );
+              chrome.tabs.query({ url: ["https://mapy.cz/*", "https://*.mapy.cz/*", "https://mapy.com/*", "https://*.mapy.com/*"] }, (tabs) => {
+                tabs.forEach((tab) => {
+                  if (tab.id != null) chrome.tabs.sendMessage(tab.id, msg).catch(() => {});
+                });
+              });
               sendResponse({ climbs, totalDistance });
             });
           }

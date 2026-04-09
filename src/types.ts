@@ -16,6 +16,7 @@ export const StorageKey = {
   LastClimbResult: "lastClimbResult",
   LastTotalDistance: "lastTotalDistance",
   ScoringModel: "scoringModel",
+  MapLayerVisible: "mapLayerVisible",
 } as const;
 
 export type StorageKey = (typeof StorageKey)[keyof typeof StorageKey];
@@ -54,11 +55,13 @@ export interface RecategorizeMessage {
   type: "RECATEGORIZE_CLIMBS";
 }
 
-export type ExtensionMessage =
-  | ProcessClimbsMessage
-  | AnalyzeGpxMessage
-  | GpxCapturedMessage
-  | RecategorizeMessage;
+/** Toggle visibility of the climb marker overlay on the map. */
+export interface MapLayerVisibilityMessage {
+  type: "MAP_LAYER_VISIBILITY_CHANGED";
+  visible: boolean;
+}
+
+export type ExtensionMessage = ProcessClimbsMessage | AnalyzeGpxMessage | GpxCapturedMessage | RecategorizeMessage | MapLayerVisibilityMessage;
 
 /**
  * Sent by background → active mapy tab content script after re-categorisation

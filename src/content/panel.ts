@@ -7,6 +7,7 @@
 
 import { generateElevationChart } from "./chart";
 import type { Climb, ClimbCategory, Segment } from "../types";
+import { StorageKey } from "../types";
 
 // ── Category helpers ──────────────────────────────────────────────────────────
 
@@ -174,9 +175,11 @@ export function buildPanel(climbs: Climb[] | null, totalRouteDistance: number): 
 
   if (!climbs || climbs.length === 0) {
     panel.innerHTML = `
-      <div class="cip-header-bar">
-        <img src="${chrome.runtime.getURL("images/icon-48.png")}" width="16" height="16" alt="" aria-hidden="true">
-        <span>${chrome.i18n.getMessage("panelTitle")}</span>
+      <div class="cip-header">
+        <div class="cip-header-bar">
+          <img src="${chrome.runtime.getURL("images/icon-48.png")}" width="16" height="16" alt="" aria-hidden="true">
+          <span>${chrome.i18n.getMessage("panelTitle")}</span>
+        </div>
       </div>
       <p class="cip-empty">${chrome.i18n.getMessage("panelNoClimbs")}</p>`;
     return panel;
@@ -201,13 +204,26 @@ export function buildPanel(climbs: Climb[] | null, totalRouteDistance: number): 
   });
 
   panel.innerHTML = `
-    <button class="cip-header-bar cip-toggle" aria-expanded="true">
-      <img src="${chrome.runtime.getURL("images/icon-48.png")}" width="16" height="16" alt="" aria-hidden="true">
-      <span>${chrome.i18n.getMessage("panelTitle")}</span>
-      <svg class="cip-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-        <polyline points="6 9 12 15 18 9"/>
-      </svg>
-    </button>
+    <div class="cip-header">
+      <button class="cip-header-bar cip-toggle" aria-expanded="true">
+        <img src="${chrome.runtime.getURL("images/icon-48.png")}" width="16" height="16" alt="" aria-hidden="true">
+        <span>${chrome.i18n.getMessage("panelTitle")}</span>
+        <svg class="cip-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </button>
+      <button class="cip-layer-toggle" id="cip-layer-toggle" title="${chrome.i18n.getMessage("panelToggleMapLayer")}" aria-label="${chrome.i18n.getMessage("panelToggleMapLayer")}">
+        <svg class="cip-eye-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+          <circle cx="12" cy="12" r="3"/>
+        </svg>
+        <svg class="cip-eye-off-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+          <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+          <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+          <line x1="1" y1="1" x2="23" y2="23"/>
+        </svg>
+      </button>
+    </div>
     <div class="cip-body"><div class="cip-inner">${inner}</div></div>`;
 
   const toggleBtn = panel.querySelector<HTMLButtonElement>(".cip-toggle")!;
@@ -219,6 +235,34 @@ export function buildPanel(climbs: Climb[] | null, totalRouteDistance: number): 
     panel.querySelector<SVGElement>(".cip-chevron")!.style.transform = expanded
       ? "rotate(-90deg)"
       : "";
+  });
+
+  const layerBtn = panel.querySelector<HTMLButtonElement>("#cip-layer-toggle")!;
+  const eyeIcon = layerBtn.querySelector<SVGElement>(".cip-eye-icon")!;
+  const eyeOffIcon = layerBtn.querySelector<SVGElement>(".cip-eye-off-icon")!;
+
+  // Sync initial state from storage
+  chrome.storage.local.get(StorageKey.MapLayerVisible, (pref) => {
+    const visible = pref[StorageKey.MapLayerVisible] as boolean | undefined;
+    const isVisible = visible !== false;
+    eyeIcon.style.display = isVisible ? "" : "none";
+    eyeOffIcon.style.display = isVisible ? "none" : "";
+    layerBtn.classList.toggle("cip-layer-off", !isVisible);
+  });
+
+  layerBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    chrome.storage.local.get(StorageKey.MapLayerVisible, (pref) => {
+      const current = (pref[StorageKey.MapLayerVisible] as boolean | undefined) !== false;
+      const next = !current;
+      chrome.storage.local.set({ [StorageKey.MapLayerVisible]: next });
+      eyeIcon.style.display = next ? "" : "none";
+      eyeOffIcon.style.display = next ? "none" : "";
+      layerBtn.classList.toggle("cip-layer-off", !next);
+      // Also update the overlay directly
+      const overlay = document.getElementById("climb-marker-overlay");
+      if (overlay) overlay.style.display = next ? "" : "none";
+    });
   });
 
   panel.querySelectorAll<HTMLElement>(".climb-profile-container").forEach((c) => {
