@@ -19,7 +19,11 @@
     "format:check": "prettier --check src/",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "src/**/*.{ts,css}": "prettier --write"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
@@ -27,6 +31,8 @@
     "@vitest/coverage-v8": "^4.1.2",
     "eslint": "^9.0.0",
     "globals": "^15.0.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
     "prettier": "^3.0.0",
     "typescript": "^6.0.2",
     "typescript-eslint": "^8.58.0",
