@@ -32,7 +32,7 @@ const retryBtn = document.getElementById("retry-btn")!;
 const catList = document.getElementById("cat-list")!;
 const catFormula = document.getElementById("cat-formula")!;
 const modelDesc = document.getElementById("model-desc")!;
-const mapLayerToggle = document.getElementById("map-layer-toggle") as HTMLInputElement;
+const mapLayerToggle = document.getElementById("map-layer-toggle")! as HTMLInputElement;
 
 // ── i18n ─────────────────────────────────────────────────────────────────────
 
@@ -153,13 +153,15 @@ chrome.storage.local.get(StorageKey.MapLayerVisible, (pref) => {
 mapLayerToggle.addEventListener("change", () => {
   const visible = mapLayerToggle.checked;
   chrome.storage.local.set({ [StorageKey.MapLayerVisible]: visible });
-  // Notify active content script directly via tabs
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    if (!tabs[0]?.id) return;
+  // Broadcast to all open tabs so already-open pages stay in sync.
+  chrome.tabs.query({}, (tabs) => {
     const msg: MapLayerVisibilityMessage = { type: "MAP_LAYER_VISIBILITY_CHANGED", visible };
-    chrome.tabs.sendMessage(tabs[0].id, msg).catch(() => {
-      // Content script not present on this tab — ignore
-    });
+    for (const tab of tabs) {
+      if (!tab.id) continue;
+      chrome.tabs.sendMessage(tab.id, msg).catch(() => {
+        // Content script not present on this tab — ignore
+      });
+    }
   });
 });
 

@@ -234,7 +234,7 @@ function renderMapOverlay(): void {
   // Respect map layer visibility setting
   chrome.storage.local.get(StorageKey.MapLayerVisible, (pref) => {
     const visible = pref[StorageKey.MapLayerVisible] as boolean | undefined;
-    if (visible === false) overlay!.style.display = "none";
+    overlay!.style.display = visible === false ? "none" : "";
   });
 
   const CAT_COLORS: Record<string, string> = {
