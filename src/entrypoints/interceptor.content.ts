@@ -1,11 +1,36 @@
 /**
- * interceptor.ts — Content script (document_start).
+ * interceptor.content entrypoint — Content script (document_start).
  * Injects gpx-interceptor-injected.js into the page context and relays
  * GPX_FETCHED postMessages to the background service worker via storage +
  * chrome.runtime.sendMessage.
  */
 
-import { StorageKey, type GpxCapturedMessage } from "./types";
+import { StorageKey, type GpxCapturedMessage } from "../types";
+
+const MAPY_MATCHES = [
+  "https://mapy.cz/*",
+  "https://*.mapy.cz/*",
+  "https://mapy.com/*",
+  "https://*.mapy.com/*",
+] as const;
+
+export default defineContentScript({
+  matches: [...MAPY_MATCHES],
+  runAt: "document_start",
+  main() {
+    injectInterceptorScript();
+
+    window.addEventListener("message", (event: MessageEvent) => {
+      if (event.source !== window) return;
+      if (event.origin !== location.origin) return;
+
+      if (isGpxFetchedEvent(event.data)) {
+        const ts = typeof event.data.timestamp === "number" ? event.data.timestamp : Date.now();
+        storeAndNotifyGPX(event.data.gpxContent, ts);
+      }
+    });
+  },
+});
 
 function injectInterceptorScript(): void {
   try {
@@ -17,8 +42,6 @@ function injectInterceptorScript(): void {
     // document_start: documentElement always exists; catch is safety-only
   }
 }
-
-injectInterceptorScript();
 
 // ── Type guard for page-context postMessages ──────────────────────────────────
 
@@ -36,16 +59,6 @@ function isGpxFetchedEvent(data: unknown): data is PageGpxFetchedEvent {
     typeof (data as Record<string, unknown>)["gpxContent"] === "string"
   );
 }
-
-window.addEventListener("message", (event: MessageEvent) => {
-  if (event.source !== window) return;
-  if (event.origin !== location.origin) return;
-
-  if (isGpxFetchedEvent(event.data)) {
-    const ts = typeof event.data.timestamp === "number" ? event.data.timestamp : Date.now();
-    storeAndNotifyGPX(event.data.gpxContent, ts);
-  }
-});
 
 // ── Storage write + background notification ───────────────────────────────────
 

@@ -5,31 +5,42 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "vite build",
-    "dev": "vite build --watch",
-    "pack": "npm run build && web-ext build --config=web-ext.config.mjs",
+    "dev": "wxt",
+    "dev:firefox": "wxt -b firefox",
+    "build": "wxt build",
+    "build:firefox": "wxt build -b firefox",
+    "zip": "wxt zip",
+    "zip:firefox": "wxt zip -b firefox",
+    "postinstall": "wxt prepare",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src/ vite.config.ts eslint.config.js",
-    "lint:fix": "eslint src/ vite.config.ts --fix",
-    "lint:ext": "npm run build && web-ext lint --config=web-ext.config.mjs",
+    "lint": "eslint src/ wxt.config.ts eslint.config.js",
+    "lint:fix": "eslint src/ wxt.config.ts --fix",
     "format": "prettier --write src/",
     "format:check": "prettier --check src/",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "src/**/*.{ts,css}": "prettier --write",
+    "src/**/*.ts": "eslint --fix"
+  },
+  "engines": {
+    "node": ">=20.17"
   },
   "devDependencies": {
-    "@crxjs/vite-plugin": "^2.4.0",
     "@eslint/js": "^9.0.0",
     "@types/chrome": "^0.1.38",
     "@vitest/coverage-v8": "^4.1.2",
     "eslint": "^9.0.0",
     "globals": "^15.0.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
     "prettier": "^3.0.0",
     "typescript": "^6.0.2",
     "typescript-eslint": "^8.58.0",
-    "vite": "^8.0.3",
     "vitest": "^4.1.2",
-    "web-ext": "^8.0.0"
+    "wxt": "latest"
   }
 }

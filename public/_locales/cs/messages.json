@@ -60,9 +60,33 @@
     "message": "Kategorie",
     "description": "Categories section heading"
   },
-  "popupFormula": {
-    "message": "Skóre = vzdálenost(km) × průměrný sklon(%) × 100",
-    "description": "Scoring formula label"
+  "popupFormulaASO": {
+    "message": "Sk\u00f3re = vzdálenost(km) \u00d7 pr\u016fm\u011brný sklon(%)\u00b2",
+    "description": "ASO scoring formula label"
+  },
+  "popupFormulaGarmin": {
+    "message": "Sk\u00f3re = vzdálenost(m) \u00d7 pr\u016fm\u011brný sklon(%)",
+    "description": "Garmin ClimbPro scoring formula label"
+  },
+  "popupSettingsTitle": {
+    "message": "Model hodnocení",
+    "description": "Settings section heading"
+  },
+  "popupModelASO": {
+    "message": "ASO",
+    "description": "ASO scoring model button label"
+  },
+  "popupModelGarmin": {
+    "message": "Garmin",
+    "description": "Garmin scoring model button label"
+  },
+  "popupModelDescASO": {
+    "message": "Vzorec Tour de France \u2014 zv\u00fdrazňuje strmé stoupání",
+    "description": "Short description of ASO model"
+  },
+  "popupModelDescGarmin": {
+    "message": "Vzorec Garmin ClimbPro \u2014 line\u00e1rn\u00ed kombinace vzdálenosti a sklonu",
+    "description": "Short description of Garmin model"
   },
   "popupBmcHeading": {
     "message": "Líbí se vám MapyClimbs?",
@@ -75,6 +99,23 @@
   "popupBmcBtn": {
     "message": "☕ Podpořit projekt",
     "description": "Buy me a coffee button"
+  },
+
+  "popupSettingsPageTitle": {
+    "message": "Nastavení",
+    "description": "Settings page heading"
+  },
+  "popupMapLayerTitle": {
+    "message": "Vrstva mapy",
+    "description": "Map layer settings section heading"
+  },
+  "popupMapLayerLabel": {
+    "message": "Zobrazit značky stoupání na mapě",
+    "description": "Toggle label for map layer visibility"
+  },
+  "panelToggleMapLayer": {
+    "message": "Přepnout značky stoupání",
+    "description": "Tooltip for eye toggle button in panel header"
   },
 
   "panelTitle": {

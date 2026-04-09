@@ -22,7 +22,7 @@ The extension uses a **five-layer architecture** for GPX capture, analysis, and 
                ▼
 ┌─────────────────────────────────────────┐
 │  Content Script Context                 │
-│  interceptor.ts                         │
+│  interceptor.content.ts                 │
 │  - Listens for GPX via postMessage      │
 │  - Stores in chrome.storage.local       │
 │  - Notifies background worker           │
@@ -49,7 +49,7 @@ The extension uses a **five-layer architecture** for GPX capture, analysis, and 
 ```
 
 _(Sidebar panel and map pins are rendered by the content scripts_
-_`content/chart.ts` + `content/panel.ts` + `content/inject.ts` —_
+_`content/chart.ts` + `content/panel.ts` + `inject.content.ts` —_
 _not by the popup.)_
 
 ## Data Flow
@@ -67,7 +67,7 @@ Converts blob/text to GPX string
          ↓
 window.postMessage({ type: 'GPX_FETCHED', gpxContent })
          ↓
-interceptor.ts content script receives message
+interceptor.content.ts content script receives message
          ↓
 Stores in chrome.storage.local
 Sends message to background.ts
@@ -107,17 +107,14 @@ background.ts stores results in chrome.storage.local, responds to content/inject
          ↓
 content/inject.ts calls buildPanel(climbs, totalRouteDistance) from content/panel.ts
 content/inject.ts calls renderMapOverlay(climbs) to place Web Mercator pins
-```
 
 ## File Responsibilities
 
-### `manifest.json`
+### `wxt.config.ts`
 
-- Extension metadata, permissions (`storage` only)
-- Service worker with `"type": "module"` (enables ES module `import` in background.ts)
-- Content scripts: `interceptor.ts` at `document_start`; `gpx-parser.ts` + `content/chart.ts` + `content/panel.ts` + `content/inject.ts` at `document_idle`
-- Web-accessible resource: `gpx-interceptor-injected.ts`
-- Host permissions for `mapy.cz` and `mapy.com`
+- WXT build configuration and full manifest definition
+- Replaces the old `manifest.json` + `vite.config.ts` pair
+- Declares permissions, host permissions, action, web_accessible_resources, icons, and i18n locale
 
 ### `types.ts`
 
@@ -130,10 +127,10 @@ content/inject.ts calls renderMapOverlay(climbs) to place Web Mercator pins
 - `ClimbsResponse`, `GpxStoredResponse` — response shapes for background message handlers
 - `PortMessage` — shape of notifications pushed over the popup long-lived port
 
-### `gpx-interceptor-injected.ts`
+### `entrypoints/gpx-interceptor-injected.ts`
 
-**Context**: Page/window context (not sandboxed)
-**When**: Runs at document_start
+**Context**: Page/window context (not sandboxed) — unlisted script (`defineUnlistedScript`)
+**When**: Injected at document_start by `interceptor.content.ts`
 **Responsibilities**:
 
 - Intercepts `window.fetch()` calls
@@ -143,9 +140,9 @@ content/inject.ts calls renderMapOverlay(climbs) to place Web Mercator pins
 - Converts blob responses to text
 - Posts captured GPX to content script via postMessage
 
-### `interceptor.ts`
+### `entrypoints/interceptor.content.ts`
 
-**Context**: Content script (sandboxed, separate from page)
+**Context**: Content script (sandboxed, separate from page) — `defineContentScript({ runAt: 'document_start' })`
 **When**: Runs at document_start
 **Responsibilities**:
 
@@ -156,9 +153,9 @@ content/inject.ts calls renderMapOverlay(climbs) to place Web Mercator pins
 - Sends chrome.runtime.sendMessage to background.ts
 - Maintains persistent port connection to popup
 
-### `background.ts`
+### `entrypoints/background.ts`
 
-**Context**: Service worker ES module (always running)
+**Context**: Service worker ES module (`defineBackground`) — always running
 **Responsibilities**:
 
 - Storage version guard — clears stale cache on schema change
@@ -196,23 +193,9 @@ Only `detectClimbs` is exported; all other functions are private to the module.
 - Calculate cumulative distance using the Haversine formula
 - Return elevation profile as `ElevationTuple[]` (`[distance_m, elevation_m, lat, lon]`)
 
-### `popup.html`
+### `entrypoints/popup/`
 
-- 280px-wide info popup opened from the toolbar icon
-- Shows GPX capture status (dot indicator + timestamp)
-- Shows last analysis summary: climb count + total route distance
-- Loading spinner while analysis runs; retry button if no climbs found
-- Static sections: how-to guide, category reference table, buy-me-a-coffee link
-- No climb cards — full analysis is in the injected sidebar panel
-
-### `popup.css`
-
-- Dark-theme styles for the 280px toolbar popup
-- Status dot, spinner animation, retry button, info sections
-
-### `popup.ts`
-
-**Context**: Popup window script (runs when popup opened)
+**Files**: `index.html`, `popup.ts`, `popup.css`
 **Responsibilities**:
 
 - Establish persistent port connection to background.ts for push notifications
@@ -221,9 +204,9 @@ Only `detectClimbs` is exported; all other functions are private to the module.
 - Show spinner while analysis is pending; show retry button if result is empty
 - Retry button sends `ANALYZE_GPX` with the last `pendingGPX` to background.ts for reanalysis
 
-### `content/inject.ts`
+### `entrypoints/inject.content.ts`
 
-**Context**: Content script — SPA lifecycle controller
+**Context**: Content script — SPA lifecycle controller — `defineContentScript({ runAt: 'document_idle', cssInjectionMode: 'manifest' })`
 **State**: `_climbs`, `_panelInjected`, `_lastGPXLength`, `_totalRouteDistance`
 **Responsibilities**:
 

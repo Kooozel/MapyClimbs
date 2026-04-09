@@ -5,7 +5,7 @@ export default defineConfig({
     include: ['test/**/*.test.js'],
     coverage: {
       provider: 'v8',
-      include: ['extension/climb-engine.js'],
+      include: ['src/climb-engine.ts'],
       reporter: ['text', 'html'],
       thresholds: {
         branches: 80,
