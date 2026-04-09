@@ -26,6 +26,9 @@
     "src/**/*.{ts,css}": "prettier --write",
     "src/**/*.ts": "eslint --fix"
   },
+  "engines": {
+    "node": ">=20.17"
+  },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
     "@types/chrome": "^0.1.38",
