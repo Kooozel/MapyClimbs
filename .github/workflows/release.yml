@@ -5,6 +5,9 @@ on:
     branches:
       - main
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 # Prevent concurrent releases
 concurrency:
   group: release
@@ -12,23 +15,19 @@ concurrency:
 
 jobs:
   build:
-    name: Build & tag
+    name: Build
     runs-on: ubuntu-latest
     # Skip the version-bump commit that this workflow itself pushes back
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
     permissions:
-      contents: write
+      contents: read
     outputs:
-      version: ${{ steps.version.outputs.version }}
+      zip-name: ${{ steps.zip.outputs.name }}
       zip-path: ${{ steps.zip.outputs.path }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          # Use PAT so the version-bump push can bypass branch protection
-          token: ${{ secrets.GH_PAT }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -39,36 +38,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # ── Auto-bump patch version if not already bumped relative to last tag ──
-      - name: Determine version bump
-        id: version
-        run: |
-          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "none")
-          CURRENT=$(node -p "require('./package.json').version")
-          if [ "$LAST_TAG" = "v$CURRENT" ]; then
-            npm version patch --no-git-tag-version
-            NEW_VERSION=$(node -p "require('./package.json').version")
-            echo "bumped=true" >> "$GITHUB_OUTPUT"
-          else
-            NEW_VERSION="$CURRENT"
-            echo "bumped=false" >> "$GITHUB_OUTPUT"
-          fi
-          echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
-
-      - name: Commit version bump
-        if: steps.version.outputs.bumped == 'true'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add package.json
-          git commit -m "chore: bump version to v${{ steps.version.outputs.version }} [skip ci]"
-          git push
-
-      - name: Create and push tag
-        run: |
-          git tag "v${{ steps.version.outputs.version }}"
-          git push origin "v${{ steps.version.outputs.version }}"
-
       # ── Build extension zip ───────────────────────────────────────────────
       - name: Build zip
         run: npm run zip
@@ -78,6 +47,7 @@ jobs:
         run: |
           ZIP=$(find dist -name "*.zip" | head -1)
           echo "path=$ZIP" >> "$GITHUB_OUTPUT"
+          echo "name=$(basename $ZIP)" >> "$GITHUB_OUTPUT"
 
       # ── Upload zip as artifact for the publish job ────────────────────────
       - name: Upload zip artifact
@@ -86,15 +56,6 @@ jobs:
           name: extension-zip
           path: ${{ steps.zip.outputs.path }}
           retention-days: 1
-
-      # ── GitHub Release ────────────────────────────────────────────────────
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ steps.version.outputs.version }}
-          name: v${{ steps.version.outputs.version }}
-          generate_release_notes: true
-          files: ${{ steps.zip.outputs.path }}
 
   publish:
     name: Publish to Chrome Web Store
@@ -106,6 +67,12 @@ jobs:
       pull-requests: write
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GH_PAT }}
+
       - name: Download zip artifact
         uses: actions/download-artifact@v4
         with:
@@ -124,20 +91,49 @@ jobs:
         with:
           file-path: ${{ steps.zip.outputs.path }}
           extension-id: ${{ secrets.CHROME_EXTENSION_ID }}
-          client-id: ${{ secrets.CLIENT_ID }}
+          client-id: ${{ secrets.CHROME_CLIENT_ID }}
           client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
           refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
 
-      # ── Open PR to sync main → develop ───────────────────────────────────
-      - name: Open sync PR to develop
-        uses: peter-evans/create-pull-request@v6
+      # ── Version bump + tag (only after successful CWS publish) ────────────
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          token: ${{ secrets.GH_PAT }}
-          base: develop
-          branch: sync/main-to-develop-${{ needs.build.outputs.version }}
-          title: "chore: sync v${{ needs.build.outputs.version }} back to develop"
-          body: |
-            Automated sync of `main` → `develop` after release v${{ needs.build.outputs.version }}.
+          node-version: "lts/*"
+          cache: "npm"
 
-            Merges the version bump and any hotfix changes back into `develop`.
-          commit-message: "chore: sync v${{ needs.build.outputs.version }} to develop [skip ci]"
+      - name: Bump version and tag
+        id: version
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "none")
+          CURRENT=$(node -p "require('./package.json').version")
+          if [ "$LAST_TAG" = "v$CURRENT" ]; then
+            npm version patch --no-git-tag-version
+            NEW_VERSION=$(node -p "require('./package.json').version")
+            git add package.json
+            git commit -m "chore: bump version to v$NEW_VERSION [skip ci]"
+          else
+            NEW_VERSION="$CURRENT"
+          fi
+          git tag "v$NEW_VERSION"
+          git push origin HEAD:main --follow-tags
+          echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+
+      # ── GitHub Release ────────────────────────────────────────────────────
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: v${{ steps.version.outputs.version }}
+          generate_release_notes: true
+          files: ${{ steps.zip.outputs.path }}
+
+      # ── Merge main back into develop ──────────────────────────────────────
+      - name: Merge main into develop
+        run: |
+          git fetch origin develop
+          git checkout develop
+          git merge main --no-ff -m "chore: merge main into develop after release v${{ steps.version.outputs.version }} [skip ci]"
+          git push origin develop

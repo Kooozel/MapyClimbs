@@ -6,6 +6,9 @@ on:
       - main
       - develop
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   ci:
     name: CI
@@ -34,3 +37,44 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Validate CWS description length
+        run: |
+          for locale in public/_locales/*/messages.json; do
+            DESC=$(node -p "require('./$locale').extDescription?.message ?? ''")
+            LEN=${#DESC}
+            if [ "$LEN" -gt 132 ]; then
+              echo "ERROR: $locale description is $LEN chars (max 132): $DESC"
+              exit 1
+            fi
+          done
+
+      - name: Validate manifest
+        run: |
+          MANIFEST="dist/chrome-mv3/manifest.json"
+          PKG_VERSION=$(node -p "require('./package.json').version")
+
+          # version matches package.json
+          MF_VERSION=$(node -p "require('./$MANIFEST').version")
+          if [ "$MF_VERSION" != "$PKG_VERSION" ]; then
+            echo "ERROR: manifest version ($MF_VERSION) does not match package.json ($PKG_VERSION)"
+            exit 1
+          fi
+
+          # name ≤ 45 chars (CWS limit)
+          NAME=$(node -p "require('./$MANIFEST').name")
+          NAME_LEN=${#NAME}
+          if [ "$NAME_LEN" -gt 45 ]; then
+            echo "ERROR: manifest name is $NAME_LEN chars (max 45): $NAME"
+            exit 1
+          fi
+
+          # required icons exist in the zip source
+          for ICON in public/images/icon-16.png public/images/icon-48.png public/images/icon-128.png; do
+            if [ ! -f "$ICON" ]; then
+              echo "ERROR: missing icon: $ICON"
+              exit 1
+            fi
+          done
+
+          echo "Manifest OK — version=$MF_VERSION, name=$NAME ($NAME_LEN chars)"
