@@ -11,8 +11,16 @@ import {
   type PortMessage,
   type ScoringModel,
   type RecategorizeMessage,
+  type MapLayerVisibilityMessage,
 } from "../../types";
 import { SCORING_CONFIGS } from "../../scoring";
+
+// ── DOM refs ─────────────────────────────────────────────────────────────────
+
+const viewMain = document.getElementById("view-main")!;
+const viewSettings = document.getElementById("view-settings")!;
+const gearBtn = document.getElementById("gear-btn")!;
+const backBtn = document.getElementById("back-btn")!;
 
 const dot = document.getElementById("status-dot")!;
 const text = document.getElementById("status-text")!;
@@ -24,8 +32,10 @@ const retryBtn = document.getElementById("retry-btn")!;
 const catList = document.getElementById("cat-list")!;
 const catFormula = document.getElementById("cat-formula")!;
 const modelDesc = document.getElementById("model-desc")!;
+const mapLayerToggle = document.getElementById("map-layer-toggle") as HTMLInputElement;
 
-// Apply Chrome i18n translations to all data-i18n / data-i18n-html elements
+// ── i18n ─────────────────────────────────────────────────────────────────────
+
 function applyI18n(): void {
   document.querySelectorAll<HTMLElement>("[data-i18n]").forEach((el) => {
     const msg = chrome.i18n.getMessage(el.dataset.i18n!);
@@ -38,11 +48,26 @@ function applyI18n(): void {
 }
 applyI18n();
 
-// Populate version from manifest — avoids hardcoded string drifting out of sync
+// Populate version from manifest
 const versionEl = document.getElementById("ext-version");
 if (versionEl) versionEl.textContent = `v${chrome.runtime.getManifest().version}`;
 
-// ── Categories rendering ───────────────────────────────────────────────────
+// ── View routing ──────────────────────────────────────────────────────────────
+
+function showMain(): void {
+  viewMain.style.display = "";
+  viewSettings.style.display = "none";
+}
+
+function showSettings(): void {
+  viewMain.style.display = "none";
+  viewSettings.style.display = "";
+}
+
+gearBtn.addEventListener("click", showSettings);
+backBtn.addEventListener("click", showMain);
+
+// ── Categories rendering ──────────────────────────────────────────────────────
 
 const CAT_COLORS: Record<string, string> = {
   HC: "#d42b2b",
@@ -52,11 +77,6 @@ const CAT_COLORS: Record<string, string> = {
   "4": "#6b7280",
 };
 
-/** Format a threshold minimum as a display string.
- *  The last threshold in each model has a special label:
- *  - ASO Cat 4 (min = 0) → "< {prev_min}" since 0 is not a meaningful lower bound.
- *  - Garmin Cat 4 (min = 8 000) → "≥ 8 000" (a real floor, below it is uncategorized).
- */
 function formatThreshold(min: number, index: number, allMins: readonly number[]): string {
   if (index === allMins.length - 1 && min === 0) {
     return `< ${allMins[index - 1].toLocaleString("en")}`;
@@ -90,7 +110,7 @@ function renderCategories(model: ScoringModel): void {
   }
 }
 
-// ── Scoring model toggle ───────────────────────────────────────────────────
+// ── Scoring model toggle ──────────────────────────────────────────────────────
 
 function setActiveModelBtn(model: ScoringModel): void {
   document.querySelectorAll<HTMLButtonElement>(".model-btn").forEach((btn) => {
@@ -117,14 +137,33 @@ document.querySelectorAll<HTMLButtonElement>(".model-btn").forEach((btn) => {
   });
 });
 
-// Initialise toggle state from storage
 chrome.storage.local.get(StorageKey.ScoringModel, (pref) => {
   const model = (pref[StorageKey.ScoringModel] as ScoringModel | undefined) ?? "aso";
   setActiveModelBtn(model);
   renderCategories(model);
 });
 
-// ── Spinner helpers ────────────────────────────────────────────────────────
+// ── Map layer toggle ──────────────────────────────────────────────────────────
+
+chrome.storage.local.get(StorageKey.MapLayerVisible, (pref) => {
+  const visible = pref[StorageKey.MapLayerVisible] as boolean | undefined;
+  mapLayerToggle.checked = visible !== false; // default true
+});
+
+mapLayerToggle.addEventListener("change", () => {
+  const visible = mapLayerToggle.checked;
+  chrome.storage.local.set({ [StorageKey.MapLayerVisible]: visible });
+  // Notify active content script directly via tabs
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    if (!tabs[0]?.id) return;
+    const msg: MapLayerVisibilityMessage = { type: "MAP_LAYER_VISIBILITY_CHANGED", visible };
+    chrome.tabs.sendMessage(tabs[0].id, msg).catch(() => {
+      // Content script not present on this tab — ignore
+    });
+  });
+});
+
+// ── Spinner helpers ───────────────────────────────────────────────────────────
 
 function showSpinner(): void {
   spinner.style.display = "flex";

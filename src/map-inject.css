@@ -93,15 +93,24 @@
 
 /* ── Collapse header bar ───────────────────────────────────────────────── */
 
+/* ── Collapse header wrapper ───────────────────────────────────────────── */
+
+#climb-inject-panel .cip-header {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg0);
+}
+
 #climb-inject-panel .cip-header-bar {
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 10px 14px;
-  background: var(--bg0);
+  background: transparent;
   border: none;
-  border-bottom: 1px solid var(--border);
-  width: 100%;
+  border-bottom: none;
+  flex: 1;
   text-align: left;
   cursor: pointer;
   color: var(--text1);
@@ -121,6 +130,32 @@
   margin-left: auto;
   flex-shrink: 0;
   transition: transform 0.2s;
+  color: var(--text3);
+}
+
+/* ── Eye / layer toggle button ─────────────────────────────────────────── */
+
+#climb-inject-panel .cip-layer-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  border-left: 1px solid var(--border);
+  color: var(--accent);
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s, color 0.15s;
+}
+
+#climb-inject-panel .cip-layer-toggle:hover {
+  background: var(--bg1);
+}
+
+#climb-inject-panel .cip-layer-toggle.cip-layer-off {
   color: var(--text3);
 }
 

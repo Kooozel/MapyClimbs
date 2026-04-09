@@ -13,6 +13,7 @@ import {
   type ProcessClimbsMessage,
   type ClimbsResponse,
   type CategorizationUpdatedMessage,
+  type MapLayerVisibilityMessage,
 } from "../types";
 
 const MAPY_MATCHES = [
@@ -63,7 +64,12 @@ function init(): void {
 
   // Re-render when the scoring model changes (background sends this after
   // recategorising stored climbs — no full re-detection needed).
-  chrome.runtime.onMessage.addListener((msg: CategorizationUpdatedMessage) => {
+  chrome.runtime.onMessage.addListener((msg: CategorizationUpdatedMessage | MapLayerVisibilityMessage) => {
+    if (msg.type === "MAP_LAYER_VISIBILITY_CHANGED") {
+      const overlay = document.getElementById("climb-marker-overlay");
+      if (overlay) overlay.style.display = (msg as MapLayerVisibilityMessage).visible ? "" : "none";
+      return;
+    }
     if (msg.type !== "CATEGORIZATION_UPDATED") return;
     chrome.storage.local.get(
       [StorageKey.LastClimbResult, StorageKey.LastTotalDistance],
@@ -224,6 +230,12 @@ function renderMapOverlay(): void {
   overlay.style.width = mb.width + "px";
   overlay.style.height = mb.height + "px";
   overlay.innerHTML = "";
+
+  // Respect map layer visibility setting
+  chrome.storage.local.get(StorageKey.MapLayerVisible, (pref) => {
+    const visible = pref[StorageKey.MapLayerVisible] as boolean | undefined;
+    if (visible === false) overlay!.style.display = "none";
+  });
 
   const CAT_COLORS: Record<string, string> = {
     HC: "#660000",

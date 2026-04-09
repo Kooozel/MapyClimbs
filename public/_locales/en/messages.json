@@ -101,6 +101,23 @@
     "description": "Buy me a coffee button"
   },
 
+  "popupSettingsPageTitle": {
+    "message": "Settings",
+    "description": "Settings page heading"
+  },
+  "popupMapLayerTitle": {
+    "message": "Map Layer",
+    "description": "Map layer settings section heading"
+  },
+  "popupMapLayerLabel": {
+    "message": "Show climb markers on map",
+    "description": "Toggle label for map layer visibility"
+  },
+  "panelToggleMapLayer": {
+    "message": "Toggle climb markers",
+    "description": "Tooltip for eye toggle button in panel header"
+  },
+
   "panelTitle": {
     "message": "MapyClimbs",
     "description": "Sidebar panel and toolbar button title"
