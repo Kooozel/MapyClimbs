@@ -105,7 +105,12 @@ export default defineUnlistedScript(() => {
               .then((gpxContent) => {
                 if (gpxContent.length > 0) {
                   window.postMessage(
-                    { type: "GPX_FETCHED", gpxContent, source: "fetch-blob", timestamp: Date.now() },
+                    {
+                      type: "GPX_FETCHED",
+                      gpxContent,
+                      source: "fetch-blob",
+                      timestamp: Date.now(),
+                    },
                     location.origin
                   );
                 }
@@ -117,7 +122,12 @@ export default defineUnlistedScript(() => {
               .then((gpxContent) => {
                 if (gpxContent.length > 0) {
                   window.postMessage(
-                    { type: "GPX_FETCHED", gpxContent, source: "fetch-text", timestamp: Date.now() },
+                    {
+                      type: "GPX_FETCHED",
+                      gpxContent,
+                      source: "fetch-text",
+                      timestamp: Date.now(),
+                    },
                     location.origin
                   );
                 }
@@ -166,7 +176,12 @@ export default defineUnlistedScript(() => {
             .then((text) => {
               if (text.length > 0) {
                 window.postMessage(
-                  { type: "GPX_FETCHED", gpxContent: text, source: "xhr-blob", timestamp: Date.now() },
+                  {
+                    type: "GPX_FETCHED",
+                    gpxContent: text,
+                    source: "xhr-blob",
+                    timestamp: Date.now(),
+                  },
                   location.origin
                 );
               }
@@ -182,7 +197,12 @@ export default defineUnlistedScript(() => {
           }
         } else if (typeof this.response === "string" && this.response.length > 0) {
           window.postMessage(
-            { type: "GPX_FETCHED", gpxContent: this.response, source: "xhr-response", timestamp: Date.now() },
+            {
+              type: "GPX_FETCHED",
+              gpxContent: this.response,
+              source: "xhr-response",
+              timestamp: Date.now(),
+            },
             location.origin
           );
         }

@@ -54,7 +54,11 @@ export interface RecategorizeMessage {
   type: "RECATEGORIZE_CLIMBS";
 }
 
-export type ExtensionMessage = ProcessClimbsMessage | AnalyzeGpxMessage | GpxCapturedMessage | RecategorizeMessage;
+export type ExtensionMessage =
+  | ProcessClimbsMessage
+  | AnalyzeGpxMessage
+  | GpxCapturedMessage
+  | RecategorizeMessage;
 
 /**
  * Sent by background → active mapy tab content script after re-categorisation
@@ -90,7 +94,7 @@ export interface PortMessage {
  * used throughout storage and the UI.
  */
 export const ClimbCategory = {
-  HC:   "HC",
+  HC: "HC",
   Cat1: "1",
   Cat2: "2",
   Cat3: "3",

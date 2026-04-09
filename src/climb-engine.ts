@@ -20,7 +20,7 @@ import type {
   Segment,
   ScoringModel,
 } from "./types";
-import { SCORING_CONFIGS, applyScore } from "./scoring";
+import { applyScore } from "./scoring";
 
 // ─── Pipeline entry point ────────────────────────────────────────────────────
 
@@ -30,7 +30,10 @@ import { SCORING_CONFIGS, applyScore } from "./scoring";
  *
  * @param elevationData - [[distance_m, elevation_m, lat, lon], ...]
  */
-export function detectClimbs(elevationData: ElevationTuple[], scoringModel: ScoringModel = "aso"): Climb[] {
+export function detectClimbs(
+  elevationData: ElevationTuple[],
+  scoringModel: ScoringModel = "aso"
+): Climb[] {
   if (!elevationData || elevationData.length < 2) return [];
 
   // Step 1: Build structured profile from raw tuples

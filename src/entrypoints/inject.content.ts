@@ -65,18 +65,15 @@ function init(): void {
   // recategorising stored climbs — no full re-detection needed).
   chrome.runtime.onMessage.addListener((msg: CategorizationUpdatedMessage) => {
     if (msg.type !== "CATEGORIZATION_UPDATED") return;
-    chrome.storage.local.get(
-      [StorageKey.LastClimbResult, StorageKey.LastTotalDistance],
-      (data) => {
-        const updated = data[StorageKey.LastClimbResult] as Climb[] | undefined;
-        const dist = data[StorageKey.LastTotalDistance] as number | undefined;
-        if (!updated) return;
-        _climbs = updated;
-        _totalRouteDistance = dist ?? _totalRouteDistance;
-        renderPanel();
-        renderMapOverlay();
-      }
-    );
+    chrome.storage.local.get([StorageKey.LastClimbResult, StorageKey.LastTotalDistance], (data) => {
+      const updated = data[StorageKey.LastClimbResult] as Climb[] | undefined;
+      const dist = data[StorageKey.LastTotalDistance] as number | undefined;
+      if (!updated) return;
+      _climbs = updated;
+      _totalRouteDistance = dist ?? _totalRouteDistance;
+      renderPanel();
+      renderMapOverlay();
+    });
   });
 
   window.addEventListener("popstate", onRouteChange);

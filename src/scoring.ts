@@ -32,11 +32,11 @@ export const SCORING_CONFIGS: Readonly<Record<ScoringModel, ScoringConfig>> = {
     score: (distanceM, avgGrade) => (distanceM / 1000) * avgGrade * avgGrade,
     minScore: 0,
     thresholds: [
-      { category: ClimbCategory.HC,   min: 600 },
+      { category: ClimbCategory.HC, min: 600 },
       { category: ClimbCategory.Cat1, min: 300 },
       { category: ClimbCategory.Cat2, min: 150 },
-      { category: ClimbCategory.Cat3, min: 75  },
-      { category: ClimbCategory.Cat4, min: 0   },
+      { category: ClimbCategory.Cat3, min: 75 },
+      { category: ClimbCategory.Cat4, min: 0 },
     ],
   },
   garmin: {
@@ -44,11 +44,11 @@ export const SCORING_CONFIGS: Readonly<Record<ScoringModel, ScoringConfig>> = {
     score: (distanceM, avgGrade) => distanceM * avgGrade,
     minScore: 1500,
     thresholds: [
-      { category: ClimbCategory.HC,   min: 64000 },
+      { category: ClimbCategory.HC, min: 64000 },
       { category: ClimbCategory.Cat1, min: 48000 },
       { category: ClimbCategory.Cat2, min: 32000 },
       { category: ClimbCategory.Cat3, min: 16000 },
-      { category: ClimbCategory.Cat4, min: 8000  },
+      { category: ClimbCategory.Cat4, min: 8000 },
     ],
   },
 };
