@@ -27,3 +27,5 @@ yarn-error.log*
 
 # Misc
 *.zip
+
+.github/prompts/

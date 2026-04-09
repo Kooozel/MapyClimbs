@@ -1,0 +1,143 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+# Prevent concurrent releases
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build & tag
+    runs-on: ubuntu-latest
+    # Skip the version-bump commit that this workflow itself pushes back
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      zip-path: ${{ steps.zip.outputs.path }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # Use PAT so the version-bump push can bypass branch protection
+          token: ${{ secrets.GH_PAT }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "lts/*"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      # ── Auto-bump patch version if not already bumped relative to last tag ──
+      - name: Determine version bump
+        id: version
+        run: |
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "none")
+          CURRENT=$(node -p "require('./package.json').version")
+          if [ "$LAST_TAG" = "v$CURRENT" ]; then
+            npm version patch --no-git-tag-version
+            NEW_VERSION=$(node -p "require('./package.json').version")
+            echo "bumped=true" >> "$GITHUB_OUTPUT"
+          else
+            NEW_VERSION="$CURRENT"
+            echo "bumped=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Commit version bump
+        if: steps.version.outputs.bumped == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.json
+          git commit -m "chore: bump version to v${{ steps.version.outputs.version }} [skip ci]"
+          git push
+
+      - name: Create and push tag
+        run: |
+          git tag "v${{ steps.version.outputs.version }}"
+          git push origin "v${{ steps.version.outputs.version }}"
+
+      # ── Build extension zip ───────────────────────────────────────────────
+      - name: Build zip
+        run: npm run zip
+
+      - name: Find zip file
+        id: zip
+        run: |
+          ZIP=$(find dist -name "*.zip" | head -1)
+          echo "path=$ZIP" >> "$GITHUB_OUTPUT"
+
+      # ── Upload zip as artifact for the publish job ────────────────────────
+      - name: Upload zip artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-zip
+          path: ${{ steps.zip.outputs.path }}
+          retention-days: 1
+
+      # ── GitHub Release ────────────────────────────────────────────────────
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.version }}
+          name: v${{ steps.version.outputs.version }}
+          generate_release_notes: true
+          files: ${{ steps.zip.outputs.path }}
+
+  publish:
+    name: Publish to Chrome Web Store
+    runs-on: ubuntu-latest
+    needs: build
+    environment: production   # <-- manual approval gate lives here
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Download zip artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: extension-zip
+          path: dist
+
+      - name: Find zip file
+        id: zip
+        run: |
+          ZIP=$(find dist -name "*.zip" | head -1)
+          echo "path=$ZIP" >> "$GITHUB_OUTPUT"
+
+      # ── Chrome Web Store publish ──────────────────────────────────────────
+      - name: Publish to Chrome Web Store
+        uses: fregante/chrome-webstore-upload-action@v2
+        with:
+          extension-id: ${{ secrets.CHROME_EXTENSION_ID }}
+          client-id: ${{ secrets.CHROME_CLIENT_ID }}
+          client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
+          refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
+          file-name: ${{ steps.zip.outputs.path }}
+
+      # ── Open PR to sync main → develop ───────────────────────────────────
+      - name: Open sync PR to develop
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GH_PAT }}
+          base: develop
+          branch: sync/main-to-develop-${{ needs.build.outputs.version }}
+          title: "chore: sync v${{ needs.build.outputs.version }} back to develop"
+          body: |
+            Automated sync of `main` → `develop` after release v${{ needs.build.outputs.version }}.
+
+            Merges the version bump and any hotfix changes back into `develop`.
+          commit-message: "chore: sync v${{ needs.build.outputs.version }} to develop [skip ci]"
