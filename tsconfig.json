@@ -2,13 +2,10 @@
   "compilerOptions": {
     "target": "ES2023",
     "lib": ["ES2023", "DOM"],
-    "module": "ESNext",
-    "moduleResolution": "bundler",
     "strict": true,
     "noEmit": true,
     "skipLibCheck": true,
-    "types": ["chrome"],
-    "resolveJsonModule": true
+    "types": ["chrome"]
   },
-  "include": ["src/**/*.ts", "vite.config.ts"]
+  "include": ["**/*", ".wxt/wxt.d.ts"]
 }

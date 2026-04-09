@@ -10,15 +10,17 @@
  * as produced by gpx-parser.ts, and Climb is defined in types.ts.
  */
 
+import { ClimbCategory } from "./types";
 import type {
-  ClimbCategory,
   Climb,
   Coords,
   ElevationTuple,
   GpsPoint,
   RawClimb,
   Segment,
+  ScoringModel,
 } from "./types";
+import { applyScore } from "./scoring";
 
 // ─── Pipeline entry point ────────────────────────────────────────────────────
 
@@ -28,7 +30,10 @@ import type {
  *
  * @param elevationData - [[distance_m, elevation_m, lat, lon], ...]
  */
-export function detectClimbs(elevationData: ElevationTuple[]): Climb[] {
+export function detectClimbs(
+  elevationData: ElevationTuple[],
+  scoringModel: ScoringModel = "aso"
+): Climb[] {
   if (!elevationData || elevationData.length < 2) return [];
 
   // Step 1: Build structured profile from raw tuples
@@ -55,7 +60,7 @@ export function detectClimbs(elevationData: ElevationTuple[]): Climb[] {
     .map((climb) => {
       const trimmed = trimClimbEndpoints(climb);
       return trimmed.totalDistance > 0 && trimmed.totalElevation > 0
-        ? categorizeClimb(trimmed)
+        ? categorizeClimb(trimmed, scoringModel)
         : null;
     })
     .filter((c): c is Climb => c !== null);
@@ -71,7 +76,7 @@ export function detectClimbs(elevationData: ElevationTuple[]): Climb[] {
         if (!("totalDistance" in c)) return c; // unchanged — already a Climb
         const trimmed = trimClimbEndpoints(c);
         return trimmed.totalDistance > 0 && trimmed.totalElevation > 0
-          ? categorizeClimb(trimmed)
+          ? categorizeClimb(trimmed, scoringModel)
           : null;
       })
       .filter((c): c is Climb => c !== null);
@@ -434,18 +439,12 @@ function trimClimbEndpoints(climb: RawClimb): RawClimb {
   return { segments: [], totalDistance: 0, totalElevation: 0 };
 }
 
-export function categorizeClimb(climb: RawClimb): Climb | null {
+export function categorizeClimb(climb: RawClimb, scoringModel: ScoringModel = "aso"): Climb | null {
   if (!climb || climb.totalDistance === 0 || climb.totalElevation === 0) return null;
 
-  const distanceKm = climb.totalDistance / 1000;
   const avgGrade = (climb.totalElevation / climb.totalDistance) * 100;
-  const difficulty = distanceKm * avgGrade * 100;
-
-  let category: ClimbCategory = "4";
-  if (difficulty >= 40000) category = "HC";
-  else if (difficulty >= 16000) category = "1";
-  else if (difficulty >= 8000) category = "2";
-  else if (difficulty >= 3000) category = "3";
+  const scored = applyScore(climb.totalDistance, avgGrade, scoringModel);
+  if (!scored) return null;
 
   const firstSeg = climb.segments[0];
   const lastSeg = climb.segments[climb.segments.length - 1];
@@ -464,12 +463,26 @@ export function categorizeClimb(climb: RawClimb): Climb | null {
     distance: climb.totalDistance,
     elevation: climb.totalElevation,
     avgGrade,
-    difficulty,
-    category,
+    ...scored,
     segments: climb.segments,
     markerCoords,
     endCoords,
   };
+}
+
+/**
+ * Re-applies scoring/categorisation to an already-detected Climb[] without
+ * re-running the detection pipeline. Only `difficulty` and `category` change;
+ * all geometric data (segments, coords, distance, elevation) is preserved.
+ * Climbs that fall below the model's minimum score are filtered out.
+ */
+export function recategorizeClimbs(climbs: Climb[], model: ScoringModel): Climb[] {
+  return climbs
+    .map((climb): Climb | null => {
+      const scored = applyScore(climb.distance, climb.avgGrade, model);
+      return scored ? { ...climb, ...scored } : null;
+    })
+    .filter((c): c is Climb => c !== null);
 }
 
 // ─── Step 6: Anti-green splitting ────────────────────────────────────────────

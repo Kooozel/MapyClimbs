@@ -354,3 +354,63 @@ body {
 .retry-btn:active {
   background: var(--bg2);
 }
+
+/* ── Settings ─────────────────────────────────────────────── */
+
+.settings-section {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.settings-section h2 {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text3);
+  margin-bottom: 8px;
+}
+
+.model-toggle {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.model-btn {
+  flex: 1;
+  padding: 5px 0;
+  background: var(--bg2);
+  border: none;
+  color: var(--text2);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+
+.model-btn + .model-btn {
+  border-left: 1px solid var(--border);
+}
+
+.model-btn.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.model-btn:not(.active):hover {
+  background: var(--bg3);
+  color: var(--text1);
+}
+
+.model-desc {
+  font-size: 10px;
+  color: var(--text3);
+  font-style: italic;
+  line-height: 1.5;
+}

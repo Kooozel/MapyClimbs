@@ -60,9 +60,33 @@
     "message": "Categories",
     "description": "Categories section heading"
   },
-  "popupFormula": {
-    "message": "Score = dist(km) × avg grade(%) × 100",
-    "description": "Scoring formula label"
+  "popupFormulaASO": {
+    "message": "Score = dist(km) \u00d7 avg grade(%)\u00b2",
+    "description": "ASO scoring formula label"
+  },
+  "popupFormulaGarmin": {
+    "message": "Score = dist(m) \u00d7 avg grade(%)",
+    "description": "Garmin ClimbPro scoring formula label"
+  },
+  "popupSettingsTitle": {
+    "message": "Scoring Model",
+    "description": "Settings section heading"
+  },
+  "popupModelASO": {
+    "message": "ASO",
+    "description": "ASO scoring model button label"
+  },
+  "popupModelGarmin": {
+    "message": "Garmin",
+    "description": "Garmin scoring model button label"
+  },
+  "popupModelDescASO": {
+    "message": "Tour de France formula \u2014 rewards steep gradients",
+    "description": "Short description of ASO model"
+  },
+  "popupModelDescGarmin": {
+    "message": "Garmin ClimbPro formula \u2014 linear with distance \u00d7 grade",
+    "description": "Short description of Garmin model"
   },
   "popupBmcHeading": {
     "message": "Enjoying MapyClimbs?",

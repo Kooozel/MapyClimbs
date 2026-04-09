@@ -1,19 +1,42 @@
 /**
- * content/inject.ts — Content script (document_idle).
+ * inject.content entrypoint — Content script (document_idle).
  * SPA lifecycle controller: GPX polling, map overlay, button/panel injection.
- *
- * Replaces the IIFE in map-inject.js; module scope substitutes the closure.
  */
 
+import "../map-inject.css";
 import { parseGPX } from "../gpx-parser";
-import { buildPanel, showChartOverlay, hideChartOverlay } from "./panel";
+import { buildPanel, showChartOverlay, hideChartOverlay } from "../content/panel";
 import {
   StorageKey,
   type Climb,
   type ElevationTuple,
   type ProcessClimbsMessage,
   type ClimbsResponse,
+  type CategorizationUpdatedMessage,
 } from "../types";
+
+const MAPY_MATCHES = [
+  "https://mapy.cz/*",
+  "https://*.mapy.cz/*",
+  "https://mapy.com/*",
+  "https://*.mapy.com/*",
+] as const;
+
+// ── Module state ───────────────────────────────────────────────────────────────
+
+let _climbs: Climb[] | null = null;
+let _panelInjected = false;
+let _lastGPXLength = 0;
+let _totalRouteDistance = 0;
+
+export default defineContentScript({
+  matches: [...MAPY_MATCHES],
+  runAt: "document_idle",
+  cssInjectionMode: "manifest",
+  main() {
+    init();
+  },
+});
 
 // ── Route-planner guard ────────────────────────────────────────────────────────
 
@@ -23,16 +46,7 @@ function isRoutePlannerActive(): boolean {
   return !!(el && (el as HTMLElement).offsetParent !== null);
 }
 
-// ── Module state ───────────────────────────────────────────────────────────────
-
-let _climbs: Climb[] | null = null;
-let _panelInjected = false;
-let _lastGPXLength = 0;
-let _totalRouteDistance = 0;
-
 // ── Entry point ────────────────────────────────────────────────────────────────
-
-init();
 
 function init(): void {
   chrome.storage.local.get([StorageKey.LastClimbResult], (data) => {
@@ -46,6 +60,21 @@ function init(): void {
   observer.observe(document.body, { childList: true, subtree: true });
 
   setInterval(pollForGPX, 2000);
+
+  // Re-render when the scoring model changes (background sends this after
+  // recategorising stored climbs — no full re-detection needed).
+  chrome.runtime.onMessage.addListener((msg: CategorizationUpdatedMessage) => {
+    if (msg.type !== "CATEGORIZATION_UPDATED") return;
+    chrome.storage.local.get([StorageKey.LastClimbResult, StorageKey.LastTotalDistance], (data) => {
+      const updated = data[StorageKey.LastClimbResult] as Climb[] | undefined;
+      const dist = data[StorageKey.LastTotalDistance] as number | undefined;
+      if (!updated) return;
+      _climbs = updated;
+      _totalRouteDistance = dist ?? _totalRouteDistance;
+      renderPanel();
+      renderMapOverlay();
+    });
+  });
 
   window.addEventListener("popstate", onRouteChange);
   const _origPushState = history.pushState.bind(history);
@@ -411,6 +440,5 @@ function findGPXExportButton(): Element | null {
   return null;
 }
 
-// Re-export chart overlay handlers so panel.ts event wiring can be opted out
-// of if required in the future; currently panel.ts handles its own listeners.
+// Re-export chart overlay handlers for optional external use
 export { showChartOverlay, hideChartOverlay };
