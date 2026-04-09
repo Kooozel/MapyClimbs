@@ -148,7 +148,9 @@
   color: var(--accent);
   cursor: pointer;
   padding: 0;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 
 #climb-inject-panel .cip-layer-toggle:hover {
@@ -467,13 +469,6 @@
   margin-top: 2px;
   border-radius: 5px;
   overflow: hidden;
-  cursor: zoom-in;
-  outline: 1px solid transparent;
-  transition: outline-color 0.2s;
-}
-
-#climb-inject-panel .climb-profile-container:hover {
-  outline-color: rgba(30, 174, 0, 0.35);
 }
 
 #climb-inject-panel .profile-svg {

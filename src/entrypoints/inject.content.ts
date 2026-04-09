@@ -5,7 +5,8 @@
 
 import "../map-inject.css";
 import { parseGPX } from "../gpx-parser";
-import { buildPanel, showChartOverlay, hideChartOverlay } from "../content/panel";
+import { buildPanel } from "../content/panel";
+import { metersToKm } from "../format";
 import {
   StorageKey,
   type Climb,
@@ -64,26 +65,29 @@ function init(): void {
 
   // Re-render when the scoring model changes (background sends this after
   // recategorising stored climbs — no full re-detection needed).
-  chrome.runtime.onMessage.addListener((msg: CategorizationUpdatedMessage | MapLayerVisibilityMessage) => {
-    if (msg.type === "MAP_LAYER_VISIBILITY_CHANGED") {
-      const overlay = document.getElementById("climb-marker-overlay");
-      if (overlay) overlay.style.display = (msg as MapLayerVisibilityMessage).visible ? "" : "none";
-      return;
-    }
-    if (msg.type !== "CATEGORIZATION_UPDATED") return;
-    chrome.storage.local.get(
-      [StorageKey.LastClimbResult, StorageKey.LastTotalDistance],
-      (data) => {
-        const updated = data[StorageKey.LastClimbResult] as Climb[] | undefined;
-        const dist = data[StorageKey.LastTotalDistance] as number | undefined;
-        if (!updated) return;
-        _climbs = updated;
-        _totalRouteDistance = dist ?? _totalRouteDistance;
-        renderPanel();
-        renderMapOverlay();
+  chrome.runtime.onMessage.addListener(
+    (msg: CategorizationUpdatedMessage | MapLayerVisibilityMessage) => {
+      if (msg.type === "MAP_LAYER_VISIBILITY_CHANGED") {
+        const overlay = document.getElementById("climb-marker-overlay");
+        if (overlay)
+          overlay.style.display = (msg as MapLayerVisibilityMessage).visible ? "" : "none";
+        return;
       }
-    );
-  });
+      if (msg.type !== "CATEGORIZATION_UPDATED") return;
+      chrome.storage.local.get(
+        [StorageKey.LastClimbResult, StorageKey.LastTotalDistance],
+        (data) => {
+          const updated = data[StorageKey.LastClimbResult] as Climb[] | undefined;
+          const dist = data[StorageKey.LastTotalDistance] as number | undefined;
+          if (!updated) return;
+          _climbs = updated;
+          _totalRouteDistance = dist ?? _totalRouteDistance;
+          renderPanel();
+          renderMapOverlay();
+        }
+      );
+    }
+  );
 
   window.addEventListener("popstate", onRouteChange);
   const _origPushState = history.pushState.bind(history);
@@ -249,7 +253,7 @@ function renderMapOverlay(): void {
     const color = CAT_COLORS[climb.category] ?? "#6b7280";
     const label =
       `Climb ${i + 1} \u00b7 Cat ${climb.category} \u00b7 ` +
-      `${(climb.distance / 1000).toFixed(1)} km +${Math.round(climb.elevation)} m`;
+      `${metersToKm(climb.distance)} km +${Math.round(climb.elevation)} m`;
 
     if (climb.markerCoords) {
       const s = mercatorToPixel(
@@ -454,6 +458,3 @@ function findGPXExportButton(): Element | null {
   }
   return null;
 }
-
-// Re-export chart overlay handlers for optional external use
-export { showChartOverlay, hideChartOverlay };

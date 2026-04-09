@@ -7,6 +7,8 @@
  * so it can patch window.fetch and XMLHttpRequest prototypes.
  */
 
+import { metersToKm } from "../format";
+
 // ── Ambient declarations for Mapy.cz globals ─────────────────────────────────
 
 interface SMapInstance {
@@ -403,7 +405,7 @@ export default defineUnlistedScript(() => {
           anchor: { left: 14, bottom: 0 },
           title:
             `Climb ${num} · Cat ${climb.category} · ` +
-            `${(climb.distance / 1000).toFixed(1)} km +${Math.round(climb.elevation)} m`,
+            `${metersToKm(climb.distance)} km +${Math.round(climb.elevation)} m`,
         });
         layer.addMarker(marker);
       });
