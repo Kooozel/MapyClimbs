@@ -541,3 +541,50 @@
 .climb-action-btn svg {
   flex-shrink: 0;
 }
+
+/* ── Climb card interactivity ──────────────────────────────────────────── */
+
+#climb-inject-panel .climb-item[data-climb-index] {
+  cursor: pointer;
+  transition: box-shadow 0.15s;
+}
+
+#climb-inject-panel .climb-item[data-climb-index]:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+
+@keyframes card-flash {
+  0% {
+    background-color: var(--bg0);
+  }
+  25% {
+    background-color: #fffde7;
+  }
+  100% {
+    background-color: var(--bg0);
+  }
+}
+
+#climb-inject-panel .card-flash {
+  animation: card-flash 1.4s ease-out;
+}
+
+/* ── Map pin animations ─────────────────────────────────────────────────── */
+
+@keyframes pin-pulse {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.5);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.climb-pin.pin-active {
+  animation: pin-pulse 0.5s ease-out;
+  transform-origin: center;
+  z-index: 1;
+}

@@ -74,6 +74,29 @@ function wireLayerToggle(panel: HTMLElement): void {
   });
 }
 
+function wireCardClickHandlers(panel: HTMLElement): void {
+  panel.querySelectorAll<HTMLElement>(".climb-item[data-climb-index]").forEach((card) => {
+    const idx = card.dataset.climbIndex;
+    card.addEventListener("click", () => {
+      const pin = document.querySelector<HTMLElement>(`.climb-pin[data-climb-index="${idx}"]`);
+      if (pin) {
+        pin.classList.remove("pin-active");
+        void pin.offsetWidth;
+        pin.classList.add("pin-active");
+        setTimeout(() => pin.classList.remove("pin-active"), 600);
+      }
+    });
+    card.addEventListener("mouseenter", () => {
+      const pin = document.querySelector<HTMLElement>(`.climb-pin[data-climb-index="${idx}"]`);
+      pin?.dispatchEvent(new MouseEvent("mouseenter", { bubbles: false }));
+    });
+    card.addEventListener("mouseleave", () => {
+      const pin = document.querySelector<HTMLElement>(`.climb-pin[data-climb-index="${idx}"]`);
+      pin?.dispatchEvent(new MouseEvent("mouseleave", { bubbles: false }));
+    });
+  });
+}
+
 /** Build the full sidebar panel element. */
 export function buildPanel(climbs: Climb[] | null, totalRouteDistance: number): HTMLElement {
   const panel = document.createElement("div");
@@ -89,6 +112,7 @@ export function buildPanel(climbs: Climb[] | null, totalRouteDistance: number): 
 
   wireCollapseToggle(panel);
   wireLayerToggle(panel);
+  wireCardClickHandlers(panel);
 
   return panel;
 }

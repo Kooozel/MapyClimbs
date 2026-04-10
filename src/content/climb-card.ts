@@ -84,7 +84,7 @@ export function buildClimbCard(climb: Climb, index: number): string {
   const chart = generateElevationChart(climb.segments, climb.distance);
 
   return `
-    <div class="climb-item ${catClass}">
+    <div class="climb-item ${catClass}" id="climb-card-${index}" data-climb-index="${index}">
       <div class="climb-header">
         <div class="climb-title-group">
           <span class="climb-name">${chrome.i18n.getMessage("panelClimb", [String(index + 1)])}</span>
