@@ -6,7 +6,6 @@
 import "../map-inject.css";
 import { parseGPX } from "../gpx-parser";
 import { buildPanel } from "../content/panel";
-import { getCategoryColor } from "../content/category";
 import { renderMapOverlay } from "../content/map-overlay";
 import { tryInjectButton } from "../content/button-injector";
 import {
