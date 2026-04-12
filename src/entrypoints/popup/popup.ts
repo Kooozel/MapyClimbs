@@ -14,6 +14,7 @@ import {
   type MapLayerVisibilityMessage,
 } from "../../types";
 import { SCORING_CONFIGS } from "../../scoring";
+import { metersToKm } from "../../format";
 
 // ── DOM refs ─────────────────────────────────────────────────────────────────
 
@@ -186,7 +187,7 @@ function updateClimbStats(): void {
     if (climbs && climbs.length > 0) {
       climbStatsText.innerHTML = chrome.i18n.getMessage("popupClimbsDetected", [
         `<strong>${climbs.length}</strong>`,
-        `<strong>${((totalDistance ?? 0) / 1000).toFixed(1)}</strong>`,
+        `<strong>${metersToKm(totalDistance ?? 0)}</strong>`,
       ]);
       climbStatsSection.style.display = "block";
       retrySection.style.display = "none";
