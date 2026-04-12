@@ -65,15 +65,45 @@ function doInjectMarkers(
   }
 }
 
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function isValidInjectClimbData(value: unknown): value is InjectClimbData {
+  if (!value || typeof value !== "object") return false;
+
+  const climb = value as {
+    category?: unknown;
+    distance?: unknown;
+    elevation?: unknown;
+    markerCoords?: { lat?: unknown; lon?: unknown } | null;
+  };
+
+  if (!isFiniteNumber(climb.distance) || !isFiniteNumber(climb.elevation)) return false;
+  if (climb.category == null) return false;
+
+  if (climb.markerCoords == null) return true;
+
+  return (
+    typeof climb.markerCoords === "object" &&
+    isFiniteNumber(climb.markerCoords.lat) &&
+    isFiniteNumber(climb.markerCoords.lon)
+  );
+}
+
+function isValidInjectClimbsPayload(value: unknown): value is InjectClimbData[] {
+  return Array.isArray(value) && value.length > 0 && value.every(isValidInjectClimbData);
+}
+
 export function installMarkerInjectionListener(): void {
   window.addEventListener("message", (event: MessageEvent) => {
-    if (event.source !== window) return;
+    if (event.source !== window || event.origin !== window.location.origin) return;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const data = event.data as any;
     if (data?.type !== "INJECT_CLIMB_MARKERS") return;
+    if (!isValidInjectClimbsPayload(data.climbs)) return;
 
-    const climbs = data.climbs as InjectClimbData[] | undefined;
-    if (!climbs?.length) return;
+    const climbs = data.climbs;
 
     const tryInject = (attemptsLeft: number): void => {
       const map = discoverMapInstance();

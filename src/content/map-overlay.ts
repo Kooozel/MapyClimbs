@@ -53,12 +53,15 @@ export function renderMapOverlay(climbs: Climb[]): void {
           `position:absolute;left:${Math.round(s.x - 14)}px;top:${Math.round(s.y - 14)}px;` +
           "pointer-events:auto;cursor:pointer;";
         pin.title = label;
+        pin.setAttribute("role", "button");
+        pin.tabIndex = 0;
+        pin.setAttribute("aria-label", label);
         pin.innerHTML =
           '<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 28 28">' +
           `<circle cx="14" cy="14" r="13" fill="${color}" stroke="#fff" stroke-width="2"/>` +
           `<text x="14" y="14" dy="0.35em" font-size="12" font-weight="bold" fill="#fff" text-anchor="middle" font-family="system-ui,sans-serif">${i + 1}</text>` +
           "</svg>";
-        pin.addEventListener("click", () => {
+        const activatePin = () => {
           const toggleBtn = document.querySelector<HTMLButtonElement>(
             "#climb-inject-panel .cip-toggle"
           );
@@ -75,9 +78,18 @@ export function renderMapOverlay(climbs: Climb[]): void {
               setTimeout(() => card.classList.remove("card-flash"), 1500);
             });
           }
+        };
+        pin.addEventListener("click", activatePin);
+        pin.addEventListener("keydown", (event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            activatePin();
+          }
         });
         pin.addEventListener("mouseenter", () => showClimbRoute(i));
         pin.addEventListener("mouseleave", () => hideClimbRoute(i));
+        pin.addEventListener("focus", () => showClimbRoute(i));
+        pin.addEventListener("blur", () => hideClimbRoute(i));
         overlay.appendChild(pin);
       }
     }

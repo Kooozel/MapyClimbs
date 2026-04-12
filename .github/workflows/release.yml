@@ -79,6 +79,28 @@ jobs:
           name: extension-zip
           path: dist
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "lts/*"
+          cache: "npm"
+
+      - name: Prepare release version
+        id: prepare_version
+        run: |
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "none")
+          CURRENT=$(node -p "require('./package.json').version")
+          if [ "$LAST_TAG" = "v$CURRENT" ]; then
+            npm version patch --no-git-tag-version
+            NEW_VERSION=$(node -p "require('./package.json').version")
+            echo "bumped=true" >> "$GITHUB_OUTPUT"
+            npm run zip
+          else
+            NEW_VERSION="$CURRENT"
+            echo "bumped=false" >> "$GITHUB_OUTPUT"
+          fi
+          echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+
       - name: Find zip file
         id: zip
         run: |
@@ -95,27 +117,16 @@ jobs:
           client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
           refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
 
-      # ── Version bump + tag (only after successful CWS publish) ────────────
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "lts/*"
-          cache: "npm"
-
-      - name: Bump version and tag
+      # ── Version bump commit + tag (only after successful CWS publish) ─────
+      - name: Commit version bump and tag
         id: version
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "none")
-          CURRENT=$(node -p "require('./package.json').version")
-          if [ "$LAST_TAG" = "v$CURRENT" ]; then
-            npm version patch --no-git-tag-version
-            NEW_VERSION=$(node -p "require('./package.json').version")
+          NEW_VERSION="${{ steps.prepare_version.outputs.version }}"
+          if [ "${{ steps.prepare_version.outputs.bumped }}" = "true" ]; then
             git add package.json
             git commit -m "chore: bump version to v$NEW_VERSION [skip ci]"
-          else
-            NEW_VERSION="$CURRENT"
           fi
           git tag "v$NEW_VERSION"
           git push origin HEAD:main --follow-tags

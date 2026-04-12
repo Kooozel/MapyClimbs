@@ -71,7 +71,8 @@ export function installXhrInterceptor(): void {
     url: string | URL,
     ...rest: unknown[]
   ): void {
-    if (typeof url === "string" && isGpxExportUrl(url)) {
+    const normalizedUrl = url instanceof URL ? url.href : url;
+    if (isGpxExportUrl(normalizedUrl)) {
       this._isGPXRequest = true;
     }
     (originalXHROpen as (...args: unknown[]) => void).apply(this, [method, url, ...rest]);
