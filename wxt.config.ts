@@ -8,7 +8,7 @@ export default defineConfig({
     description: "__MSG_extDescription__",
     default_locale: "en",
     minimum_chrome_version: "88",
-    permissions: ["storage"],
+    permissions: ["storage", "clipboardWrite"],
     host_permissions: [
       "https://mapy.cz/*",
       "https://*.mapy.cz/*",
