@@ -6,13 +6,7 @@
  */
 
 import { StorageKey, type GpxCapturedMessage } from "../types";
-
-const MAPY_MATCHES = [
-  "https://mapy.cz/*",
-  "https://*.mapy.cz/*",
-  "https://mapy.com/*",
-  "https://*.mapy.com/*",
-] as const;
+import { MAPY_MATCHES } from "../constants";
 
 export default defineContentScript({
   matches: [...MAPY_MATCHES],

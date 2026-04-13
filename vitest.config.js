@@ -5,7 +5,12 @@ export default defineConfig({
     include: ['test/**/*.test.js'],
     coverage: {
       provider: 'v8',
-      include: ['src/climb-engine.ts'],
+      include: [
+        'src/climb-engine.ts',
+        'src/content/chart.ts',
+        'src/map-geometry.ts',
+        'src/content/climb-card.ts',
+      ],
       reporter: ['text', 'html'],
       thresholds: {
         branches: 80,

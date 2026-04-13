@@ -76,18 +76,26 @@ const PEAK_SVG =
 
 // ── Climb card ────────────────────────────────────────────────────────────────
 
-export function buildClimbCard(climb: Climb, index: number): string {
+export function buildClimbCard(climb: Climb, index: number): HTMLElement {
   const catClass = getCategoryClass(climb.category);
   const maxGrad = calcMaxGradientOver(climb.segments, 200);
   const summit = findSummit(climb);
   const timeStr = formatMinutes(estimateClimbTime(climb));
   const chart = generateElevationChart(climb.segments, climb.distance);
+  const climbLabel = chrome.i18n.getMessage("panelClimb", [String(index + 1)]);
 
-  return `
-    <div class="climb-item ${catClass}" id="climb-card-${index}" data-climb-index="${index}" role="button" tabindex="0" aria-label="${chrome.i18n.getMessage("panelClimb", [String(index + 1)])}" onkeydown="if(event.key==='Enter'||event.key===' '||event.key==='Spacebar'){event.preventDefault(); this.click();}">
+  const el = document.createElement("div");
+  el.className = `climb-item ${catClass}`;
+  el.id = `climb-card-${index}`;
+  el.dataset.climbIndex = String(index);
+  el.setAttribute("role", "button");
+  el.tabIndex = 0;
+  el.setAttribute("aria-label", climbLabel);
+
+  el.innerHTML = `
       <div class="climb-header">
         <div class="climb-title-group">
-          <span class="climb-name">${chrome.i18n.getMessage("panelClimb", [String(index + 1)])}</span>
+          <span class="climb-name">${climbLabel}</span>
           <span class="climb-badge">${chrome.i18n.getMessage("panelCat", [climb.category])}</span>
         </div>
       </div>
@@ -106,6 +114,14 @@ export function buildClimbCard(climb: Climb, index: number): string {
         <div class="climb-meta-item"><span class="climb-meta-label">${chrome.i18n.getMessage("panelVam")}</span><span class="climb-meta-value">${calcVAM(climb)} m/h</span></div>
         <div class="climb-meta-item"><span class="climb-meta-label">${chrome.i18n.getMessage("panelFietsIndex")}</span><span class="climb-meta-value">${calcFiets(climb)}</span></div>
       </div>
-      ${chart}
-    </div>`;
+      ${chart}`;
+
+  el.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " " || event.key === "Spacebar") {
+      event.preventDefault();
+      el.click();
+    }
+  });
+
+  return el;
 }

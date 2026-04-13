@@ -12,9 +12,11 @@ import {
   type ScoringModel,
   type RecategorizeMessage,
   type MapLayerVisibilityMessage,
+  type ClimbCategory,
 } from "../../types";
 import { SCORING_CONFIGS } from "../../scoring";
 import { metersToKm } from "../../format";
+import { CATEGORY_COLOR } from "../../content/category";
 
 // ── DOM refs ─────────────────────────────────────────────────────────────────
 
@@ -70,14 +72,6 @@ backBtn.addEventListener("click", showMain);
 
 // ── Categories rendering ──────────────────────────────────────────────────────
 
-const CAT_COLORS: Record<string, string> = {
-  HC: "#d42b2b",
-  "1": "#e85d17",
-  "2": "#e8a117",
-  "3": "#c8c022",
-  "4": "#6b7280",
-};
-
 function formatThreshold(min: number, index: number, allMins: readonly number[]): string {
   if (index === allMins.length - 1 && min === 0) {
     return `< ${allMins[index - 1].toLocaleString("en")}`;
@@ -94,7 +88,7 @@ function renderCategories(model: ScoringModel): void {
       const score = formatThreshold(t.min, i, mins);
       return (
         `<div class="cat-row">` +
-        `<span class="cat-dot" style="background:${CAT_COLORS[t.category] ?? CAT_COLORS["4"]}"></span>` +
+        `<span class="cat-dot" style="background:${CATEGORY_COLOR[t.category as ClimbCategory] ?? CATEGORY_COLOR["4"]}"></span>` +
         `<span class="cat-label">${label}</span>` +
         `<span class="cat-score">${score}</span>` +
         `</div>`

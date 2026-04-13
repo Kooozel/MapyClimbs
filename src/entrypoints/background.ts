@@ -13,8 +13,10 @@ import {
   type PortMessage,
   type ScoringModel,
   type Climb,
+  type ElevationTuple,
   type CategorizationUpdatedMessage,
 } from "../types";
+import { MAPY_MATCHES } from "../constants";
 
 export default defineBackground(() => {
   // ── Storage version guard ─────────────────────────────────────────────────
@@ -30,6 +32,35 @@ export default defineBackground(() => {
       });
     }
   });
+
+  // ── Shared detection helper ───────────────────────────────────────────────
+
+  /**
+   * Run climb detection on a pre-parsed elevation array, persist the result to
+   * storage, and call `sendResponse`. Errors are caught and forwarded as an
+   * empty-climbs response so the caller never hangs.
+   */
+  function runDetection(
+    elevation: ElevationTuple[],
+    model: ScoringModel,
+    sendResponse: (r: ClimbsResponse) => void
+  ): void {
+    try {
+      const climbs = detectClimbs(elevation, model);
+      const totalDistance = elevation.length > 0 ? elevation[elevation.length - 1][0] : 0;
+      chrome.storage.local.set({
+        [StorageKey.LastClimbResult]: climbs,
+        [StorageKey.LastTotalDistance]: totalDistance,
+      });
+      sendResponse({ climbs, totalDistance });
+    } catch (error) {
+      sendResponse({
+        climbs: [],
+        totalDistance: 0,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
 
   // ── Popup port management ─────────────────────────────────────────────────
 
@@ -64,38 +95,17 @@ export default defineBackground(() => {
     ) => {
       if (request.type === "PROCESS_CLIMBS") {
         chrome.storage.local.get(StorageKey.ScoringModel, (pref) => {
-          const scoringModel: ScoringModel =
+          const model: ScoringModel =
             (pref[StorageKey.ScoringModel] as ScoringModel | undefined) ?? "aso";
-          try {
-            const climbs = detectClimbs(request.elevation, scoringModel);
-            const totalDistance =
-              request.elevation.length > 0 ? request.elevation[request.elevation.length - 1][0] : 0;
-            chrome.storage.local.set({
-              [StorageKey.LastClimbResult]: climbs,
-              [StorageKey.LastTotalDistance]: totalDistance,
-            });
-            sendResponse({ climbs, totalDistance });
-          } catch (error) {
-            sendResponse({
-              climbs: [],
-              totalDistance: 0,
-              error: error instanceof Error ? error.message : String(error),
-            });
-          }
+          runDetection(request.elevation, model, sendResponse);
         });
       } else if (request.type === "ANALYZE_GPX") {
         chrome.storage.local.get(StorageKey.ScoringModel, (pref) => {
-          const scoringModel: ScoringModel =
+          const model: ScoringModel =
             (pref[StorageKey.ScoringModel] as ScoringModel | undefined) ?? "aso";
           try {
             const elevation = parseGPX(request.gpxContent);
-            const climbs = detectClimbs(elevation, scoringModel);
-            const totalDistance = elevation.length > 0 ? elevation[elevation.length - 1][0] : 0;
-            chrome.storage.local.set({
-              [StorageKey.LastClimbResult]: climbs,
-              [StorageKey.LastTotalDistance]: totalDistance,
-            });
-            sendResponse({ climbs, totalDistance });
+            runDetection(elevation, model, sendResponse);
           } catch (error) {
             sendResponse({
               climbs: [],
@@ -125,7 +135,7 @@ export default defineBackground(() => {
             chrome.storage.local.set({ [StorageKey.LastClimbResult]: climbs }, () => {
               // Notify all active mapy tabs so the overlay refreshes
               const msg: CategorizationUpdatedMessage = { type: "CATEGORIZATION_UPDATED" };
-              chrome.tabs.query({ url: ["https://mapy.cz/*", "https://*.mapy.cz/*", "https://mapy.com/*", "https://*.mapy.com/*"] }, (tabs) => {
+              chrome.tabs.query({ url: [...MAPY_MATCHES] }, (tabs) => {
                 tabs.forEach((tab) => {
                   if (tab.id != null) chrome.tabs.sendMessage(tab.id, msg).catch(() => {});
                 });
