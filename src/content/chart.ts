@@ -7,13 +7,13 @@ import { ratioToPercent } from "../format";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-interface ProfilePoint {
+export interface ProfilePoint {
   distance: number;
   elevation: number;
   gradient: number;
 }
 
-interface GradientZone {
+export interface GradientZone {
   color: string;
   start: number;
   end: number;
@@ -33,6 +33,9 @@ interface ChartLayout {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 let _chartUid = 0;
+
+/** Grade threshold → fill color. Each entry's color covers grades up to (but not including)
+ *  the threshold value. The last entry uses Infinity to capture all higher grades. */
 const GRADE_COLORS: [number, string][] = [
   [3, "#4CAF50"],
   [6, "#FBC02D"],
@@ -40,6 +43,14 @@ const GRADE_COLORS: [number, string][] = [
   [12, "#D32F2F"],
   [Infinity, "#800020"],
 ];
+
+/** SVG canvas total dimensions. */
+const CHART_W = 440;
+const CHART_H = 120;
+/** Chart margins (px): space reserved for axes. */
+const CHART_M = { left: 42, right: 12, top: 10, bottom: 28 };
+/** Minimum pixel gap between adjacent x-axis ticks. */
+const MIN_TICK_PX = 38;
 
 // ── Public entry point ────────────────────────────────────────────────────────
 
@@ -70,7 +81,7 @@ function buildProfilePoints(segments: Segment[]): ProfilePoint[] {
   return profile;
 }
 
-function simplifyProfile(profile: ProfilePoint[]): ProfilePoint[] {
+export function simplifyProfile(profile: ProfilePoint[]): ProfilePoint[] {
   if (profile.length <= 3) return profile;
   const maxSegs = Math.min(20, Math.max(8, Math.ceil(profile.length / 3)));
   const grads = profile.slice(0, -1).map((p) => p.gradient);
@@ -93,7 +104,7 @@ function simplifyProfile(profile: ProfilePoint[]): ProfilePoint[] {
 
 // ── Gradient zone helpers ─────────────────────────────────────────────────────
 
-function getColorForGrade(g: number): string {
+export function getColorForGrade(g: number): string {
   return GRADE_COLORS.find(([threshold]) => g < threshold)![1];
 }
 
@@ -117,7 +128,7 @@ function buildGradientZones(profile: ProfilePoint[]): GradientZone[] {
   return zones;
 }
 
-function mergeShortZones(zones: GradientZone[], minLen: number): GradientZone[] {
+export function mergeShortZones(zones: GradientZone[], minLen: number): GradientZone[] {
   zones = zones.slice();
   let changed = true;
   while (changed && zones.length > 1) {
@@ -149,9 +160,9 @@ function mergeShortZones(zones: GradientZone[], minLen: number): GradientZone[] 
 // ── SVG building blocks ───────────────────────────────────────────────────────
 
 function buildCoords(profile: ProfilePoint[], totalDistance: number) {
-  const W = 440,
-    H = 120;
-  const M = { left: 42, right: 12, top: 10, bottom: 28 };
+  const W = CHART_W,
+    H = CHART_H;
+  const M = CHART_M;
   const cW = W - M.left - M.right;
   const cH = H - M.top - M.bottom;
 
@@ -235,7 +246,6 @@ function buildXAxis(
   base: number,
   H: number
 ): string {
-  const MIN_TICK_PX = 38;
   const zones = mergeShortZones(buildGradientZones(profile), Math.max(300, totalDistance * 0.07));
   const boundaries = [...zones.map((z) => z.start), zones[zones.length - 1].end];
 
@@ -267,6 +277,21 @@ function buildXAxis(
 }
 
 // ── SVG assembly ──────────────────────────────────────────────────────────────
+
+/** Build the gradient-colour legend HTML from GRADE_COLORS so that it always
+ *  stays in sync with the actual chart colours without duplicating hex values. */
+function buildLegend(): string {
+  return GRADE_COLORS.map(([threshold, color], i) => {
+    const prev = i > 0 ? (GRADE_COLORS[i - 1][0] as number) : null;
+    const label =
+      threshold === Infinity
+        ? `≥${prev}%`
+        : prev === null
+          ? `<${threshold}%`
+          : `${prev}–${threshold}%`;
+    return `<span><span class="csw" style="background:${color}"></span>${label}</span>`;
+  }).join("\n        ");
+}
 
 function renderElevationSVG(profile: ProfilePoint[], totalDistance: number): string {
   if (profile.length < 2) return "";
@@ -313,11 +338,7 @@ function renderElevationSVG(profile: ProfilePoint[], totalDistance: number): str
         ${xAxis}
       </svg>
       <div class="climb-legend">
-        <span><span class="csw" style="background:#4CAF50"></span>&lt;3%</span>
-        <span><span class="csw" style="background:#FBC02D"></span>3–6%</span>
-        <span><span class="csw" style="background:#F57C00"></span>6–9%</span>
-        <span><span class="csw" style="background:#D32F2F"></span>9–12%</span>
-        <span><span class="csw" style="background:#800020"></span>≥12%</span>
+        ${buildLegend()}
       </div>
     </div>`;
 }

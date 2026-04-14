@@ -1,5 +1,7 @@
+import { ElementId } from "../constants";
+
 export function tryInjectButton(): void {
-  if (document.getElementById("climb-inject-button")) return;
+  if (document.getElementById(ElementId.Button)) return;
   const target = document.querySelector(".route-actions");
   if (!target) return;
   target.appendChild(buildButton());
@@ -7,7 +9,7 @@ export function tryInjectButton(): void {
 
 function buildButton(): HTMLDivElement {
   const btn = document.createElement("div");
-  btn.id = "climb-inject-button";
+  btn.id = ElementId.Button;
   btn.className = "icon-action";
   btn.innerHTML = `
     <button type="button">

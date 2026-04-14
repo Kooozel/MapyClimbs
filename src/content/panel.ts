@@ -10,8 +10,9 @@ import { buildRouteOverview } from "./route-overview";
 import { renderEmptyPanel, renderPanelShell } from "./panel-template";
 import type { Climb } from "../types";
 import { StorageKey } from "../types";
+import { ElementId, CssClass } from "../constants";
 
-function buildPanelContent(climbs: Climb[], totalRouteDistance: number): string {
+function buildPanelContent(climbs: Climb[], totalRouteDistance: number): DocumentFragment {
   const totalDist =
     totalRouteDistance || Math.max(...climbs.flatMap((c) => c.segments).map((s) => s.endDistance));
   const totalElevGain = climbs.reduce((s, c) => s + c.elevation, 0);
@@ -25,12 +26,19 @@ function buildPanelContent(climbs: Climb[], totalRouteDistance: number): string 
       ? chrome.i18n.getMessage("panelClimbsDetectedSingular")
       : chrome.i18n.getMessage("panelClimbsDetectedPlural", [String(climbs.length)]);
 
-  let inner = buildRouteOverview(totalDist, totalElevGain, maxGradient, climbs);
-  inner += `<div class="section-label">${climbsLabel}</div>`;
-  climbs.forEach((climb, i) => {
-    inner += buildClimbCard(climb, i);
-  });
-  return inner;
+  const frag = document.createDocumentFragment();
+
+  // Route overview and section label are pure data — no inline handlers.
+  const staticWrapper = document.createElement("div");
+  staticWrapper.innerHTML =
+    buildRouteOverview(totalDist, totalElevGain, maxGradient, climbs) +
+    `<div class="section-label">${climbsLabel}</div>`;
+  while (staticWrapper.firstChild) frag.appendChild(staticWrapper.firstChild);
+
+  // Each card element carries its own event listeners (no inline handlers).
+  climbs.forEach((climb, i) => frag.appendChild(buildClimbCard(climb, i)));
+
+  return frag;
 }
 
 function wireCollapseToggle(panel: HTMLElement): void {
@@ -68,7 +76,7 @@ function wireLayerToggle(panel: HTMLElement): void {
       eyeIcon.style.display = next ? "" : "none";
       eyeOffIcon.style.display = next ? "none" : "";
       layerBtn.classList.toggle("cip-layer-off", !next);
-      const overlay = document.getElementById("climb-marker-overlay");
+      const overlay = document.getElementById(ElementId.MarkerOverlay);
       if (overlay) overlay.style.display = next ? "" : "none";
     });
   });
@@ -78,7 +86,9 @@ function wireCardClickHandlers(panel: HTMLElement): void {
   panel.querySelectorAll<HTMLElement>(".climb-item[data-climb-index]").forEach((card) => {
     const idx = card.dataset.climbIndex;
     card.addEventListener("click", () => {
-      const pin = document.querySelector<HTMLElement>(`.climb-pin[data-climb-index="${idx}"]`);
+      const pin = document.querySelector<HTMLElement>(
+        `.${CssClass.Pin}[data-climb-index="${idx}"]`
+      );
       if (pin) {
         pin.classList.remove("pin-active");
         void pin.offsetWidth;
@@ -87,11 +97,15 @@ function wireCardClickHandlers(panel: HTMLElement): void {
       }
     });
     card.addEventListener("mouseenter", () => {
-      const pin = document.querySelector<HTMLElement>(`.climb-pin[data-climb-index="${idx}"]`);
+      const pin = document.querySelector<HTMLElement>(
+        `.${CssClass.Pin}[data-climb-index="${idx}"]`
+      );
       pin?.dispatchEvent(new MouseEvent("mouseenter", { bubbles: false }));
     });
     card.addEventListener("mouseleave", () => {
-      const pin = document.querySelector<HTMLElement>(`.climb-pin[data-climb-index="${idx}"]`);
+      const pin = document.querySelector<HTMLElement>(
+        `.${CssClass.Pin}[data-climb-index="${idx}"]`
+      );
       pin?.dispatchEvent(new MouseEvent("mouseleave", { bubbles: false }));
     });
   });
@@ -100,15 +114,17 @@ function wireCardClickHandlers(panel: HTMLElement): void {
 /** Build the full sidebar panel element. */
 export function buildPanel(climbs: Climb[] | null, totalRouteDistance: number): HTMLElement {
   const panel = document.createElement("div");
-  panel.id = "climb-inject-panel";
+  panel.id = ElementId.Panel;
 
   if (!climbs || climbs.length === 0) {
     panel.innerHTML = renderEmptyPanel(chrome.runtime.getURL("images/icon-48.png"));
     return panel;
   }
 
-  const inner = buildPanelContent(climbs, totalRouteDistance);
-  panel.innerHTML = renderPanelShell(chrome.runtime.getURL("images/icon-48.png"), inner);
+  panel.innerHTML = renderPanelShell(chrome.runtime.getURL("images/icon-48.png"), "");
+  panel
+    .querySelector<HTMLElement>(".cip-inner")!
+    .appendChild(buildPanelContent(climbs, totalRouteDistance));
 
   wireCollapseToggle(panel);
   wireLayerToggle(panel);
