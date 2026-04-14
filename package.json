@@ -1,6 +1,6 @@
 {
   "name": "climb",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "MapyClimbs Chrome extension",
   "private": true,
   "type": "module",
