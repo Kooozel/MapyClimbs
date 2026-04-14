@@ -104,7 +104,10 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  transition:
+    color 0.15s,
+    border-color 0.15s,
+    background 0.15s;
 }
 
 .gear-btn svg {
@@ -148,7 +151,10 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  transition:
+    color 0.15s,
+    border-color 0.15s,
+    background 0.15s;
 }
 
 .back-btn svg {
@@ -232,7 +238,9 @@ body {
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
 }
 
 .retry-btn:hover {
@@ -321,7 +329,10 @@ body {
   font-size: 11px;
   color: var(--text3);
   text-decoration: none;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s;
 }
 
 .bmc-btn:hover {
@@ -348,12 +359,20 @@ body {
   animation: pulse-dots 1.2s infinite;
 }
 
-.spinner-dot-1 { animation-delay: 0s; }
-.spinner-dot-2 { animation-delay: 0.2s; }
-.spinner-dot-3 { animation-delay: 0.4s; }
+.spinner-dot-1 {
+  animation-delay: 0s;
+}
+.spinner-dot-2 {
+  animation-delay: 0.2s;
+}
+.spinner-dot-3 {
+  animation-delay: 0.4s;
+}
 
 @keyframes pulse-dots {
-  0%, 60%, 100% {
+  0%,
+  60%,
+  100% {
     opacity: 0.3;
     transform: scale(0.8);
   }
@@ -399,7 +418,9 @@ body {
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 
 .model-btn + .model-btn {
@@ -460,7 +481,9 @@ body {
   background: var(--bg3);
   border: 1px solid var(--border);
   border-radius: 20px;
-  transition: background 0.2s, border-color 0.2s;
+  transition:
+    background 0.2s,
+    border-color 0.2s;
 }
 
 .toggle-thumb::after {
@@ -473,7 +496,9 @@ body {
   transform: translateY(-50%);
   border-radius: 50%;
   background: var(--text3);
-  transition: transform 0.2s, background 0.2s;
+  transition:
+    transform 0.2s,
+    background 0.2s;
 }
 
 .toggle-switch input:checked + .toggle-thumb {
@@ -485,7 +510,6 @@ body {
   transform: translateY(-50%) translateX(16px);
   background: #fff;
 }
-
 
 *,
 *::before,
@@ -876,7 +900,9 @@ body {
   font-size: 11px;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 
 .model-btn + .model-btn {

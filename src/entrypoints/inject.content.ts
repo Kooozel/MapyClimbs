@@ -72,6 +72,25 @@ class RoutePlannerController {
     window.addEventListener("resize", () => {
       if (this.climbs && this.isRoutePlannerActive()) renderMapOverlay(this.climbs);
     });
+
+    const mapContainer = document.querySelector("#map");
+
+    if (mapContainer) {
+      mapContainer.addEventListener("wheel", () => this.handleMapInteraction(), { passive: true });
+
+      // Listen for dragging
+      mapContainer.addEventListener("mousedown", () => {
+        const onMouseMove = () => this.handleMapInteraction();
+
+        const onMouseUp = () => {
+          mapContainer.removeEventListener("mousemove", onMouseMove);
+          window.removeEventListener("mouseup", onMouseUp);
+        };
+
+        mapContainer.addEventListener("mousemove", onMouseMove);
+        window.addEventListener("mouseup", onMouseUp);
+      });
+    }
   }
 
   // ── Route-planner guard ──────────────────────────────────────────────────────
@@ -108,6 +127,27 @@ class RoutePlannerController {
         );
       }
     );
+  }
+  private debounceTimer: number | null = null;
+
+  // ── Mouse events watcher ─────────────────────────────────────────────────────
+  private handleMapInteraction(): void {
+    const overlay = document.getElementById(ElementId.MarkerOverlay);
+    if (!overlay) return;
+
+    // 1. Hide immediately
+    overlay.style.visibility = "hidden";
+
+    // 2. Clear existing timer
+    if (this.debounceTimer) window.clearTimeout(this.debounceTimer);
+
+    // 3. Set timer to show it again after movement stops
+    this.debounceTimer = window.setTimeout(() => {
+      if (this.climbs && this.isRoutePlannerActive()) {
+        renderMapOverlay(this.climbs); // Re-calculate positions
+        overlay.style.visibility = "visible";
+      }
+    }, 350); // Adjust delay as needed
   }
 
   // ── SPA watcher ──────────────────────────────────────────────────────────────

@@ -8,10 +8,8 @@
   </head>
   <body>
     <div class="popup-container">
-
       <!-- ══ MAIN VIEW ══════════════════════════════════════════════════════ -->
       <div id="view-main">
-
         <header class="popup-header">
           <div class="header-icon">
             <svg
@@ -31,9 +29,18 @@
             <span class="version" id="ext-version"></span>
           </div>
           <button class="gear-btn" id="gear-btn" aria-label="Settings">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="3"/>
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <circle cx="12" cy="12" r="3" />
+              <path
+                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
+              />
             </svg>
           </button>
         </header>
@@ -57,7 +64,9 @@
         </section>
 
         <section id="retry-section" style="display: none">
-          <button id="retry-btn" class="retry-btn" data-i18n="popupRetryBtn">↻ Retry Analysis</button>
+          <button id="retry-btn" class="retry-btn" data-i18n="popupRetryBtn">
+            ↻ Retry Analysis
+          </button>
         </section>
 
         <section class="categories-section">
@@ -77,16 +86,22 @@
             ☕ Support this project
           </a>
         </footer>
-
-      </div><!-- /view-main -->
+      </div>
+      <!-- /view-main -->
 
       <!-- ══ SETTINGS VIEW ══════════════════════════════════════════════════ -->
       <div id="view-settings" style="display: none">
-
         <header class="settings-header">
           <button class="back-btn" id="back-btn" aria-label="Back">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="15 18 9 12 15 6"/>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <polyline points="15 18 9 12 15 6" />
             </svg>
           </button>
           <h1 data-i18n="popupSettingsPageTitle">Settings</h1>
@@ -95,8 +110,17 @@
         <section class="settings-group">
           <h2 data-i18n="popupSettingsTitle">Scoring Model</h2>
           <div class="model-toggle" id="model-toggle">
-            <button class="model-btn" id="model-btn-aso" data-model="aso" data-i18n="popupModelASO">ASO</button>
-            <button class="model-btn" id="model-btn-garmin" data-model="garmin" data-i18n="popupModelGarmin">Garmin</button>
+            <button class="model-btn" id="model-btn-aso" data-model="aso" data-i18n="popupModelASO">
+              ASO
+            </button>
+            <button
+              class="model-btn"
+              id="model-btn-garmin"
+              data-model="garmin"
+              data-i18n="popupModelGarmin"
+            >
+              Garmin
+            </button>
           </div>
           <p class="model-desc" id="model-desc"></p>
         </section>
@@ -104,7 +128,9 @@
         <section class="settings-group">
           <h2 data-i18n="popupMapLayerTitle">Map Layer</h2>
           <label class="toggle-row">
-            <span class="toggle-label" data-i18n="popupMapLayerLabel">Show climb markers on map</span>
+            <span class="toggle-label" data-i18n="popupMapLayerLabel"
+              >Show climb markers on map</span
+            >
             <span class="toggle-switch">
               <input type="checkbox" id="map-layer-toggle" />
               <span class="toggle-thumb"></span>
@@ -113,9 +139,8 @@
         </section>
 
         <!-- TODO: time calculation model (e.g. W/kg input) -->
-
-      </div><!-- /view-settings -->
-
+      </div>
+      <!-- /view-settings -->
     </div>
     <script type="module" src="./popup.ts"></script>
   </body>

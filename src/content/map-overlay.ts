@@ -2,7 +2,7 @@ import { metersToKm } from "../format";
 import { StorageKey, type Climb } from "../types";
 import { CATEGORY_COLOR } from "./category";
 import { ElementId, CssClass } from "../constants";
-import { mercatorToPixel, getMapBounds } from "../map-geometry";
+import { mercatorToPixel } from "../map-geometry";
 
 // ── Local rendering constants ─────────────────────────────────────────────────
 
@@ -23,7 +23,8 @@ export function renderMapOverlay(climbs: Climb[]): void {
   const vp = viewportFromURL();
   if (!vp) return;
 
-  const mb = getMapBounds();
+  const mapContainer = document.querySelector("#map");
+  if (!mapContainer) return;
 
   let overlay = document.getElementById(ElementId.MarkerOverlay);
   if (!overlay) {
@@ -33,6 +34,7 @@ export function renderMapOverlay(climbs: Climb[]): void {
       "position:fixed;pointer-events:none;z-index:2147483647;overflow:visible;";
     document.body.appendChild(overlay);
   }
+  const mb = mapContainer.getBoundingClientRect();
   overlay.style.left = mb.left + "px";
   overlay.style.top = mb.top + "px";
   overlay.style.width = mb.width + "px";
@@ -116,7 +118,7 @@ export function renderMapOverlay(climbs: Climb[]): void {
   svg.id = ElementId.RouteSvg;
   svg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
   svg.style.cssText =
-    "position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;overflow:visible;";
+    "position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;overflow:hidden;";
 
   // Glow blur filter
   const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");

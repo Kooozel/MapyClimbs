@@ -61,7 +61,12 @@ export interface MapLayerVisibilityMessage {
   visible: boolean;
 }
 
-export type ExtensionMessage = ProcessClimbsMessage | AnalyzeGpxMessage | GpxCapturedMessage | RecategorizeMessage | MapLayerVisibilityMessage;
+export type ExtensionMessage =
+  | ProcessClimbsMessage
+  | AnalyzeGpxMessage
+  | GpxCapturedMessage
+  | RecategorizeMessage
+  | MapLayerVisibilityMessage;
 
 /**
  * Sent by background → active mapy tab content script after re-categorisation

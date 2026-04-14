@@ -34,27 +34,3 @@ export function mercatorToPixel(
   };
   return { x: W / 2 + mx(lon) - mx(cLon), y: H / 2 + my(lat) - my(cLat) };
 }
-
-/**
- * Find the best-fit map canvas bounding rect.
- * Falls back to the full viewport when no sufficiently large <canvas> exists.
- */
-export function getMapBounds(): MapBounds {
-  const canvases = Array.from(document.querySelectorAll("canvas"));
-  if (canvases.length) {
-    const best = canvases
-      .map((c) => ({ c, r: c.getBoundingClientRect() }))
-      .filter(({ r }) => r.width > 200 && r.height > 200)
-      .sort((a, b) => b.r.width * b.r.height - a.r.width * a.r.height)[0];
-    if (best) {
-      const { r } = best;
-      return {
-        left: Math.round(r.left),
-        top: Math.round(r.top),
-        width: Math.round(r.width),
-        height: Math.round(r.height),
-      };
-    }
-  }
-  return { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
-}
