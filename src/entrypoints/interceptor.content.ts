@@ -5,7 +5,7 @@
  * chrome.runtime.sendMessage.
  */
 
-import { StorageKey, type GpxCapturedMessage } from "../types";
+import { type SaveTabGpxMessage } from "../types";
 import { MAPY_MATCHES } from "../constants";
 
 export default defineContentScript({
@@ -59,17 +59,13 @@ function isGpxFetchedEvent(data: unknown): data is PageGpxFetchedEvent {
 function storeAndNotifyGPX(gpxContent: string, timestamp: number): void {
   if (gpxContent.length === 0) return;
 
-  // Write to storage first — this is the durable path.
-  // If the service worker is sleeping, the data is safe in storage even if the
-  // message below fails to wake it in time.
-  chrome.storage.local.set(
-    { [StorageKey.PendingGPX]: gpxContent, [StorageKey.GpxCaptureTime]: timestamp },
-    () => {
-      if (chrome.runtime.lastError) return;
-      const message: GpxCapturedMessage = { type: "GPX_CAPTURED", timestamp };
-      chrome.runtime.sendMessage(message, () => {
-        void chrome.runtime.lastError; // background may still be starting up
-      });
-    }
-  );
+  const message: SaveTabGpxMessage = {
+    type: "SAVE_TAB_GPX",
+    gpxContent,
+    timestamp,
+  };
+
+  chrome.runtime.sendMessage(message, () => {
+    void chrome.runtime.lastError;
+  });
 }

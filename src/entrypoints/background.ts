@@ -11,6 +11,7 @@ import {
   type ClimbsResponse,
   type GpxStoredResponse,
   type PortMessage,
+  type TabStateResponse,
   type ScoringModel,
   type Climb,
   type ElevationTuple,
@@ -40,18 +41,43 @@ export default defineBackground(() => {
    * storage, and call `sendResponse`. Errors are caught and forwarded as an
    * empty-climbs response so the caller never hangs.
    */
+  function getTabStorageKeys(tabId: number) {
+    return {
+      pendingGPX: `${StorageKey.PendingGPX}:${tabId}`,
+      gpxCaptureTime: `${StorageKey.GpxCaptureTime}:${tabId}`,
+      lastClimbResult: `${StorageKey.LastClimbResult}:${tabId}`,
+      lastTotalDistance: `${StorageKey.LastTotalDistance}:${tabId}`,
+    };
+  }
+
+  function getEffectiveTabId(
+    request: { tabId?: number },
+    sender: chrome.runtime.MessageSender
+  ): number | undefined {
+    return request.tabId ?? sender.tab?.id ?? undefined;
+  }
+
   function runDetection(
     elevation: ElevationTuple[],
     model: ScoringModel,
-    sendResponse: (r: ClimbsResponse) => void
+    sendResponse: (r: ClimbsResponse) => void,
+    tabId?: number
   ): void {
     try {
       const climbs = detectClimbs(elevation, model);
       const totalDistance = elevation.length > 0 ? elevation[elevation.length - 1][0] : 0;
-      chrome.storage.local.set({
-        [StorageKey.LastClimbResult]: climbs,
-        [StorageKey.LastTotalDistance]: totalDistance,
-      });
+      if (tabId != null) {
+        const keys = getTabStorageKeys(tabId);
+        chrome.storage.local.set({
+          [keys.lastClimbResult]: climbs,
+          [keys.lastTotalDistance]: totalDistance,
+        });
+      } else {
+        chrome.storage.local.set({
+          [StorageKey.LastClimbResult]: climbs,
+          [StorageKey.LastTotalDistance]: totalDistance,
+        });
+      }
       sendResponse({ climbs, totalDistance });
     } catch (error) {
       sendResponse({
@@ -60,6 +86,43 @@ export default defineBackground(() => {
         error: error instanceof Error ? error.message : String(error),
       });
     }
+  }
+
+  function getTabState(tabId: number, sendResponse: (response: TabStateResponse) => void): void {
+    const keys = getTabStorageKeys(tabId);
+    chrome.storage.local.get(
+      [keys.pendingGPX, keys.gpxCaptureTime, keys.lastClimbResult, keys.lastTotalDistance],
+      (data) => {
+        sendResponse({
+          type: "TAB_STATE_RESPONSE",
+          pendingGPX: data[keys.pendingGPX] as string | undefined,
+          captureTime: data[keys.gpxCaptureTime] as number | undefined,
+          lastClimbResult: data[keys.lastClimbResult] as Climb[] | undefined,
+          lastTotalDistance: data[keys.lastTotalDistance] as number | undefined,
+        });
+      }
+    );
+  }
+
+  function saveTabGpx(tabId: number, gpxContent: string, timestamp: number): void {
+    const keys = getTabStorageKeys(tabId);
+    chrome.storage.local.set(
+      { [keys.pendingGPX]: gpxContent, [keys.gpxCaptureTime]: timestamp },
+      () => {
+        if (chrome.runtime.lastError) return;
+        notifyPopupPorts({ type: "GPX_CAPTURED", timestamp, tabId });
+      }
+    );
+  }
+
+  function clearTabState(tabId: number): void {
+    const keys = getTabStorageKeys(tabId);
+    chrome.storage.local.remove([
+      keys.pendingGPX,
+      keys.gpxCaptureTime,
+      keys.lastClimbResult,
+      keys.lastTotalDistance,
+    ]);
   }
 
   // ── Popup port management ─────────────────────────────────────────────────
@@ -90,22 +153,24 @@ export default defineBackground(() => {
   chrome.runtime.onMessage.addListener(
     (
       request: ExtensionMessage,
-      _sender: chrome.runtime.MessageSender,
-      sendResponse: (response: ClimbsResponse | GpxStoredResponse) => void
+      sender: chrome.runtime.MessageSender,
+      sendResponse: (response: ClimbsResponse | GpxStoredResponse | TabStateResponse) => void
     ) => {
       if (request.type === "PROCESS_CLIMBS") {
+        const tabId = getEffectiveTabId(request, sender);
         chrome.storage.local.get(StorageKey.ScoringModel, (pref) => {
           const model: ScoringModel =
             (pref[StorageKey.ScoringModel] as ScoringModel | undefined) ?? "aso";
-          runDetection(request.elevation, model, sendResponse);
+          runDetection(request.elevation, model, sendResponse, tabId);
         });
       } else if (request.type === "ANALYZE_GPX") {
+        const tabId = getEffectiveTabId(request, sender);
         chrome.storage.local.get(StorageKey.ScoringModel, (pref) => {
           const model: ScoringModel =
             (pref[StorageKey.ScoringModel] as ScoringModel | undefined) ?? "aso";
           try {
             const elevation = parseGPX(request.gpxContent);
-            runDetection(elevation, model, sendResponse);
+            runDetection(elevation, model, sendResponse, tabId);
           } catch (error) {
             sendResponse({
               climbs: [],
@@ -114,36 +179,73 @@ export default defineBackground(() => {
             });
           }
         });
+      } else if (request.type === "SAVE_TAB_GPX") {
+        const tabId = getEffectiveTabId(request, sender);
+        if (tabId != null) {
+          saveTabGpx(tabId, request.gpxContent, request.timestamp);
+        }
+        sendResponse({ success: true });
+      } else if (request.type === "GET_TAB_STATE") {
+        const tabId = getEffectiveTabId(request, sender);
+        if (tabId != null) {
+          getTabState(tabId, sendResponse as (response: TabStateResponse) => void);
+        } else {
+          sendResponse({ type: "TAB_STATE_RESPONSE" });
+        }
+      } else if (request.type === "CLEAR_TAB_STATE") {
+        const tabId = getEffectiveTabId(request, sender);
+        if (tabId != null) {
+          clearTabState(tabId);
+        }
+        sendResponse({ success: true });
       } else if (request.type === "GPX_CAPTURED") {
         notifyPopupPorts({ type: "GPX_CAPTURED", timestamp: request.timestamp });
         sendResponse({ success: true });
       } else if (request.type === "RECATEGORIZE_CLIMBS") {
-        chrome.storage.local.get(
-          [StorageKey.LastClimbResult, StorageKey.LastTotalDistance, StorageKey.ScoringModel],
-          (data) => {
-            const storedClimbs = data[StorageKey.LastClimbResult] as Climb[] | undefined;
-            const totalDistance = (data[StorageKey.LastTotalDistance] as number | undefined) ?? 0;
-            const model: ScoringModel =
-              (data[StorageKey.ScoringModel] as ScoringModel | undefined) ?? "aso";
-
-            if (!storedClimbs || storedClimbs.length === 0) {
-              sendResponse({ climbs: [], totalDistance });
+        chrome.storage.local.get(StorageKey.ScoringModel, (pref) => {
+          const model: ScoringModel =
+            (pref[StorageKey.ScoringModel] as ScoringModel | undefined) ?? "aso";
+          chrome.tabs.query({ url: [...MAPY_MATCHES] }, (tabs) => {
+            const tabIds = tabs.map((tab) => tab.id).filter((id): id is number => id != null);
+            if (tabIds.length === 0) {
+              sendResponse({ climbs: [], totalDistance: 0 });
               return;
             }
 
-            const climbs = recategorizeClimbs(storedClimbs, model);
-            chrome.storage.local.set({ [StorageKey.LastClimbResult]: climbs }, () => {
-              // Notify all active mapy tabs so the overlay refreshes
-              const msg: CategorizationUpdatedMessage = { type: "CATEGORIZATION_UPDATED" };
-              chrome.tabs.query({ url: [...MAPY_MATCHES] }, (tabs) => {
-                tabs.forEach((tab) => {
-                  if (tab.id != null) chrome.tabs.sendMessage(tab.id, msg).catch(() => {});
-                });
-              });
-              sendResponse({ climbs, totalDistance });
+            const keys = tabIds.flatMap((tabId) => {
+              const tabKeys = getTabStorageKeys(tabId);
+              return [tabKeys.lastClimbResult, tabKeys.lastTotalDistance];
             });
-          }
-        );
+
+            chrome.storage.local.get(keys, (data) => {
+              const storageUpdates: Record<string, unknown> = {};
+              let totalDistance = 0;
+
+              for (const tabId of tabIds) {
+                const tabKeys = getTabStorageKeys(tabId);
+                const storedClimbs = data[tabKeys.lastClimbResult] as Climb[] | undefined;
+                const tabTotalDistance =
+                  (data[tabKeys.lastTotalDistance] as number | undefined) ?? 0;
+                if (!storedClimbs || storedClimbs.length === 0) continue;
+                const climbs = recategorizeClimbs(storedClimbs, model);
+                storageUpdates[tabKeys.lastClimbResult] = climbs;
+                totalDistance = tabTotalDistance;
+              }
+
+              if (Object.keys(storageUpdates).length > 0) {
+                chrome.storage.local.set(storageUpdates, () => {
+                  const msg: CategorizationUpdatedMessage = { type: "CATEGORIZATION_UPDATED" };
+                  tabIds.forEach((tabId) => {
+                    chrome.tabs.sendMessage(tabId, msg).catch(() => {});
+                  });
+                  sendResponse({ climbs: [], totalDistance });
+                });
+              } else {
+                sendResponse({ climbs: [], totalDistance });
+              }
+            });
+          });
+        });
       }
       return true; // keep message channel open for async sendResponse
     }

@@ -36,6 +36,32 @@ export interface ProcessClimbsMessage {
 export interface AnalyzeGpxMessage {
   type: "ANALYZE_GPX";
   gpxContent: string;
+  tabId?: number;
+}
+
+export interface SaveTabGpxMessage {
+  type: "SAVE_TAB_GPX";
+  gpxContent: string;
+  timestamp: number;
+  tabId?: number;
+}
+
+export interface GetTabStateMessage {
+  type: "GET_TAB_STATE";
+  tabId?: number;
+}
+
+export interface ClearTabStateMessage {
+  type: "CLEAR_TAB_STATE";
+  tabId?: number;
+}
+
+export interface TabStateResponse {
+  type: "TAB_STATE_RESPONSE";
+  pendingGPX?: string;
+  captureTime?: number;
+  lastClimbResult?: Climb[];
+  lastTotalDistance?: number;
 }
 
 /**
@@ -45,6 +71,12 @@ export interface AnalyzeGpxMessage {
 export interface GpxCapturedMessage {
   type: "GPX_CAPTURED";
   timestamp: number;
+}
+
+export interface PortMessage {
+  type: "GPX_CAPTURED";
+  timestamp: number;
+  tabId?: number;
 }
 
 /**
@@ -64,6 +96,9 @@ export interface MapLayerVisibilityMessage {
 export type ExtensionMessage =
   | ProcessClimbsMessage
   | AnalyzeGpxMessage
+  | SaveTabGpxMessage
+  | GetTabStateMessage
+  | ClearTabStateMessage
   | GpxCapturedMessage
   | RecategorizeMessage
   | MapLayerVisibilityMessage;
