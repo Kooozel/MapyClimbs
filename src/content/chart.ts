@@ -66,7 +66,7 @@ export function generateElevationChart(segments: Segment[], totalDistanceMeters:
 
 // ── Profile building ──────────────────────────────────────────────────────────
 
-function buildProfilePoints(segments: Segment[]): ProfilePoint[] {
+export function buildProfilePoints(segments: Segment[]): ProfilePoint[] {
   const profile: ProfilePoint[] = [];
   let cumulDist = 0;
   for (const seg of segments) {
@@ -113,7 +113,7 @@ function segmentGradient(a: ProfilePoint, b: ProfilePoint): number {
   return dD > 0 ? ((b.elevation - a.elevation) / dD) * 100 : 0;
 }
 
-function buildGradientZones(profile: ProfilePoint[]): GradientZone[] {
+export function buildGradientZones(profile: ProfilePoint[]): GradientZone[] {
   const zones: GradientZone[] = [];
   for (let i = 0; i < profile.length - 1; i++) {
     const a = profile[i],
