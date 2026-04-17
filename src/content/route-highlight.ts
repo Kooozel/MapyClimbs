@@ -10,13 +10,19 @@
  * Animation: every zone draws its portion in `(zoneLength / totalLength) * ROUTE_ANIM_MS`
  * starting at `(zoneStartOffset / totalLength) * ROUTE_ANIM_MS` delay, so all zones
  * finish simultaneously at exactly ROUTE_ANIM_MS.
+ *
+ * Future zoom-dependent zone filtering: pass a `ZoneFilterFn` to `createRouteSvg`.
+ * The filter receives (zones, totalDistance, zoom) and returns a filtered/merged zone
+ * array.  See `ZoneFilterFn` and `mergeShortZones` in ../gradient-zones.
  */
 
 import type { Climb, Segment } from "../types";
 import { CATEGORY_COLOR } from "./category";
 import { ElementId, CssClass } from "../constants";
 import { mercatorToPixel } from "../map-geometry";
-import { buildProfilePoints, buildGradientZones, simplifyProfile } from "./chart";
+import { type GradientZone, type ZoneFilterFn, buildClimbZones } from "../gradient-zones";
+
+export type { ZoneFilterFn };
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -60,7 +66,8 @@ interface GeoPoint {
 
 /**
  * Collects pixel coords for every segment start/end point in the climb.
- * Distance is cumulative from 0 — matching the cumulDist in buildProfilePoints.
+ * Distance is cumulative from 0 — matching the coordinate system in gradient-zones.ts.
+ * Result is shared by both glow and zone-polyline construction to avoid double iteration.
  */
 function buildGeoPoints(segments: Segment[], vp: Viewport, mb: DOMRect): GeoPoint[] {
   const pts: GeoPoint[] = [];
@@ -97,24 +104,20 @@ function buildGeoPoints(segments: Segment[], vp: Viewport, mb: DOMRect): GeoPoin
 }
 
 /**
- * Builds color zones for a climb's route using the exact same pipeline as chart.ts:
- * buildProfilePoints → simplifyProfile → buildGradientZones.
- * Then maps each distance-space zone back to pixel-coordinate polylines.
- * This guarantees route zone colors match the elevation chart 1:1.
+ * Maps distance-space gradient zones onto pixel-coordinate polylines.
+ *
+ * Each geo-segment's midpoint distance determines its color zone.
+ * Consecutive same-color segments are merged; adjacent zone polylines share
+ * a bridge point so lines connect seamlessly.
  */
-function buildZones(climb: Climb, vp: Viewport, mb: DOMRect): ZonePolyline[] {
-  const totalDistance = climb.distance || 1;
-
-  // Same pipeline as chart.ts
-  const rawProfile = buildProfilePoints(climb.segments);
-  const simplified = simplifyProfile(rawProfile);
-  const distZones = buildGradientZones(simplified);
-
-  const geoPts = buildGeoPoints(climb.segments, vp, mb);
+function buildZonePolylines(
+  geoPts: GeoPoint[],
+  distZones: GradientZone[],
+  totalDistance: number
+): ZonePolyline[] {
   if (geoPts.length < 2 || distZones.length === 0) return [];
 
-  // Assign each geo segment a color by looking up which gradient zone contains
-  // its midpoint distance. Avoids floating-point boundary issues with range filters.
+  // Assign each geo segment a color via midpoint lookup — avoids fp boundary issues.
   const segColors: string[] = [];
   for (let i = 0; i < geoPts.length - 1; i++) {
     const mid = (geoPts[i].distance + geoPts[i + 1].distance) / 2;
@@ -123,7 +126,7 @@ function buildZones(climb: Climb, vp: Viewport, mb: DOMRect): ZonePolyline[] {
     segColors.push(zone.color);
   }
 
-  // Merge consecutive same-color segments into zone polylines
+  // Merge consecutive same-color segments into zone polylines.
   const zones: ZonePolyline[] = [];
   let si = 0;
   while (si < segColors.length) {
@@ -131,10 +134,9 @@ function buildZones(climb: Climb, vp: Viewport, mb: DOMRect): ZonePolyline[] {
     let end = si + 1;
     while (end < segColors.length && segColors[end] === color) end++;
 
-    // geoPts[si..end] are the points spanning this color run
     const pts = geoPts.slice(si, end + 1).map(({ x, y }) => ({ x, y }));
 
-    // Bridge: prepend last point of previous zone so lines connect seamlessly
+    // Bridge: prepend last point of previous zone so lines connect seamlessly.
     if (zones.length > 0) {
       const prev = zones[zones.length - 1];
       pts.unshift(prev.points[prev.points.length - 1]);
@@ -188,8 +190,17 @@ function pointsToStr(points: { x: number; y: number }[]): string {
 /**
  * Builds the SVG overlay with glow + gradient-zone route polylines for all climbs.
  * Polylines start hidden; call `showClimbRoute` / `hideClimbRoute` to animate them.
+ *
+ * @param zoneFilter — optional zoom-aware filter applied to gradient zones before
+ *   mapping them to polylines.  `undefined` uses zones as-is (current behaviour).
+ *   Signature: `(zones, totalDistance, zoom) => GradientZone[]`.
  */
-export function createRouteSvg(climbs: Climb[], vp: Viewport, mb: DOMRect): SVGSVGElement {
+export function createRouteSvg(
+  climbs: Climb[],
+  vp: Viewport,
+  mb: DOMRect,
+  zoneFilter?: ZoneFilterFn
+): SVGSVGElement {
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.id = ElementId.RouteSvg;
   svg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
@@ -200,51 +211,26 @@ export function createRouteSvg(climbs: Climb[], vp: Viewport, mb: DOMRect): SVGS
 
   climbs.forEach((climb, i) => {
     const categoryColor = CATEGORY_COLOR[climb.category];
+    const totalDistance = climb.distance || 1;
+
+    // Build geo points once — shared by glow (all pts) and zone polylines (midpoint lookup).
+    const geoPts = buildGeoPoints(climb.segments, vp, mb);
+    if (geoPts.length < 2) return;
 
     // ── Glow (single category color, blurred) ──────────────────────────────
-    const allPts: { x: number; y: number }[] = [];
-    for (const seg of climb.segments) {
-      if (seg.startLat != null && seg.startLon != null) {
-        const p = mercatorToPixel(
-          seg.startLat,
-          seg.startLon,
-          vp.lat,
-          vp.lon,
-          vp.zoom,
-          mb.width,
-          mb.height
-        );
-        allPts.push({ x: Math.round(p.x), y: Math.round(p.y) });
-      }
-    }
-    const lastSeg = climb.segments[climb.segments.length - 1];
-    if (lastSeg && lastSeg.endLat != null && lastSeg.endLon != null) {
-      const p = mercatorToPixel(
-        lastSeg.endLat,
-        lastSeg.endLon,
-        vp.lat,
-        vp.lon,
-        vp.zoom,
-        mb.width,
-        mb.height
-      );
-      allPts.push({ x: Math.round(p.x), y: Math.round(p.y) });
-    }
-
-    if (allPts.length >= 2) {
-      const glow = makePolyline(pointsToStr(allPts));
-      glow.classList.add(CssClass.RouteGlow);
-      glow.dataset.climbIndex = String(i);
-      glow.setAttribute("stroke", categoryColor);
-      glow.setAttribute("stroke-width", String(GLOW_STROKE_WIDTH));
-      glow.setAttribute("opacity", String(GLOW_OPACITY));
-      glow.setAttribute("filter", `url(#${GLOW_FILTER_ID})`);
-      glow.style.visibility = "hidden";
-      svg.appendChild(glow);
-    }
+    const glow = makePolyline(pointsToStr(geoPts));
+    glow.classList.add(CssClass.RouteGlow);
+    glow.dataset.climbIndex = String(i);
+    glow.setAttribute("stroke", categoryColor);
+    glow.setAttribute("stroke-width", String(GLOW_STROKE_WIDTH));
+    glow.setAttribute("opacity", String(GLOW_OPACITY));
+    glow.setAttribute("filter", `url(#${GLOW_FILTER_ID})`);
+    glow.style.visibility = "hidden";
+    svg.appendChild(glow);
 
     // ── Gradient zone polylines ────────────────────────────────────────────
-    const zones = buildZones(climb, vp, mb);
+    const distZones = buildClimbZones(climb.segments, totalDistance, zoneFilter, vp.zoom);
+    const zones = buildZonePolylines(geoPts, distZones, totalDistance);
     zones.forEach((zone) => {
       const line = makePolyline(pointsToStr(zone.points));
       line.classList.add(CssClass.RouteLine);
