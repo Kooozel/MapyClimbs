@@ -17,7 +17,6 @@
  */
 
 import type { Climb, Segment } from "../types";
-import { CATEGORY_COLOR } from "./category";
 import { ElementId, CssClass } from "../constants";
 import { mercatorToPixel } from "../map-geometry";
 import { type GradientZone, type ZoneFilterFn, buildClimbZones } from "../gradient-zones";
@@ -210,27 +209,29 @@ export function createRouteSvg(
   buildGlowFilter(svg);
 
   climbs.forEach((climb, i) => {
-    const categoryColor = CATEGORY_COLOR[climb.category];
     const totalDistance = climb.distance || 1;
 
-    // Build geo points once — shared by glow (all pts) and zone polylines (midpoint lookup).
+    // Build geo points once — shared by glow and zone polylines.
     const geoPts = buildGeoPoints(climb.segments, vp, mb);
     if (geoPts.length < 2) return;
 
-    // ── Glow (single category color, blurred) ──────────────────────────────
-    const glow = makePolyline(pointsToStr(geoPts));
-    glow.classList.add(CssClass.RouteGlow);
-    glow.dataset.climbIndex = String(i);
-    glow.setAttribute("stroke", categoryColor);
-    glow.setAttribute("stroke-width", String(GLOW_STROKE_WIDTH));
-    glow.setAttribute("opacity", String(GLOW_OPACITY));
-    glow.setAttribute("filter", `url(#${GLOW_FILTER_ID})`);
-    glow.style.visibility = "hidden";
-    svg.appendChild(glow);
-
-    // ── Gradient zone polylines ────────────────────────────────────────────
     const distZones = buildClimbZones(climb.segments, totalDistance, zoneFilter, vp.zoom);
     const zones = buildZonePolylines(geoPts, distZones, totalDistance);
+
+    // ── Glow (per-zone color, blurred, appended first so it sits behind lines) ──
+    zones.forEach((zone) => {
+      const glow = makePolyline(pointsToStr(zone.points));
+      glow.classList.add(CssClass.RouteGlow);
+      glow.dataset.climbIndex = String(i);
+      glow.setAttribute("stroke", zone.color);
+      glow.setAttribute("stroke-width", String(GLOW_STROKE_WIDTH));
+      glow.setAttribute("opacity", String(GLOW_OPACITY));
+      glow.setAttribute("filter", `url(#${GLOW_FILTER_ID})`);
+      glow.style.visibility = "hidden";
+      svg.appendChild(glow);
+    });
+
+    // ── Gradient zone polylines ────────────────────────────────────────────
     zones.forEach((zone) => {
       const line = makePolyline(pointsToStr(zone.points));
       line.classList.add(CssClass.RouteLine);
@@ -271,18 +272,17 @@ export function showClimbRoute(index: number): void {
   const svg = document.getElementById(ElementId.RouteSvg) as SVGSVGElement | null;
   if (!svg) return;
 
-  // Glow fades in over the full animation duration — never reveals full path shape prematurely
-  const glow = svg.querySelector<SVGElement>(
-    `polyline.${CssClass.RouteGlow}[data-climb-index="${index}"]`
-  );
-  if (glow) {
-    glow.style.visibility = "visible";
-    glow.animate([{ opacity: "0" }, { opacity: String(GLOW_OPACITY) }], {
-      duration: ROUTE_ANIM_MS,
-      easing: "ease-in",
-      fill: "forwards",
+  // All glow zones fade in together over the full animation duration.
+  svg
+    .querySelectorAll<SVGElement>(`polyline.${CssClass.RouteGlow}[data-climb-index="${index}"]`)
+    .forEach((glow) => {
+      glow.style.visibility = "visible";
+      glow.animate([{ opacity: "0" }, { opacity: String(GLOW_OPACITY) }], {
+        duration: ROUTE_ANIM_MS,
+        easing: "ease-in",
+        fill: "forwards",
+      });
     });
-  }
 
   // Animate each zone line with staggered timing.
   // Visibility is flipped exactly when drawing begins — never during the delay —
