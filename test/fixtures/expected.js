@@ -24,17 +24,57 @@
  */
 
 export const fixtures = [
-  // ── Example entry (replace/extend with real data) ─────────────────────────
-  // {
-  //   file: 'alpe-dhuez.gpx',
-  //   climbCount: 1,
-  //   climbs: [
-  //     {
-  //       distanceKm: { value: 13.8, tolerance: 0.5 },
-  //       elevationM: { value: 1071, tolerance: 50 },
-  //       category: '1',
-  //       segmentCount: 8,
-  //     },
-  //   ],
-  // },
+  {
+    file: 'bk.gpx',
+    climbCount: 4,
+    climbs: [
+      {
+        distanceKm: { value: 2.6, tolerance: 0.1 },
+        elevationM: { value: 130, tolerance: 5 },
+        category: '4',
+        segmentCount: 73,
+      },
+      {
+        distanceKm: { value: 1.1, tolerance: 0.1 },
+        elevationM: { value: 65, tolerance: 5 },
+        category: '4',
+        segmentCount: 27,
+      },
+      {
+        distanceKm: { value: 1.8, tolerance: 0.1 },
+        elevationM: { value: 45, tolerance: 5 },
+        category: '4',
+        segmentCount: 72,
+      },
+      {
+        distanceKm: { value: 6.2, tolerance: 0.1 },
+        elevationM: { value: 310, tolerance: 10 },
+        category: '2',
+        segmentCount: 198,
+      },
+    ],
+  },
+  {
+    file : 'ond_mal.gpx',
+    climbCount: 2,
+    climbs: [
+      {
+        distanceKm: { value: 8.8, tolerance: 0.1 },
+        elevationM: { value: 400, tolerance: 10 },
+        category: '2',
+        segmentCount: 337,
+      },
+      {
+        distanceKm: { value: 3.2, tolerance: 0.1 },
+        elevationM: { value: 125, tolerance: 10 },
+        category: '4',
+        segmentCount: 96,
+      },
+    ],
+  },
+  {
+    file: 'lh.gpx',
+    climbCount: 1,
+    climbs: [],
+  }
 ];
