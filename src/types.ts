@@ -27,6 +27,7 @@ export type StorageKey = (typeof StorageKey)[keyof typeof StorageKey];
 export interface ProcessClimbsMessage {
   type: "PROCESS_CLIMBS";
   elevation: ElevationTuple[];
+  tabId?: number;
 }
 
 /**
