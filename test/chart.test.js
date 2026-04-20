@@ -12,7 +12,7 @@ import {
   getColorForGrade,
   mergeShortZones,
   simplifyProfile,
-} from '../src/content/chart.ts';
+} from '../src/gradient-zones.ts';
 
 // ── getColorForGrade ─────────────────────────────────────────────────────────
 
