@@ -2,7 +2,7 @@
 
 Chrome extension that intercepts GPX exports from Mapy.cz, detects climbs, and injects analysis directly into the route-planner sidebar with live map pins.
 
-**Version**: 0.6.0 | **Browser**: Chrome 88+ / Edge 88+ / Brave
+**Version**: 1.0.4 | **Browser**: Chrome 88+ / Edge 88+ / Brave
 
 ## Quick Start
 
@@ -26,36 +26,60 @@ Then: go to [mapy.cz](https://mapy.cz), open the route planner, plan a route, cl
 ## Project Structure
 
 ```
-climb/
+MapyClimbs/
 ├── README.md
 ├── CHANGELOG.md
-├── ARCHITECTURE.md              ← Architecture, algorithm, data flow, file responsibilities
+├── ARCHITECTURE.md              ← Architecture, data flow, file responsibilities
 ├── wxt.config.ts                ← WXT + manifest configuration
 ├── package.json
 ├── tsconfig.json                ← extends .wxt/tsconfig.json (auto-generated)
 ├── vitest.config.js
+├── scripts/
+│   └── generate-whats-new.mjs  ← Validates & bundles public/whats-new-data.json at build time
 ├── public/
+│   ├── whats-new-data.json      ← Hand-authored user-facing What's New bullets
 │   ├── images/                  ← Extension icons (copied as-is to dist)
 │   └── _locales/
 │       ├── cs/messages.json     ← Czech UI strings
 │       └── en/messages.json     ← English UI strings
 └── src/
     ├── types.ts                 ← Shared domain types and message interfaces
-    ├── climb-engine.ts          ← Pure module: all climb-detection logic
+    ├── constants.ts             ← ElementId enum, MAPY_MATCHES URL patterns
+    ├── climb-engine.ts          ← Pure module: 7-step climb-detection pipeline
+    ├── climb-engine.config.ts   ← All numeric pipeline constants (tuning)
+    ├── scoring.ts               ← Pluggable scoring models: aso, garmin
+    ├── format.ts                ← Shared formatting helpers
+    ├── map-geometry.ts          ← Pure mercatorToPixel() projection
     ├── gpx-parser.ts            ← GPX XML parser (Haversine distances)
+    ├── smap.types.ts            ← Ambient TS declarations for SMap globals
     ├── map-inject.css           ← Injected panel styles
     ├── entrypoints/
-    │   ├── background.ts        ← Service worker (defineBackground)
-    │   ├── interceptor.content.ts   ← Content script, document_start (defineContentScript)
-    │   ├── inject.content.ts        ← Content script, document_idle (defineContentScript)
-    │   ├── gpx-interceptor-injected.ts  ← Unlisted page-context script (defineUnlistedScript)
-    │   └── popup/
-    │       ├── index.html       ← Popup HTML
-    │       ├── popup.ts         ← Popup logic
-    │       └── popup.css        ← Popup styles
+    │   ├── background.ts            ← Service worker (defineBackground)
+    │   ├── interceptor.content.ts   ← Content script, document_start
+    │   ├── inject.content.ts        ← Content script, document_idle (RoutePlannerController)
+    │   ├── gpx-interceptor-injected.ts  ← Page-context entry point (defineUnlistedScript)
+    │   ├── popup/
+    │   │   ├── index.html
+    │   │   ├── popup.ts
+    │   │   └── popup.css
+    │   └── whats-new/
+    │       ├── index.html
+    │       ├── whats-new.ts         ← Renders localized What's New page
+    │       └── whats-new.css
+    ├── injected/                    ← Page-context modules (no sandbox)
+    │   ├── gpx-interceptors.ts      ← fetch/XHR monkey-patches
+    │   ├── download-suppressor.ts   ← Suppresses blob download after GPX capture
+    │   ├── smap-capture.ts          ← Captures live SMap instance via constructor hook
+    │   └── marker-injection.ts      ← Native SMap.Layer.Marker pins
     └── content/
-        ├── chart.ts             ← SVG elevation chart renderer
-        └── panel.ts             ← Sidebar panel DOM builder
+        ├── button-injector.ts       ← Injects MapyClimbs button, auto-triggers export
+        ├── map-overlay.ts           ← SVG overlay with animated route polylines
+        ├── panel.ts                 ← Sidebar panel orchestrator
+        ├── panel-template.ts        ← Panel shell + header HTML
+        ├── route-overview.ts        ← Route stat card + proportional climb strip
+        ├── climb-card.ts            ← Per-climb card DOM + calcMaxGradientOver()
+        ├── chart.ts                 ← SVG elevation chart renderer
+        └── category.ts             ← Category colour palette
 ```
 
 ## Documentation
@@ -93,11 +117,11 @@ climb/
 
 ### Sidebar & Map
 
-`inject.content.ts` polls for a new GPX every 2 s after the MapyClimbs button is clicked. On receipt, it calls `detectClimbs`, then `buildPanel` (`content/panel.ts`) and `renderMapOverlay` to place Web Mercator pins. A `MutationObserver` re-injects the panel if Mapy.cz removes it during SPA navigation.
+`inject.content.ts` (`RoutePlannerController`) polls for a new GPX every 2 s after the MapyClimbs button is clicked. On receipt, it calls `detectClimbs`, then `buildPanel` (`content/panel.ts`) and `renderMapOverlay` to place animated SVG overlay pins. `injected/marker-injection.ts` additionally places native `SMap.Layer.Marker` pins that move with the map. A `MutationObserver` re-injects the panel if Mapy.cz removes it during SPA navigation.
 
 ## Climb Categories
 
-`Score = distance (km) × avg grade (%) × 100` — ProCyclingStats formula
+Categorisation uses a pluggable scoring model (see `src/scoring.ts`). Default thresholds:
 
 | Category | Score    |
 | -------- | -------- |

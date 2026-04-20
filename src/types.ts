@@ -17,6 +17,7 @@ export const StorageKey = {
   LastTotalDistance: "lastTotalDistance",
   ScoringModel: "scoringModel",
   MapLayerVisible: "mapLayerVisible",
+  LastSeenVersion: "lastSeenVersion",
 } as const;
 
 export type StorageKey = (typeof StorageKey)[keyof typeof StorageKey];
