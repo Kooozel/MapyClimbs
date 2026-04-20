@@ -252,6 +252,15 @@ function hideClimbRoute(index: number): void {
   });
 }
 
+/**
+ * Show or hide the marker overlay element.
+ * Used to hide injected pins/routes when a native mapy.com popup is visible.
+ */
+export function setOverlayVisible(visible: boolean): void {
+  const overlay = document.getElementById(ElementId.MarkerOverlay);
+  if (overlay) overlay.style.visibility = visible ? "" : "hidden";
+}
+
 function viewportFromURL(): { lat: number; lon: number; zoom: number } | null {
   const p = new URLSearchParams(location.search);
   const lon = parseFloat(p.get("x") ?? "");

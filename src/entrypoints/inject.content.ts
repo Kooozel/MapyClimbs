@@ -6,7 +6,7 @@
 import "../map-inject.css";
 import { parseGPX } from "../gpx-parser";
 import { buildPanel } from "../content/panel";
-import { renderMapOverlay } from "../content/map-overlay";
+import { renderMapOverlay, setOverlayVisible } from "../content/map-overlay";
 import { tryInjectButton } from "../content/button-injector";
 import {
   StorageKey,
@@ -48,6 +48,7 @@ export default defineContentScript({
 class RoutePlannerController {
   private climbs: Climb[] | null = null;
   private panelInjected = false;
+  private _popupOpen = false;
   private lastGPXLength = 0;
   private totalRouteDistance = 0;
   private lastURL = "";
@@ -66,6 +67,7 @@ class RoutePlannerController {
 
     const observer = new MutationObserver(() => this.onMutation());
     observer.observe(document.body, { childList: true, subtree: true });
+    this.checkPopupOverlap();
 
     setInterval(() => this.pollForGPX(), GPX_POLL_MS);
 
@@ -148,7 +150,7 @@ class RoutePlannerController {
     this.debounceTimer = window.setTimeout(() => {
       if (this.climbs && this.isRoutePlannerActive()) {
         renderMapOverlay(this.climbs); // Re-calculate positions
-        overlay.style.visibility = "visible";
+        if (!this._popupOpen) overlay.style.visibility = "visible";
       }
     }, 350); // Adjust delay as needed
   }
@@ -288,7 +290,25 @@ class RoutePlannerController {
     });
   }
 
+  private checkPopupOverlap(): void {
+    const holder = document.querySelector("body > div.mymap-popup-holder") as HTMLElement | null;
+    const dialog = document.querySelector("body > div.mymaps-dialog__cover") as HTMLElement | null;
+    const dialog2 = document.querySelector("body > div.mymaps-dialog") as HTMLElement | null;
+    const holderOpen = holder !== null && holder.children.length > 0;
+    const dialogOpen =
+      (dialog !== null && dialog.children.length > 0) ||
+      (dialog2 !== null && dialog2.children.length > 0);
+    // The container element may always be present in the DOM; only treat as
+    // open when it actually contains content (i.e. a popup is being shown).
+    const popupOpen = holderOpen || dialogOpen;
+    if (popupOpen !== this._popupOpen) {
+      this._popupOpen = popupOpen;
+      setOverlayVisible(!popupOpen);
+    }
+  }
+
   private onMutation(): void {
+    this.checkPopupOverlap();
     if (!this.isRoutePlannerActive()) {
       this.clearRoutePlannerState();
       return;
