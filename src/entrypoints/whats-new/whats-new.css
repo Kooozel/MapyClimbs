@@ -1,0 +1,191 @@
+/* whats-new.css — What's New page styles for MapyClimbs */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg0: #0f1114;
+  --bg1: #1c1f24;
+  --bg2: #252930;
+  --bg3: #2e333b;
+  --border: #333840;
+  --text1: #f0f2f5;
+  --text2: #9aa0ac;
+  --text3: #5a6170;
+  --accent: #3d9e6e;
+  --accent2: #2d7a54;
+  --accent-glow: rgba(61, 158, 110, 0.15);
+  --bmc-yellow: #ffdd00;
+  --bmc-yellow-hover: #f0cf00;
+}
+
+html,
+body {
+  background: var(--bg0);
+  color: var(--text1);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* ── Layout ──────────────────────────────────────────────────────────────── */
+
+.page {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 48px 24px 80px;
+}
+
+/* ── Header ──────────────────────────────────────────────────────────────── */
+
+.page-header {
+  margin-bottom: 40px;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.logo img {
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+}
+
+.logo-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.app-name {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  color: var(--text1);
+}
+
+.version-badge {
+  display: inline-block;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 20px;
+  letter-spacing: 0.3px;
+  width: fit-content;
+}
+
+/* ── Main content ────────────────────────────────────────────────────────── */
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.title {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  color: var(--text1);
+  line-height: 1.25;
+}
+
+.subtitle {
+  font-size: 15px;
+  color: var(--text2);
+  margin-top: -20px;
+}
+
+/* ── Changelog list ──────────────────────────────────────────────────────── */
+
+.changelog-section {
+  background: var(--bg1);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px 24px;
+}
+
+.changelog-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.changelog-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--text1);
+  line-height: 1.55;
+}
+
+.changelog-list li::before {
+  content: "";
+  flex-shrink: 0;
+  margin-top: 7px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+/* ── Support / BMAC section ──────────────────────────────────────────────── */
+
+.support-section {
+  background: var(--bg1);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.support-heading {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text1);
+}
+
+.support-desc {
+  font-size: 13px;
+  color: var(--text2);
+  line-height: 1.6;
+}
+
+.bmc-btn {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  font-size: 12px;
+  color: var(--text2);
+  text-decoration: none;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    border-color 0.15s;
+}
+
+.bmc-btn:hover {
+  background: var(--bg3);
+  color: var(--text1);
+  border-color: var(--accent);
+}

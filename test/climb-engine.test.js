@@ -287,16 +287,21 @@ describe('mergeNearbyClimbs', () => {
     expect(result).toHaveLength(2);
   });
 
-  it('respects a custom maxGapDistance', () => {
-    // Gap = 1200 m — within the default 2000 m but outside a custom 1000 m limit.
-    const segA = seg(0,    2000, 100, 220);
-    const segB = seg(3200, 5200, 215, 380);  // gap = 1200 m
+  it('gap tolerance scales with combined elevation gain', () => {
+    // Both scenarios have a 1 400 m gap between two climbs.
+    // Small climbs (30 m + 30 m = 60 m combined): bonus = min(60×2, 4000) = 120 m
+    //   → effectiveMaxGap = 1000 + 120 = 1120 m  <  1400 m  → NOT merged.
+    // Large climbs (400 m + 380 m = 780 m combined): bonus = min(780×2, 4000) = 1560 m
+    //   → effectiveMaxGap = 1000 + 1560 = 2560 m  >  1400 m  → merged.
+    const smallA = seg(0,    1000, 100, 130);   // +30 m
+    const smallB = seg(2400, 3400, 129, 159);   // +30 m, gap = 1400 m, drop = 1 m
+    const resultSmall = mergeNearbyClimbs([rawClimb([smallA]), rawClimb([smallB])], [smallA, smallB]);
+    expect(resultSmall).toHaveLength(2);
 
-    const resultDefault = mergeNearbyClimbs([rawClimb([segA]), rawClimb([segB])], [segA, segB]);
-    expect(resultDefault).toHaveLength(1);  // merged with default 2000 m
-
-    const resultTight   = mergeNearbyClimbs([rawClimb([segA]), rawClimb([segB])], [segA, segB], 1000);
-    expect(resultTight).toHaveLength(2);    // not merged with 1000 m limit
+    const largeA = seg(0,    5000, 100, 500);   // +400 m
+    const largeB = seg(6400, 10000, 495, 875);  // +380 m, gap = 1400 m, drop = 5 m
+    const resultLarge = mergeNearbyClimbs([rawClimb([largeA]), rawClimb([largeB])], [largeA, largeB]);
+    expect(resultLarge).toHaveLength(1);
   });
 
   it('merges a chain of three climbs in one pass', () => {
@@ -504,11 +509,12 @@ describe('detectClimbs', () => {
     expect(() => detectClimbs(minimal)).not.toThrow();
   });
 
-  it('anti-green split: two ramps joined by a 2 km flat stay as two climbs', () => {
-    // identifyClimbs sees this as ONE combined climb (0 % flat ≠ descent).
-    // splitAntiGreenClimbs fires when the flat interior exceeds 400 m,
-    // splits it in two; the 2 km gap then exceeds the step-7 re-merge
-    // threshold (1 500 m), so two separate climbs are returned.
+  it('two ramps joined by a 2 km flat stay as two climbs', () => {
+    // identifyClimbs accumulates 2 km of flat (CLIMB_END_FLAT_M) after ramp 1,
+    // strips the flat tail via finalizeRawClimb, and closes the candidate at
+    // d = 3 000 m — creating a real 2 000 m gap to ramp 2.
+    // Combined gain ≈ 300 m → effectiveMaxGap = 1000 + min(300×2, 4000) = 1600 m.
+    // 2 000 m gap > 1 600 m effectiveMaxGap → NOT merged → two separate climbs.
     const points = [];
     // Ramp 1: 0–3 km at 5 % (+150 m)
     for (let i = 0; i <= 150; i++) {
@@ -531,17 +537,16 @@ describe('detectClimbs', () => {
   it('discards a climb whose steep section is shorter than 100 m after trimming', () => {
     // 75 m at 40 % grade (+30 m elevation) satisfies identifyClimbs minimums when
     // followed by a 330 m flat tail (total 405 m, +30 m, 7.4 % avg).
-    // trimClimbEndpoints strips the flat tail, leaving only 75 m < MIN_REMAINING
-    // (100 m) → the climb is discarded and detectClimbs returns [].
+    // With raw-elevation validation the 30 m gain meets CLIMB_MIN_ELEVATION_M,
+    // so the smoothed candidate (285 m after smoothing extends the climbing zone)
+    // survives as a valid category-4 climb.
     const points = [];
     // Steep section: 5 intervals × 15 m, each +6 m (40 % grade)
     for (let i = 0; i <= 5; i++) points.push([i * 15, i * 6, 48.0, 16.0]);
     // Flat tail: 22 intervals × 15 m at elevation 30 m
     for (let i = 1; i <= 22; i++) points.push([75 + i * 15, 30, 48.0 + i * 0.00013, 16.0]);
 
-    // The pipeline may smooth away the micro-climb entirely, or trim it to nothing —
-    // either way, no climb that meets minimum criteria should survive.
     const result = detectClimbs(points);
-    expect(result).toHaveLength(0);
+    expect(result).toHaveLength(1);
   });
 });

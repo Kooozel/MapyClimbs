@@ -6,7 +6,7 @@
 import "../map-inject.css";
 import { parseGPX } from "../gpx-parser";
 import { buildPanel } from "../content/panel";
-import { renderMapOverlay } from "../content/map-overlay";
+import { renderMapOverlay, setOverlayVisible } from "../content/map-overlay";
 import { tryInjectButton } from "../content/button-injector";
 import {
   StorageKey,
@@ -16,6 +16,9 @@ import {
   type ClimbsResponse,
   type CategorizationUpdatedMessage,
   type MapLayerVisibilityMessage,
+  type GetTabStateMessage,
+  type ClearTabStateMessage,
+  type TabStateResponse,
 } from "../types";
 import { MAPY_MATCHES, ElementId } from "../constants";
 
@@ -45,6 +48,7 @@ export default defineContentScript({
 class RoutePlannerController {
   private climbs: Climb[] | null = null;
   private panelInjected = false;
+  private _popupOpen = false;
   private lastGPXLength = 0;
   private totalRouteDistance = 0;
   private lastURL = "";
@@ -63,6 +67,7 @@ class RoutePlannerController {
 
     const observer = new MutationObserver(() => this.onMutation());
     observer.observe(document.body, { childList: true, subtree: true });
+    this.checkPopupOverlap();
 
     setInterval(() => this.pollForGPX(), GPX_POLL_MS);
 
@@ -113,20 +118,20 @@ class RoutePlannerController {
           return;
         }
         if (msg.type !== "CATEGORIZATION_UPDATED") return;
-        chrome.storage.local.get(
-          [StorageKey.LastClimbResult, StorageKey.LastTotalDistance],
-          (data) => {
-            const updated = data[StorageKey.LastClimbResult] as Climb[] | undefined;
-            const dist = data[StorageKey.LastTotalDistance] as number | undefined;
-            if (!updated) return;
-            this.climbs = updated;
-            this.totalRouteDistance = dist ?? this.totalRouteDistance;
-            this.renderPanel();
-            renderMapOverlay(this.climbs);
-          }
-        );
+        this.fetchTabState((data) => {
+          if (!data || !data.lastClimbResult) return;
+          this.climbs = data.lastClimbResult;
+          this.totalRouteDistance = data.lastTotalDistance ?? this.totalRouteDistance;
+          this.renderPanel();
+          renderMapOverlay(this.climbs);
+        });
       }
     );
+  }
+
+  private fetchTabState(callback: (response: TabStateResponse | undefined) => void): void {
+    const message: GetTabStateMessage = { type: "GET_TAB_STATE" };
+    chrome.runtime.sendMessage(message, callback);
   }
   private debounceTimer: number | null = null;
 
@@ -145,7 +150,7 @@ class RoutePlannerController {
     this.debounceTimer = window.setTimeout(() => {
       if (this.climbs && this.isRoutePlannerActive()) {
         renderMapOverlay(this.climbs); // Re-calculate positions
-        overlay.style.visibility = "visible";
+        if (!this._popupOpen) overlay.style.visibility = "visible";
       }
     }, 350); // Adjust delay as needed
   }
@@ -195,35 +200,32 @@ class RoutePlannerController {
   // ── Storage polling ───────────────────────────────────────────────────────────
 
   private pollForGPX(): void {
-    chrome.storage.local.get(
-      [StorageKey.PendingGPX, StorageKey.LastClimbResult, StorageKey.LastTotalDistance],
-      (data) => {
-        if (!this.isRoutePlannerActive()) return;
+    this.fetchTabState((data) => {
+      if (!this.isRoutePlannerActive() || !data) return;
 
-        const pendingGPX = data[StorageKey.PendingGPX] as string | undefined;
-        const lastClimbResult = data[StorageKey.LastClimbResult] as Climb[] | undefined;
-        const lastTotalDistance = data[StorageKey.LastTotalDistance] as number | undefined;
+      const pendingGPX = data.pendingGPX;
+      const lastClimbResult = data.lastClimbResult;
+      const lastTotalDistance = data.lastTotalDistance;
 
-        if (pendingGPX && pendingGPX.length !== this.lastGPXLength) {
-          this.lastGPXLength = pendingGPX.length;
-          this.analyzeGPX(pendingGPX);
-          return;
-        }
+      if (pendingGPX && pendingGPX.length !== this.lastGPXLength) {
+        this.lastGPXLength = pendingGPX.length;
+        this.analyzeGPX(pendingGPX);
+        return;
+      }
 
-        if (pendingGPX && lastClimbResult && !this.climbs) {
-          if (
-            Array.isArray(lastClimbResult) &&
-            lastClimbResult.length > 0 &&
-            lastClimbResult[0].markerCoords
-          ) {
-            this.climbs = lastClimbResult;
-            this.totalRouteDistance = lastTotalDistance ?? 0;
-            this.renderPanel();
-            renderMapOverlay(this.climbs);
-          }
+      if (pendingGPX && lastClimbResult && !this.climbs) {
+        if (
+          Array.isArray(lastClimbResult) &&
+          lastClimbResult.length > 0 &&
+          lastClimbResult[0].markerCoords
+        ) {
+          this.climbs = lastClimbResult;
+          this.totalRouteDistance = lastTotalDistance ?? 0;
+          this.renderPanel();
+          renderMapOverlay(this.climbs);
         }
       }
-    );
+    });
   }
 
   // ── Analysis ──────────────────────────────────────────────────────────────────
@@ -281,15 +283,32 @@ class RoutePlannerController {
     document.getElementById(ElementId.Panel)?.remove();
     const overlay = document.getElementById(ElementId.MarkerOverlay);
     if (overlay) overlay.innerHTML = "";
-    chrome.storage.local.remove([
-      StorageKey.PendingGPX,
-      StorageKey.GpxCaptureTime,
-      StorageKey.LastClimbResult,
-      StorageKey.LastTotalDistance,
-    ]);
+
+    const message: ClearTabStateMessage = { type: "CLEAR_TAB_STATE" };
+    chrome.runtime.sendMessage(message, () => {
+      void chrome.runtime.lastError;
+    });
+  }
+
+  private checkPopupOverlap(): void {
+    const holder = document.querySelector("body > div.mymap-popup-holder") as HTMLElement | null;
+    const dialog = document.querySelector("body > div.mymaps-dialog__cover") as HTMLElement | null;
+    const dialog2 = document.querySelector("body > div.mymaps-dialog") as HTMLElement | null;
+    const holderOpen = holder !== null && holder.children.length > 0;
+    const dialogOpen =
+      (dialog !== null && dialog.children.length > 0) ||
+      (dialog2 !== null && dialog2.children.length > 0);
+    // The container element may always be present in the DOM; only treat as
+    // open when it actually contains content (i.e. a popup is being shown).
+    const popupOpen = holderOpen || dialogOpen;
+    if (popupOpen !== this._popupOpen) {
+      this._popupOpen = popupOpen;
+      setOverlayVisible(!popupOpen);
+    }
   }
 
   private onMutation(): void {
+    this.checkPopupOverlap();
     if (!this.isRoutePlannerActive()) {
       this.clearRoutePlannerState();
       return;

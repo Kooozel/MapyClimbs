@@ -3,20 +3,18 @@ import { StorageKey, type Climb } from "../types";
 import { CATEGORY_COLOR } from "./category";
 import { ElementId, CssClass } from "../constants";
 import { mercatorToPixel } from "../map-geometry";
+import {
+  createRouteSvg,
+  initRouteDashLengths,
+  showClimbRoute,
+  hideClimbRoute,
+} from "./route-highlight";
 
 // ── Local rendering constants ─────────────────────────────────────────────────
 
-const GLOW_FILTER_ID = "climb-glow-filter";
-const GLOW_STD_DEV = 4;
-const GLOW_STROKE_WIDTH = 10;
-const GLOW_OPACITY = 0.45;
-const LINE_STROKE_WIDTH = 5;
-const LINE_OPACITY = 0.92;
 const PIN_SIZE = 28;
 /** Duration (ms) of the card-flash highlight triggered by clicking a map pin. */
 const CARD_FLASH_MS = 1500;
-/** Duration (ms) of the route polyline draw animation. */
-const ROUTE_ANIM_MS = 900;
 
 export function renderMapOverlay(climbs: Climb[]): void {
   if (!climbs?.length) return;
@@ -114,142 +112,18 @@ export function renderMapOverlay(climbs: Climb[]): void {
   });
 
   // ── Polyline SVG layer ──────────────────────────────────────────────────
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  svg.id = ElementId.RouteSvg;
-  svg.setAttribute("xmlns", "http://www.w3.org/2000/svg");
-  svg.style.cssText =
-    "position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;overflow:hidden;";
-
-  // Glow blur filter
-  const defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
-  const filter = document.createElementNS("http://www.w3.org/2000/svg", "filter");
-  filter.id = GLOW_FILTER_ID;
-  filter.setAttribute("x", "-50%");
-  filter.setAttribute("y", "-50%");
-  filter.setAttribute("width", "200%");
-  filter.setAttribute("height", "200%");
-  const blur = document.createElementNS("http://www.w3.org/2000/svg", "feGaussianBlur");
-  blur.setAttribute("in", "SourceGraphic");
-  blur.setAttribute("stdDeviation", String(GLOW_STD_DEV));
-  filter.appendChild(blur);
-  defs.appendChild(filter);
-  svg.appendChild(defs);
-
-  climbs.forEach((climb, i) => {
-    const color = CATEGORY_COLOR[climb.category];
-    const pts: string[] = [];
-    for (const seg of climb.segments) {
-      if (seg.startLat != null && seg.startLon != null) {
-        const p = mercatorToPixel(
-          seg.startLat,
-          seg.startLon,
-          vp.lat,
-          vp.lon,
-          vp.zoom,
-          mb.width,
-          mb.height
-        );
-        pts.push(`${Math.round(p.x)},${Math.round(p.y)}`);
-      }
-    }
-    const last = climb.segments[climb.segments.length - 1];
-    if (last && last.endLat != null && last.endLon != null) {
-      const p = mercatorToPixel(
-        last.endLat,
-        last.endLon,
-        vp.lat,
-        vp.lon,
-        vp.zoom,
-        mb.width,
-        mb.height
-      );
-      pts.push(`${Math.round(p.x)},${Math.round(p.y)}`);
-    }
-    if (pts.length < 2) return;
-
-    const pointsStr = pts.join(" ");
-
-    // Glow layer (blurred, wider, behind)
-    const glow = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
-    glow.classList.add(CssClass.RouteGlow);
-    glow.dataset.climbIndex = String(i);
-    glow.setAttribute("points", pointsStr);
-    glow.setAttribute("stroke", color);
-    glow.setAttribute("stroke-width", String(GLOW_STROKE_WIDTH));
-    glow.setAttribute("stroke-linecap", "round");
-    glow.setAttribute("stroke-linejoin", "round");
-    glow.setAttribute("fill", "none");
-    glow.setAttribute("opacity", String(GLOW_OPACITY));
-    glow.setAttribute("filter", `url(#${GLOW_FILTER_ID})`);
-    glow.style.visibility = "hidden";
-    svg.appendChild(glow);
-
-    // Sharp line on top
-    const line = document.createElementNS("http://www.w3.org/2000/svg", "polyline");
-    line.classList.add(CssClass.RouteLine);
-    line.dataset.climbIndex = String(i);
-    line.setAttribute("points", pointsStr);
-    line.setAttribute("stroke", color);
-    line.setAttribute("stroke-width", String(LINE_STROKE_WIDTH));
-    line.setAttribute("stroke-linecap", "round");
-    line.setAttribute("stroke-linejoin", "round");
-    line.setAttribute("fill", "none");
-    line.setAttribute("opacity", String(LINE_OPACITY));
-    line.style.visibility = "hidden";
-    svg.appendChild(line);
-  });
-
+  const svg = createRouteSvg(climbs, vp, mb);
   overlay.appendChild(svg);
-
-  // Pre-compute dash lengths after SVG is in DOM
-  svg.querySelectorAll<SVGGeometryElement>(`polyline.${CssClass.RouteLine}`).forEach((line) => {
-    const len = line.getTotalLength();
-    line.style.strokeDasharray = String(len);
-    line.style.strokeDashoffset = String(len);
-    const idx = (line as SVGElement & { dataset: DOMStringMap }).dataset.climbIndex!;
-    const glow = svg.querySelector<SVGGeometryElement>(
-      `polyline.${CssClass.RouteGlow}[data-climb-index="${idx}"]`
-    );
-    if (glow) {
-      glow.style.strokeDasharray = String(len);
-      glow.style.strokeDashoffset = String(len);
-    }
-  });
+  initRouteDashLengths(svg);
 }
 
-function showClimbRoute(index: number): void {
-  const svg = document.getElementById(ElementId.RouteSvg);
-  if (!svg) return;
-  const line = svg.querySelector<SVGGeometryElement>(
-    `polyline.${CssClass.RouteLine}[data-climb-index="${index}"]`
-  );
-  const glow = svg.querySelector<SVGGeometryElement>(
-    `polyline.${CssClass.RouteGlow}[data-climb-index="${index}"]`
-  );
-  if (!line) return;
-
-  const len = parseFloat(line.style.strokeDasharray || "0") || line.getTotalLength();
-
-  [line, glow].forEach((el) => {
-    if (!el) return;
-    el.style.visibility = "visible";
-    el.style.strokeDasharray = String(len);
-    el.style.strokeDashoffset = String(len);
-    el.animate([{ strokeDashoffset: String(len) }, { strokeDashoffset: "0" }], {
-      duration: ROUTE_ANIM_MS,
-      easing: "ease-out",
-      fill: "forwards",
-    });
-  });
-}
-
-function hideClimbRoute(index: number): void {
-  const svg = document.getElementById(ElementId.RouteSvg);
-  if (!svg) return;
-  svg.querySelectorAll<SVGElement>(`polyline[data-climb-index="${index}"]`).forEach((el) => {
-    el.getAnimations().forEach((a) => a.cancel());
-    el.style.visibility = "hidden";
-  });
+/**
+ * Show or hide the marker overlay element.
+ * Used to hide injected pins/routes when a native mapy.com popup is visible.
+ */
+export function setOverlayVisible(visible: boolean): void {
+  const overlay = document.getElementById(ElementId.MarkerOverlay);
+  if (overlay) overlay.style.visibility = visible ? "" : "hidden";
 }
 
 function viewportFromURL(): { lat: number; lon: number; zoom: number } | null {

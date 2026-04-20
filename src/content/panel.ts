@@ -11,6 +11,7 @@ import { renderEmptyPanel, renderPanelShell } from "./panel-template";
 import type { Climb } from "../types";
 import { StorageKey } from "../types";
 import { ElementId, CssClass } from "../constants";
+import { showClimbRoute, hideClimbRoute } from "./route-highlight";
 
 function buildPanelContent(climbs: Climb[], totalRouteDistance: number): DocumentFragment {
   const totalDist =
@@ -100,13 +101,15 @@ function wireCardClickHandlers(panel: HTMLElement): void {
       const pin = document.querySelector<HTMLElement>(
         `.${CssClass.Pin}[data-climb-index="${idx}"]`
       );
-      pin?.dispatchEvent(new MouseEvent("mouseenter", { bubbles: false }));
+      if (pin) pin.dispatchEvent(new MouseEvent("mouseenter", { bubbles: false }));
+      else showClimbRoute(Number(idx));
     });
     card.addEventListener("mouseleave", () => {
       const pin = document.querySelector<HTMLElement>(
         `.${CssClass.Pin}[data-climb-index="${idx}"]`
       );
-      pin?.dispatchEvent(new MouseEvent("mouseleave", { bubbles: false }));
+      if (pin) pin.dispatchEvent(new MouseEvent("mouseleave", { bubbles: false }));
+      else hideClimbRoute(Number(idx));
     });
   });
 }

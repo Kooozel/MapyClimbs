@@ -1,0 +1,20 @@
+{
+  "version": "1.0.5",
+  "entries": {
+    "en": [
+      "Route lines now change colour as the road gets steeper — the map matches exactly what you see in the elevation chart.",
+      "Climb detection is smarter. There should be less flat sections at start and end of climbs. ",
+      "Opening MapyClimbs in multiple browser tabs at the same time now works correctly — each tab keeps its own results.",
+      "Firefox is officially supported.",
+      "Bug fixes: overlay visibility glitch on map popup open, popup cleanup, and several smaller stability improvements."
+    ],
+    "cs": [
+      "Trasy na mapě nyní mění barvu podle sklonu — mapa přesně odpovídá grafu.",
+      "Detekce stoupání je přesnější. Mělo by být méně rovných úseků na začátku a konci stoupání.",
+      "Otevření MapyClimbs ve více záložkách najednou nyní funguje správně — každá záložka si udržuje vlastní výsledky.",
+      "Firefox je oficiálně podporován.",
+      "Opravy chyb: problém s viditelností překryvu při otevření vyskakovacího okna mapy a řada menších oprav stability."
+    ]
+  }
+}
+

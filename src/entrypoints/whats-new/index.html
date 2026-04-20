@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MapyClimbs — What's New</title>
+    <link rel="stylesheet" href="./whats-new.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="page-header">
+        <div class="logo">
+          <img src="/images/icon-48.png" alt="MapyClimbs" width="48" height="48" />
+          <div class="logo-text">
+            <span class="app-name">MapyClimbs</span>
+            <span class="version-badge" id="version-badge"></span>
+          </div>
+        </div>
+      </header>
+
+      <main class="content">
+        <h1 class="title" id="page-title"></h1>
+        <p class="subtitle" id="page-subtitle"></p>
+
+        <section class="changelog-section">
+          <ul class="changelog-list" id="changelog-list">
+            <!-- bullets injected by whats-new.ts -->
+          </ul>
+        </section>
+
+        <section class="support-section">
+          <p class="support-heading" id="support-heading"></p>
+          <a
+            id="bmc-btn"
+            class="bmc-btn"
+            href="https://buymeacoffee.com/frantisek.sikula"
+            target="_blank"
+            rel="noopener noreferrer"
+          ></a>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="./whats-new.ts"></script>
+  </body>
+</html>

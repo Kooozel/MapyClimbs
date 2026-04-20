@@ -4,20 +4,28 @@
 
 import type { Segment } from "../types";
 import { ratioToPercent } from "../format";
+import {
+  type ProfilePoint,
+  type GradientZone,
+  GRADE_COLORS,
+  getColorForGrade,
+  buildProfilePoints,
+  simplifyProfile,
+  buildGradientZones,
+  mergeShortZones,
+} from "../gradient-zones";
+
+// Re-export for consumers that previously imported these from chart.ts
+export type { ProfilePoint, GradientZone };
+export {
+  getColorForGrade,
+  buildProfilePoints,
+  simplifyProfile,
+  buildGradientZones,
+  mergeShortZones,
+};
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-
-export interface ProfilePoint {
-  distance: number;
-  elevation: number;
-  gradient: number;
-}
-
-export interface GradientZone {
-  color: string;
-  start: number;
-  end: number;
-}
 
 interface ChartLayout {
   W: number;
@@ -33,16 +41,6 @@ interface ChartLayout {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 let _chartUid = 0;
-
-/** Grade threshold → fill color. Each entry's color covers grades up to (but not including)
- *  the threshold value. The last entry uses Infinity to capture all higher grades. */
-const GRADE_COLORS: [number, string][] = [
-  [3, "#4CAF50"],
-  [6, "#FBC02D"],
-  [9, "#F57C00"],
-  [12, "#D32F2F"],
-  [Infinity, "#800020"],
-];
 
 /** SVG canvas total dimensions. */
 const CHART_W = 440;
@@ -65,99 +63,16 @@ export function generateElevationChart(segments: Segment[], totalDistanceMeters:
 }
 
 // ── Profile building ──────────────────────────────────────────────────────────
+// buildProfilePoints, simplifyProfile, getColorForGrade, buildGradientZones,
+// mergeShortZones all live in ../gradient-zones — imported + re-exported above.
 
-function buildProfilePoints(segments: Segment[]): ProfilePoint[] {
-  const profile: ProfilePoint[] = [];
-  let cumulDist = 0;
-  for (const seg of segments) {
-    profile.push({ distance: cumulDist, elevation: seg.startElevation, gradient: seg.gradient });
-    cumulDist += seg.distance;
-  }
-  profile.push({
-    distance: cumulDist,
-    elevation: segments[segments.length - 1].endElevation,
-    gradient: 0,
-  });
-  return profile;
-}
+// ── SVG building blocks ───────────────────────────────────────────────────────
 
-export function simplifyProfile(profile: ProfilePoint[]): ProfilePoint[] {
-  if (profile.length <= 3) return profile;
-  const maxSegs = Math.min(20, Math.max(8, Math.ceil(profile.length / 3)));
-  const grads = profile.slice(0, -1).map((p) => p.gradient);
-
-  let keys = [0];
-  for (let i = 1; i < grads.length - 1; i++) {
-    if (Math.abs(grads[i] - grads[i - 1]) >= 1.5) keys.push(i);
-  }
-  keys.push(profile.length - 1);
-
-  if (keys.length > maxSegs) {
-    keys = [0];
-    const step = Math.floor(profile.length / maxSegs);
-    for (let i = step; i < profile.length - 1; i += step) keys.push(i);
-    keys.push(profile.length - 1);
-  }
-
-  return [...new Set(keys)].sort((a, b) => a - b).map((i) => profile[i]);
-}
-
-// ── Gradient zone helpers ─────────────────────────────────────────────────────
-
-export function getColorForGrade(g: number): string {
-  return GRADE_COLORS.find(([threshold]) => g < threshold)![1];
-}
-
+/** Gradient % between two profile points (private, chart-only). */
 function segmentGradient(a: ProfilePoint, b: ProfilePoint): number {
   const dD = b.distance - a.distance;
   return dD > 0 ? ((b.elevation - a.elevation) / dD) * 100 : 0;
 }
-
-function buildGradientZones(profile: ProfilePoint[]): GradientZone[] {
-  const zones: GradientZone[] = [];
-  for (let i = 0; i < profile.length - 1; i++) {
-    const a = profile[i],
-      b = profile[i + 1];
-    const col = getColorForGrade(segmentGradient(a, b));
-    if (zones.length === 0 || zones[zones.length - 1].color !== col) {
-      zones.push({ color: col, start: a.distance, end: b.distance });
-    } else {
-      zones[zones.length - 1].end = b.distance;
-    }
-  }
-  return zones;
-}
-
-export function mergeShortZones(zones: GradientZone[], minLen: number): GradientZone[] {
-  zones = zones.slice();
-  let changed = true;
-  while (changed && zones.length > 1) {
-    changed = false;
-    const si = zones.reduce(
-      (mi, z, i) => (z.end - z.start < zones[mi].end - zones[mi].start ? i : mi),
-      0
-    );
-    if (zones[si].end - zones[si].start >= minLen) break;
-
-    const hasLeft = si > 0;
-    const hasRight = si < zones.length - 1;
-    if (hasLeft && hasRight) {
-      const leftLen = zones[si - 1].end - zones[si - 1].start;
-      const rightLen = zones[si + 1].end - zones[si + 1].start;
-      if (leftLen >= rightLen) zones[si - 1].end = zones[si].end;
-      else zones[si + 1].start = zones[si].start;
-    } else if (hasLeft) {
-      zones[si - 1].end = zones[si].end;
-    } else {
-      zones[si + 1].start = zones[si].start;
-    }
-    zones.splice(si, 1);
-    changed = true;
-  }
-  return zones;
-}
-
-// ── SVG building blocks ───────────────────────────────────────────────────────
 
 function buildCoords(profile: ProfilePoint[], totalDistance: number) {
   const W = CHART_W,

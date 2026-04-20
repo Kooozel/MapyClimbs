@@ -1,4 +1,4 @@
-/* popup.css — MapyClimbs info popup */
+/* popup.css — MapyClimbs popup */
 
 *,
 *::before,
@@ -27,13 +27,14 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif;
   font-size: 13px;
   line-height: 1.5;
-  width: 320px;
+  width: 280px;
   min-height: 100px;
 }
 
 .popup-container {
   display: flex;
   flex-direction: column;
+  gap: 0;
 }
 
 /* ── Main / Settings view wrappers ────────────────────────── */
@@ -50,7 +51,7 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 12px 12px 10px;
+  padding: 14px 14px 12px;
   background: var(--bg1);
   border-bottom: 1px solid var(--border);
 }
@@ -69,6 +70,7 @@ body {
 .header-icon svg {
   width: 16px;
   height: 16px;
+  color: #fff;
   stroke: #fff;
 }
 
@@ -76,7 +78,6 @@ body {
   display: flex;
   flex-direction: column;
   gap: 1px;
-  flex: 1;
 }
 
 .header-text h1 {
@@ -93,11 +94,11 @@ body {
 }
 
 .gear-btn {
-  flex-shrink: 0;
+  margin-left: auto;
   width: 28px;
   height: 28px;
-  background: transparent;
-  border: 1px solid transparent;
+  background: none;
+  border: none;
   border-radius: 6px;
   color: var(--text3);
   cursor: pointer;
@@ -106,18 +107,16 @@ body {
   justify-content: center;
   transition:
     color 0.15s,
-    border-color 0.15s,
     background 0.15s;
 }
 
 .gear-btn svg {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
 }
 
 .gear-btn:hover {
   color: var(--text1);
-  border-color: var(--border);
   background: var(--bg2);
 }
 
@@ -127,25 +126,23 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 12px 12px 10px;
+  padding: 12px 14px;
   background: var(--bg1);
   border-bottom: 1px solid var(--border);
 }
 
 .settings-header h1 {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--text1);
-  letter-spacing: -0.2px;
 }
 
 .back-btn {
-  flex-shrink: 0;
-  width: 28px;
-  height: 28px;
-  background: transparent;
-  border: 1px solid transparent;
-  border-radius: 6px;
+  width: 26px;
+  height: 26px;
+  background: none;
+  border: none;
+  border-radius: 5px;
   color: var(--text3);
   cursor: pointer;
   display: flex;
@@ -153,7 +150,6 @@ body {
   justify-content: center;
   transition:
     color 0.15s,
-    border-color 0.15s,
     background 0.15s;
 }
 
@@ -165,90 +161,6 @@ body {
 .back-btn:hover {
   color: var(--text1);
   border-color: var(--border);
-  background: var(--bg2);
-}
-
-/* ── Status ───────────────────────────────────────────────── */
-
-.status-section {
-  padding: 8px 14px;
-  background: var(--bg0);
-  border-bottom: 1px solid var(--border);
-}
-
-.status-row {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-
-.status-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  background: var(--text3);
-}
-
-.status-dot.ok {
-  background: var(--accent);
-}
-.status-dot.none {
-  background: var(--text3);
-}
-
-.status-text {
-  font-size: 11px;
-  color: var(--text2);
-}
-
-/* ── Climb Stats ──────────────────────────────────────────── */
-
-.climb-stats {
-  padding: 10px 14px;
-  background: var(--bg0);
-  border-bottom: 1px solid var(--border);
-}
-
-.climb-stats p {
-  font-size: 12px;
-  color: var(--text2);
-}
-
-.climb-stats strong {
-  color: var(--text1);
-  font-weight: 600;
-}
-
-/* ── Retry Button ─────────────────────────────────────────── */
-
-#retry-section {
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg0);
-}
-
-.retry-btn {
-  width: 100%;
-  padding: 8px 12px;
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--text1);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition:
-    background 0.15s,
-    border-color 0.15s;
-}
-
-.retry-btn:hover {
-  background: var(--bg3);
-  border-color: var(--accent);
-}
-
-.retry-btn:active {
   background: var(--bg2);
 }
 
@@ -310,24 +222,24 @@ body {
 /* ── Footer ───────────────────────────────────────────────── */
 
 .popup-footer {
-  padding: 10px 14px;
+  padding: 12px 14px;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  border-top: 1px solid var(--border);
-  background: var(--bg1);
+  gap: 6px;
+  text-align: center;
 }
 
 .bmc-btn {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 5px 14px;
-  background: transparent;
+  padding: 6px 14px;
+  background: var(--bg2);
   border: 1px solid var(--border);
   border-radius: 20px;
-  font-size: 11px;
-  color: var(--text3);
+  font-size: 12px;
+  color: var(--text2);
   text-decoration: none;
   transition:
     background 0.15s,
@@ -336,50 +248,9 @@ body {
 }
 
 .bmc-btn:hover {
-  background: var(--bg2);
+  background: var(--bg3);
   color: var(--text1);
   border-color: var(--accent);
-}
-
-/* ── Spinner ──────────────────────────────────────────────── */
-
-.spinner {
-  display: none;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  padding: 10px 0;
-}
-
-.spinner-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--accent);
-  animation: pulse-dots 1.2s infinite;
-}
-
-.spinner-dot-1 {
-  animation-delay: 0s;
-}
-.spinner-dot-2 {
-  animation-delay: 0.2s;
-}
-.spinner-dot-3 {
-  animation-delay: 0.4s;
-}
-
-@keyframes pulse-dots {
-  0%,
-  60%,
-  100% {
-    opacity: 0.3;
-    transform: scale(0.8);
-  }
-  30% {
-    opacity: 1;
-    transform: scale(1);
-  }
 }
 
 /* ── Settings groups ──────────────────────────────────────── */
@@ -509,419 +380,4 @@ body {
 .toggle-switch input:checked + .toggle-thumb::after {
   transform: translateY(-50%) translateX(16px);
   background: #fff;
-}
-
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
-:root {
-  --bg0: #111316;
-  --bg1: #1c1f24;
-  --bg2: #252930;
-  --bg3: #2e333b;
-  --border: #333840;
-  --text1: #f0f2f5;
-  --text2: #9aa0ac;
-  --text3: #5a6170;
-  --accent: #3d9e6e;
-  --accent2: #2d7a54;
-}
-
-body {
-  background: var(--bg0);
-  color: var(--text1);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", sans-serif;
-  font-size: 13px;
-  line-height: 1.5;
-  width: 280px;
-  min-height: 100px;
-}
-
-.popup-container {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-
-/* ── Header ───────────────────────────────────────────────── */
-
-.popup-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 14px 12px;
-  background: var(--bg1);
-  border-bottom: 1px solid var(--border);
-}
-
-.header-icon {
-  flex-shrink: 0;
-  width: 28px;
-  height: 28px;
-  background: var(--accent);
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.header-icon svg {
-  width: 16px;
-  height: 16px;
-  color: #fff;
-  stroke: #fff;
-}
-
-.header-text {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-}
-
-.header-text h1 {
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--text1);
-  letter-spacing: -0.2px;
-}
-
-.version {
-  font-size: 10px;
-  color: var(--text3);
-  letter-spacing: 0.3px;
-}
-
-/* ── Status ───────────────────────────────────────────────── */
-
-.status-section {
-  padding: 8px 14px;
-  background: var(--bg0);
-  border-bottom: 1px solid var(--border);
-}
-
-.status-row {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-
-.status-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  background: var(--text3);
-}
-
-.status-dot.ok {
-  background: var(--accent);
-}
-.status-dot.none {
-  background: var(--text3);
-}
-
-.status-text {
-  font-size: 11px;
-  color: var(--text2);
-}
-
-/* ── Info ─────────────────────────────────────────────────── */
-
-.info-section {
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--border);
-}
-
-.info-section p {
-  font-size: 12px;
-  color: var(--text2);
-  line-height: 1.6;
-}
-
-.info-section strong {
-  color: var(--text1);
-  font-weight: 600;
-}
-
-/* ── How to ───────────────────────────────────────────────── */
-
-.how-to-section {
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--border);
-}
-
-.how-to-section h2,
-.categories-section h2 {
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
-  color: var(--text3);
-  margin-bottom: 8px;
-}
-
-.how-to-section ol {
-  padding-left: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.how-to-section li {
-  font-size: 12px;
-  color: var(--text2);
-  line-height: 1.5;
-}
-
-.how-to-section li strong {
-  color: var(--text1);
-  font-weight: 600;
-}
-
-/* ── Categories ───────────────────────────────────────────── */
-
-.categories-section {
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--border);
-}
-
-.cat-list {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-  margin-bottom: 8px;
-}
-
-.cat-row {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-
-.cat-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.cat-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text1);
-  width: 36px;
-}
-
-.cat-score {
-  font-size: 11px;
-  color: var(--text3);
-  font-variant-numeric: tabular-nums;
-}
-
-.formula {
-  font-size: 10px;
-  color: var(--text3);
-  font-style: italic;
-}
-
-/* ── Footer ───────────────────────────────────────────────── */
-
-.popup-footer {
-  padding: 12px 14px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  text-align: center;
-}
-
-.bmc-heading {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--text1);
-}
-
-.bmc-desc {
-  font-size: 11px;
-  color: var(--text2);
-  line-height: 1.55;
-}
-
-.bmc-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 6px 14px;
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  font-size: 12px;
-  color: var(--text2);
-  text-decoration: none;
-  transition:
-    background 0.15s,
-    color 0.15s,
-    border-color 0.15s;
-}
-
-.bmc-btn:hover {
-  background: var(--bg3);
-  color: var(--text1);
-  border-color: var(--accent);
-}
-
-/* ── Spinner ──────────────────────────────────────────────── */
-
-.spinner {
-  display: none;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  padding: 10px 0;
-}
-
-.spinner-dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--accent);
-  animation: pulse-dots 1.2s infinite;
-}
-
-.spinner-dot-1 {
-  animation-delay: 0s;
-}
-.spinner-dot-2 {
-  animation-delay: 0.2s;
-}
-.spinner-dot-3 {
-  animation-delay: 0.4s;
-}
-
-@keyframes pulse-dots {
-  0%,
-  60%,
-  100% {
-    opacity: 0.3;
-    transform: scale(0.8);
-  }
-  30% {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-/* ── Climb Stats ──────────────────────────────────────────── */
-
-.climb-stats {
-  padding: 10px 14px;
-  background: var(--bg0);
-  border-bottom: 1px solid var(--border);
-}
-
-.climb-stats p {
-  font-size: 12px;
-  color: var(--text2);
-}
-
-.climb-stats strong {
-  color: var(--text1);
-  font-weight: 600;
-}
-
-/* ── Retry Button ─────────────────────────────────────────── */
-
-#retry-section {
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg0);
-}
-
-.retry-btn {
-  width: 100%;
-  padding: 8px 12px;
-  background: var(--bg2);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  color: var(--text1);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition:
-    background 0.15s,
-    border-color 0.15s;
-}
-
-.retry-btn:hover {
-  background: var(--bg3);
-  border-color: var(--accent);
-}
-
-.retry-btn:active {
-  background: var(--bg2);
-}
-
-/* ── Settings ─────────────────────────────────────────────── */
-
-.settings-section {
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--border);
-}
-
-.settings-section h2 {
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.8px;
-  color: var(--text3);
-  margin-bottom: 8px;
-}
-
-.model-toggle {
-  display: flex;
-  gap: 0;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  overflow: hidden;
-  margin-bottom: 8px;
-}
-
-.model-btn {
-  flex: 1;
-  padding: 5px 0;
-  background: var(--bg2);
-  border: none;
-  color: var(--text2);
-  font-size: 11px;
-  font-weight: 600;
-  cursor: pointer;
-  transition:
-    background 0.15s,
-    color 0.15s;
-}
-
-.model-btn + .model-btn {
-  border-left: 1px solid var(--border);
-}
-
-.model-btn.active {
-  background: var(--accent);
-  color: #fff;
-}
-
-.model-btn:not(.active):hover {
-  background: var(--bg3);
-  color: var(--text1);
-}
-
-.model-desc {
-  font-size: 10px;
-  color: var(--text3);
-  font-style: italic;
-  line-height: 1.5;
 }

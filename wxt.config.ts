@@ -3,7 +3,7 @@ import { defineConfig } from "wxt";
 export default defineConfig({
   srcDir: "src",
   outDir: "dist",
-  manifest: {
+  manifest: ({ browser }) => ({
     name: "__MSG_extName__",
     description: "__MSG_extDescription__",
     default_locale: "en",
@@ -18,6 +18,7 @@ export default defineConfig({
     content_security_policy: {
       extension_pages: "script-src 'self'; object-src 'none'",
     },
+    manifestVersion: 3,
     action: {
       default_title: "MapyClimbs",
       default_icon: {
@@ -42,5 +43,13 @@ export default defineConfig({
       48: "images/icon-48.png",
       128: "images/icon-128.png",
     },
-  },
+    browser_specific_settings: browser === 'firefox' ? {
+      gecko: {
+        id: 'mapyclimbs-sikulaf@gmail.com',
+        data_collection_permissions: {
+            required: ["none"],
+        }
+      },
+    } : undefined,
+  }),
 });
