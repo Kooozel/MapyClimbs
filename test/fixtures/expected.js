@@ -118,4 +118,30 @@ export const fixtures = [
       },
     ],
   },
+  {
+    file: 'grun.gpx',
+    climbCount: 4,
+    climbs: [
+      {
+        distanceKm: { value: 2.36, tolerance: 0.15 },
+        elevationM: { value: 125, tolerance: 15 },
+        category: '4',
+      },
+      {
+        distanceKm: { value: 1.08, tolerance: 0.15 },
+        elevationM: { value: 65, tolerance: 10 },
+        category: '4',
+      },
+      {
+        distanceKm: { value: 1.95, tolerance: 0.15 },
+        elevationM: { value: 53, tolerance: 10 },
+        category: '4',
+      },
+      {
+        distanceKm: { value: 3.96, tolerance: 0.2 },
+        elevationM: { value: 268, tolerance: 20 },
+        category: '2',
+      },
+    ],
+  },
 ];

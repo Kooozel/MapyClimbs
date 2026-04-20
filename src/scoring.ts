@@ -48,7 +48,7 @@ export const SCORING_CONFIGS: Readonly<Record<ScoringModel, ScoringConfig>> = {
       { category: ClimbCategory.Cat1, min: 48000 },
       { category: ClimbCategory.Cat2, min: 32000 },
       { category: ClimbCategory.Cat3, min: 16000 },
-      { category: ClimbCategory.Cat4, min: 8000 },
+      { category: ClimbCategory.Cat4, min: 5000 },
     ],
   },
 };
@@ -65,6 +65,7 @@ export function applyScore(
   const cfg = SCORING_CONFIGS[model];
   const difficulty = cfg.score(distanceM, avgGrade);
   if (difficulty < cfg.minScore) return null;
-  const match = cfg.thresholds.find((t) => difficulty >= t.min)!;
+  const match = cfg.thresholds.find((t) => difficulty >= t.min);
+  if (!match) return null;
   return { difficulty, category: match.category };
 }

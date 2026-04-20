@@ -40,6 +40,8 @@ import {
   MERGE_MAX_GAP_M,
   MERGE_GAP_GAIN_SCALE,
   MERGE_GAP_MAX_BONUS_M,
+  MERGE_DESCENT_GAP_MAX_M,
+  MERGE_DESCENT_SCALE,
   MERGE_MAX_VALLEY_DROP_M,
   MERGE_VALLEY_RATIO,
   TRIM_MIN_GRADE_PCT,
@@ -87,7 +89,7 @@ export function detectClimbs(
   // The permitted gap scales with combined elevation gain so that two large
   // climbs separated by a brief descent always merge, while two small climbs
   // separated by the same distance stay separate.
-  const mergedClimbs = mergeNearbyClimbs(rawClimbs, segments);
+  const mergedClimbs = mergeNearbyClimbs(rawClimbs, segments, resampled);
 
   // Step 5: Trim flat lead-in / tail, then score and categorize
   return mergedClimbs
@@ -296,7 +298,8 @@ function identifyClimbs(segments: Segment[], rawProfile: GpsPoint[]): RawClimb[]
     // Strip the accumulated flat/descent tail so the candidate ends at the
     // last climbing segment — creating a real gap the merge step can measure.
     if (currentClimb.totalDistance >= CLIMB_MIN_DISTANCE_M) {
-      pushClimb(currentClimb, climbs, tailTrimGrade, rawProfile);
+      const finalized = finalizeRawClimb(currentClimb, tailTrimGrade, rawProfile);
+      if (finalized) climbs.push(finalized);
     }
     currentClimb = null;
     descentDistance = 0;
@@ -336,18 +339,6 @@ function identifyClimbs(segments: Segment[], rawProfile: GpsPoint[]): RawClimb[]
 
   closeCurrentClimb(0);
   return climbs;
-}
-
-function pushClimb(
-  climb: RawClimb,
-  climbs: RawClimb[],
-  tailTrimGrade: number,
-  rawProfile: GpsPoint[]
-): void {
-  const finalized = finalizeRawClimb(climb, tailTrimGrade, rawProfile);
-  if (finalized) {
-    climbs.push(finalized);
-  }
 }
 
 /**
@@ -412,12 +403,25 @@ function finalizeRawClimb(
   return null;
 }
 
+/**
+ * Returns the raw (un-smoothed) elevation at `distanceM` via linear interpolation.
+ */
+function rawElevationAt(profile: GpsPoint[], distanceM: number): number {
+  let lo = 0;
+  while (lo < profile.length - 1 && profile[lo + 1].distance <= distanceM) lo++;
+  if (lo >= profile.length - 1) return profile[lo].elevation;
+  const a = profile[lo],
+    b = profile[lo + 1];
+  const t = b.distance > a.distance ? (distanceM - a.distance) / (b.distance - a.distance) : 0;
+  return a.elevation + t * (b.elevation - a.elevation);
+}
+
 // ─── Step 4 (cont): Merging ───────────────────────────────────────────────────
 
 export function mergeNearbyClimbs(
   climbs: RawClimb[],
   allSegments: Segment[],
-  baseGapDistance = MERGE_MAX_GAP_M
+  rawProfile: GpsPoint[] = []
 ): RawClimb[] {
   if (climbs.length <= 1) return climbs;
 
@@ -438,7 +442,21 @@ export function mergeNearbyClimbs(
     // a tiny climb next to a large one doesn't inherit a disproportionate bonus.
     const smallerGain = Math.min(prev.totalElevation, curr.totalElevation);
     const gainBonus = Math.min(smallerGain * MERGE_GAP_GAIN_SCALE, MERGE_GAP_MAX_BONUS_M);
-    const effectiveMaxGap = baseGapDistance + gainBonus;
+
+    // If the raw terrain in the gap descends (a real valley), apply a tighter
+    // base distance so that two distinct climbs on either side of a shallow
+    // valley don't merge just because the gap happens to fit within the
+    // generous MERGE_MAX_GAP_M. The cap scales with smallerGain so large climbs
+    // (e.g. a levelling section mid-mountain) can still bridge descent gaps.
+    // Ascending/flat gaps keep the full base.
+    const gapRawNet =
+      rawProfile.length > 0
+        ? rawElevationAt(rawProfile, currStart.startDistance) -
+          rawElevationAt(rawProfile, prevEnd.endDistance)
+        : 0;
+    const descentCap = Math.max(MERGE_DESCENT_GAP_MAX_M, smallerGain * MERGE_DESCENT_SCALE);
+    const adjustedBase = gapRawNet < -1 ? Math.min(MERGE_MAX_GAP_M, descentCap) : MERGE_MAX_GAP_M;
+    const effectiveMaxGap = adjustedBase + gainBonus;
 
     // Valley drop limit: scales with combined gain, but the floor is capped to
     // the smaller climb's gain so two small climbs separated by a real descent

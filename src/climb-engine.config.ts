@@ -71,6 +71,14 @@ export const MERGE_MAX_GAP_M = 1200;
 export const MERGE_GAP_GAIN_SCALE = 2.0;
 /** Cap on the gain-based bonus (m), keeping total effective gap from growing unbounded. */
 export const MERGE_GAP_MAX_BONUS_M = 4000;
+/** Tighter base gap (m) used when the terrain in the gap *descends* in the raw profile.
+ *  Prevents merging two climbs across a genuine valley when the gap distance would
+ *  otherwise be within MERGE_MAX_GAP_M. Ascending/flat gaps keep the full base.
+ *  The effective cap is max(MERGE_DESCENT_GAP_MAX_M, smallerGain × MERGE_DESCENT_SCALE)
+ *  so large high-gain climbs can still bridge longer descent gaps (e.g. a levelling
+ *  section mid-mountain). */
+export const MERGE_DESCENT_GAP_MAX_M = 400;
+export const MERGE_DESCENT_SCALE = 4;
 /** Absolute maximum valley drop (m) allowed between two merged climbs. */
 export const MERGE_MAX_VALLEY_DROP_M = 20;
 /** Combined-gain fraction used to compute the relative valley-drop limit. */
