@@ -49,6 +49,11 @@ export const CLIMB_MIN_AVG_GRADE_PCT = 2;
 export const DESCENT_END_GRADE_PCT = -1;
 /** Accumulated descent distance (m) that ends the current climb candidate. */
 export const DESCENT_END_DISTANCE_M = 150;
+/** Accumulated flat/low-grade distance (m, grade < CLIMB_START_GRADE_PCT) that ends the current
+ *  climb candidate. Prevents a brief 2%+ ramp at the start of a long flat route from absorbing
+ *  every subsequent climb into one low-average-grade candidate. Set above MERGE_MAX_GAP_M so that
+ *  the merge step cannot silently re-join what a flat gap just split. */
+export const CLIMB_END_FLAT_M = 2000;
 
 // ── Climb merging (Step 4 cont. & Step 7) ────────────────────────────────────
 

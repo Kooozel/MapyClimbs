@@ -36,6 +36,7 @@ import {
   CLIMB_MIN_AVG_GRADE_PCT,
   DESCENT_END_GRADE_PCT,
   DESCENT_END_DISTANCE_M,
+  CLIMB_END_FLAT_M,
   MERGE_MAX_GAP_M,
   MERGE_RE_MAX_GAP_M,
   MERGE_MAX_VALLEY_DROP_M,
@@ -151,21 +152,30 @@ export function smoothElevationProfile(profile: GpsPoint[]): GpsPoint[] {
   // leaves (at the current i). On long routes the accumulated mismatch becomes
   // large enough to corrupt the window estimate and over-smooth climbs away.
   // Per-point scanning is correct and cheap: W ≤ 500 m, d ≥ 12 m → ≤ ~42 iters.
+  //
+  // Forward and backward estimates are computed separately and the MAX is taken.
+  // A symmetric average caused flat terrain before a climb to suppress the
+  // gradient estimate at the climb entry, assigning the widest smoothing window
+  // and blurring out short climbs on long routes. Taking the max means that if
+  // *either* direction contains steep terrain the narrower window is used.
   const localGradients = new Array<number>(profile.length);
 
   for (let i = 0; i < profile.length; i++) {
     const center = profile[i].distance;
     const centerElev = profile[i].elevation;
-    let sumGrad = 0,
-      sumWeight = 0;
 
+    let sumGradBack = 0,
+      sumWeightBack = 0;
     for (let j = i; j >= 0 && center - profile[j].distance <= SMOOTH_GRAD_WINDOW_M; j--) {
       const dist = center - profile[j].distance;
       const weight = 1 - dist / SMOOTH_GRAD_WINDOW_M;
       const grad = dist > 0 ? Math.abs(profile[j].elevation - centerElev) / dist : 0;
-      sumGrad += grad * weight;
-      sumWeight += weight;
+      sumGradBack += grad * weight;
+      sumWeightBack += weight;
     }
+
+    let sumGradFwd = 0,
+      sumWeightFwd = 0;
     for (
       let j = i + 1;
       j < profile.length && profile[j].distance - center <= SMOOTH_GRAD_WINDOW_M;
@@ -174,11 +184,13 @@ export function smoothElevationProfile(profile: GpsPoint[]): GpsPoint[] {
       const dist = profile[j].distance - center;
       const weight = 1 - dist / SMOOTH_GRAD_WINDOW_M;
       const grad = Math.abs(profile[j].elevation - centerElev) / dist;
-      sumGrad += grad * weight;
-      sumWeight += weight;
+      sumGradFwd += grad * weight;
+      sumWeightFwd += weight;
     }
 
-    localGradients[i] = sumWeight > 0 ? sumGrad / sumWeight : 0;
+    const backGrad = sumWeightBack > 0 ? sumGradBack / sumWeightBack : 0;
+    const fwdGrad = sumWeightFwd > 0 ? sumGradFwd / sumWeightFwd : 0;
+    localGradients[i] = Math.max(backGrad, fwdGrad);
   }
 
   // Pass 2: rolling average with adaptive window.
@@ -294,12 +306,19 @@ function identifyClimbs(segments: Segment[]): RawClimb[] {
   const climbs: RawClimb[] = [];
   let currentClimb: RawClimb | null = null;
   let descentDistance = 0;
+  let flatDistance = 0;
 
   for (const segment of segments) {
     if (segment.gradient <= DESCENT_END_GRADE_PCT) {
       descentDistance += segment.distance;
     } else {
       descentDistance = 0;
+    }
+
+    if (segment.gradient >= CLIMB_START_GRADE_PCT) {
+      flatDistance = 0;
+    } else {
+      flatDistance += segment.distance;
     }
 
     if (segment.gradient >= CLIMB_START_GRADE_PCT && currentClimb === null) {
@@ -309,17 +328,19 @@ function identifyClimbs(segments: Segment[]): RawClimb[] {
         totalElevation: segment.elevation,
       };
       descentDistance = 0;
+      flatDistance = 0;
     } else if (currentClimb !== null) {
       currentClimb.segments.push(segment);
       currentClimb.totalDistance += segment.distance;
       currentClimb.totalElevation += segment.elevation;
 
-      if (descentDistance >= DESCENT_END_DISTANCE_M) {
+      if (descentDistance >= DESCENT_END_DISTANCE_M || flatDistance >= CLIMB_END_FLAT_M) {
         if (currentClimb.totalDistance >= CLIMB_MIN_DISTANCE_M) {
           pushClimb(currentClimb, climbs);
         }
         currentClimb = null;
         descentDistance = 0;
+        flatDistance = 0;
       }
     }
   }
