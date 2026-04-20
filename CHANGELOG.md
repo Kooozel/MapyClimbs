@@ -2,7 +2,34 @@
 
 All notable changes to the MapyClimbs extension are documented here.
 
-## [1.0.4] — 2026-04-20 (Map Overlay Fix + Injected Content Rework)
+## [1.0.5] — 2026-04-20 (Gradient Road, Improved Algorithm, Integration Tests)
+
+### Added
+
+- `src/gradient-zones.ts` — shared gradient-zone logic extracted into a pure data-transformation module; `ProfilePoint`, `GradientZone`, `ZoneFilterFn` types; `buildClimbZones()`, `mergeShortZones()`, `getColorForGrade()` — used by both `chart.ts` and the new `route-highlight.ts`; no DOM or browser-API dependencies
+- `src/content/route-highlight.ts` — new SVG route-overlay renderer; each climb is drawn as a blurred glow polyline (category colour) plus N sharp per-zone polylines coloured by gradient tier, matching the elevation chart exactly; zone animations are time-proportional so all segments finish simultaneously at 900 ms; replaces the single-colour overlay in `map-overlay.ts`
+- `test/gpx-integration.test.js` — GPX integration test suite: real `.gpx` files → `parseGPX` → `detectClimbs` → assertions against `test/fixtures/expected.js`; `DEBUG_OUTPUT=1` discovery mode dumps raw output for calibrating expected values; uses `happy-dom` environment for `DOMParser`
+- `test/fixtures/` — three real-world GPX fixtures (`bk.gpx`, `lh.gpx`, `ond_mal.gpx`, `hukvaldy.gpx`) and `expected.js` with verified climb counts and key metric ranges
+
+### Changed
+
+- `src/climb-engine.ts` — significant algorithm revision: improved climb-start/end detection thresholds, revised valley-merge logic, updated flat-climb splitting heuristics; `filterNoiseSpikes` and `smoothElevationProfile` parameters retuned; test count rises from 69 to 114 (40 unit + 74 integration)
+- `src/climb-engine.config.ts` — multiple constant adjustments to support the revised algorithm; flat-climb detection parameters added
+- `src/content/chart.ts` — gradient-zone computation delegated to `gradient-zones.ts`; chart module simplified
+- `src/content/map-overlay.ts` — route polyline rendering delegated to `route-highlight.ts`; `map-overlay.ts` now handles SVG container lifecycle and pin placement only
+
+### Fixed
+
+- `src/entrypoints/background.ts`, `src/entrypoints/inject.content.ts`, `src/entrypoints/interceptor.content.ts` — GPX capture and climb results are now scoped by tab ID; opening MapyClimbs in two tabs no longer causes one tab's results to overwrite the other's cache
+- `src/entrypoints/popup/popup.ts` — popup simplified; removed stale chart/tooltip CSS (~500 lines) and dead display logic left over from pre-1.0.0
+- `src/content/map-overlay.ts`, `src/entrypoints/inject.content.ts` — fixed overlay visibility state not resetting correctly when the Mapy.cz native popup closed
+- `src/climb-engine.ts`, `src/climb-engine.config.ts` — fixed false-positive flat-climb detection that caused valid short climbs with a brief plateau to be incorrectly split
+- `wxt.config.ts`, `package.json` — Firefox build fixed: manifest `browser_specific_settings` added; icons regenerated to meet Firefox minimum size requirements
+- `src/types.ts` — missing type export added
+
+---
+
+## [1.0.4] — 2026-04-12 (Map Overlay Fix + Injected Content Rework)
 
 ### Added
 
