@@ -10,6 +10,7 @@ export default defineConfig({
         'src/content/chart.ts',
         'src/map-geometry.ts',
         'src/content/climb-card.ts',
+        'src/gpx-parser.ts',
       ],
       reporter: ['text', 'html'],
       thresholds: {
