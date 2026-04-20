@@ -2,6 +2,72 @@
 
 All notable changes to the MapyClimbs extension are documented here.
 
+## [1.0.4] — 2026-04-20 (Map Overlay Fix + Injected Content Rework)
+
+### Added
+
+- `src/entrypoints/whats-new/` — What's New page (`index.html`, `whats-new.ts`, `whats-new.css`); opened automatically on install/update via the `chrome.runtime.onInstalled` listener in `background.ts`
+- `scripts/generate-whats-new.mjs` — build-time script that validates and bundles the hand-authored `public/whats-new-data.json`; `npm run build` now runs this before invoking WXT
+- `src/types.ts` — new message types: `CategorizationUpdatedMessage`, `MapLayerVisibilityMessage`, `GetTabStateMessage`, `ClearTabStateMessage`, `TabStateResponse`; new `StorageKey.LastSeenVersion` constant
+
+### Changed
+
+- `src/content/map-overlay.ts` — polyline route draw animation (`strokeDashoffset`, 900 ms ease-out): each route animates in on hover/focus; dual glow + line layer rendering (glow: 10 px, 0.45 opacity; line: 5 px, 0.92 opacity); new `setOverlayVisible()` export hides the overlay while a native Mapy.cz popup is open
+- `src/entrypoints/inject.content.ts` — refactored mutable module-level state into a `RoutePlannerController` class; `handleMapInteraction()` debounce hides the overlay immediately on wheel/drag events and re-renders after 350 ms when movement stops; added `registerMessageListeners()` handling `CategorizationUpdated`, `MapLayerVisibility`, `GetTabState`, and `ClearTabState` messages; stale-cache guard removes pre-1.0.4 `lastClimbResult` entries that are missing `markerCoords`
+- `src/entrypoints/background.ts` — `chrome.runtime.onInstalled` listener stores `LastSeenVersion` and opens `whats-new.html` on fresh install or version upgrade; new tab-state message handlers
+
+---
+
+## [1.0.3] — 2026-04-20 (Inject/GPX/Panel Cleanup + Map Pin Rework)
+
+### Added
+
+- `src/content/button-injector.ts` — button injection and export-dialog automation extracted from `inject.content.ts`; observes the Mapy.cz save dialog to locate the GPX save button and click it automatically; posts `CLIMB_SUPPRESS_DOWNLOAD` to suppress the file download
+- `src/injected/gpx-interceptors.ts` — `installFetchInterceptor()` and `installXhrInterceptor()` separated into a focused module; previously inline inside `gpx-interceptor-injected.ts`
+- `src/injected/download-suppressor.ts` — `installDownloadSuppressor()` patches `HTMLAnchorElement.prototype.click` to swallow blob-download anchor activations after GPX capture, preventing the browser save dialog from appearing
+- `src/injected/smap-capture.ts` — hooks into the `SMap` constructor prototype via `Object.defineProperty` + polling fallback to capture the live Mapy.cz map instance; exposes `getSmapInstance()`
+- `src/injected/marker-injection.ts` — uses the captured `SMap` instance to render numbered teardrop start pins and mountain summit end pins via the native `SMap.Layer.Marker` API; replaces the SVG-overlay-only approach used before
+
+### Changed
+
+- `src/content/panel.ts` — now delegates to the three extracted modules: `climb-card.ts`, `route-overview.ts`, `panel-template.ts`; panel.ts itself reduced to the top-level `buildPanel()` orchestrator
+
+---
+
+## [1.0.2] — 2026-04-20 (Hotfix + Description Cleanup)
+
+### Added
+
+- `src/map-geometry.ts` — `mercatorToPixel()` extracted from inline overlay code into a pure, tested module; fixes a sub-pixel projection offset in the previous implementation
+- `src/smap.types.ts` — ambient TypeScript declarations for the Mapy.cz `SMap` global and its sub-namespaces; eliminates `any` casts across injected files
+
+### Changed
+
+- `public/_locales/en/messages.json`, `public/_locales/cs/messages.json` — descriptions shortened and revised for clarity
+
+---
+
+## [1.0.1] — 2026-04-20 (Popup Rewrite + Scoring Models + Panel Decomposition)
+
+### Added
+
+- `src/scoring.ts` — two configurable scoring models: `aso` (distance × grade²) and `garmin` (distance × grade), each with full category threshold tables; replaces the single hardcoded ProCyclingStats formula
+- `src/format.ts` — shared formatting helpers: `metersToKm`, `toPercent`, `ratioToPercent`, `formatMinutes`; used by `climb-card.ts` and `panel.ts`
+- `src/climb-engine.config.ts` — all numeric pipeline constants externalised: resample interval, smoothing window bounds, spike detection thresholds, climb start/end grade thresholds, merge gap distance, trim thresholds, anti-green split parameters
+- `src/content/climb-card.ts` — per-climb card DOM builder (`buildClimbCard()`) and `calcMaxGradientOver()` helper extracted from `panel.ts`
+- `src/content/route-overview.ts` — route-level stat card (`buildRouteOverview()`) and proportional colour strip extracted from `panel.ts`
+- `src/content/panel-template.ts` — panel shell and header HTML helpers (`renderPanelShell()`, `renderEmptyPanel()`) extracted from `panel.ts`; includes the eye/layer-toggle button
+- `test/chart.test.js` — 16 tests covering `getColorForGrade` tier boundaries, `mergeShortZones` (leading/trailing/middle zones, immutability), and `simplifyProfile` (≤3-point passthrough, first/last preservation, inflection detection, length bounds)
+- `test/climb-card.test.js` — 7 tests covering `calcMaxGradientOver`: empty input, single segment, no valid window, multi-segment best window, weighted average, uniform gradient, overlapping windows
+- `test/map-geometry.test.js` — 6 tests covering `mercatorToPixel`: projection direction, symmetry, and zoom scaling; total test count rises from 40 to 69
+
+### Changed
+
+- `src/entrypoints/popup/popup.ts` — full rewrite: reads from `StorageKey` constants; improved retry flow sends `ANALYZE_GPX` message directly with `pendingGPX` content rather than re-triggering interception
+- `src/climb-engine.ts` — numeric constants replaced with imports from `climb-engine.config.ts`
+
+---
+
 ## [1.0.0] — 2026-04-02 (First Public Release)
 
 ### Changed

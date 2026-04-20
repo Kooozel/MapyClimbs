@@ -179,5 +179,21 @@
     "placeholders": {
       "count": { "content": "$1", "example": "3" }
     }
+  },
+
+  "whatsNewTitle": {
+    "message": "What's New",
+    "description": "What's New page main heading"
+  },
+  "whatsNewSubtitle": {
+    "message": "Here's what changed in this release of MapyClimbs.",
+    "description": "What's New page subtitle"
+  },
+  "whatsNewVersionLabel": {
+    "message": "v$VERSION$",
+    "description": "Version badge label on the What's New page",
+    "placeholders": {
+      "version": { "content": "$1", "example": "1.0.4" }
+    }
   }
 }

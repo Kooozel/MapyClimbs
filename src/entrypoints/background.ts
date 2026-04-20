@@ -34,6 +34,23 @@ export default defineBackground(() => {
     }
   });
 
+  // ── What's New tab on install / update ───────────────────────────────────
+
+  chrome.runtime.onInstalled.addListener((details) => {
+    if (details.reason !== "install" && details.reason !== "update") return;
+
+    const currentVersion = chrome.runtime.getManifest().version;
+
+    chrome.storage.local.get(StorageKey.LastSeenVersion, (result) => {
+      if (chrome.runtime.lastError) return;
+      if (result[StorageKey.LastSeenVersion] === currentVersion) return;
+
+      chrome.tabs.create({ url: chrome.runtime.getURL("/whats-new.html") }, () => {
+        chrome.storage.local.set({ [StorageKey.LastSeenVersion]: currentVersion });
+      });
+    });
+  });
+
   // ── Shared detection helper ───────────────────────────────────────────────
 
   /**
