@@ -26,55 +26,96 @@
 export const fixtures = [
   {
     file: 'bk.gpx',
-    climbCount: 4,
+    climbCount: 5,
     climbs: [
       {
-        distanceKm: { value: 2.6, tolerance: 0.1 },
-        elevationM: { value: 130, tolerance: 5 },
+        distanceKm: { value: 2.36, tolerance: 0.15 },
+        elevationM: { value: 125, tolerance: 15 },
         category: '4',
-        segmentCount: 73,
       },
       {
-        distanceKm: { value: 1.1, tolerance: 0.1 },
-        elevationM: { value: 65, tolerance: 5 },
+        distanceKm: { value: 1.08, tolerance: 0.15 },
+        elevationM: { value: 65, tolerance: 10 },
         category: '4',
-        segmentCount: 27,
       },
       {
-        distanceKm: { value: 1.8, tolerance: 0.1 },
-        elevationM: { value: 45, tolerance: 5 },
+        distanceKm: { value: 1.95, tolerance: 0.15 },
+        elevationM: { value: 53, tolerance: 10 },
         category: '4',
-        segmentCount: 72,
       },
       {
-        distanceKm: { value: 6.2, tolerance: 0.1 },
-        elevationM: { value: 310, tolerance: 10 },
-        category: '2',
-        segmentCount: 198,
+        distanceKm: { value: 0.90, tolerance: 0.15 },
+        elevationM: { value: 32, tolerance: 10 },
+        category: '4',
+      },
+      {
+        distanceKm: { value: 5.00, tolerance: 0.2 },
+        elevationM: { value: 274, tolerance: 20 },
+        category: '3',
       },
     ],
   },
   {
-    file : 'ond_mal.gpx',
+    file: 'ond_mal.gpx',
     climbCount: 2,
     climbs: [
       {
-        distanceKm: { value: 8.8, tolerance: 0.1 },
-        elevationM: { value: 400, tolerance: 10 },
+        distanceKm: { value: 6.90, tolerance: 0.2 },
+        elevationM: { value: 363, tolerance: 20 },
         category: '2',
-        segmentCount: 337,
       },
       {
-        distanceKm: { value: 3.2, tolerance: 0.1 },
-        elevationM: { value: 125, tolerance: 10 },
+        distanceKm: { value: 3.23, tolerance: 0.15 },
+        elevationM: { value: 123, tolerance: 15 },
         category: '4',
-        segmentCount: 96,
       },
     ],
   },
   {
     file: 'lh.gpx',
     climbCount: 1,
-    climbs: [],
-  }
+    climbs: [
+      {
+        distanceKm: { value: 13.0, tolerance: 0.3 },
+        elevationM: { value: 871, tolerance: 25 },
+        category: '1',
+      },
+    ],
+  },
+  {
+    file: 'hukvaldy.gpx',
+    climbCount: 6,
+    climbs: [
+      {
+        distanceKm: { value: 0.88, tolerance: 0.15 },
+        elevationM: { value: 54, tolerance: 15 },
+        category: '4',
+      },
+      {
+        distanceKm: { value: 0.55, tolerance: 0.1 },
+        elevationM: { value: 46, tolerance: 15 },
+        category: '4',
+      },
+      {
+        distanceKm: { value: 0.55, tolerance: 0.1 },
+        elevationM: { value: 36, tolerance: 10 },
+        category: '4',
+      },
+      {
+        distanceKm: { value: 0.68, tolerance: 0.1 },
+        elevationM: { value: 47, tolerance: 15 },
+        category: '4',
+      },
+      {
+        distanceKm: { value: 4.31, tolerance: 0.2 },
+        elevationM: { value: 233, tolerance: 20 },
+        category: '3',
+      },
+      {
+        distanceKm: { value: 0.71, tolerance: 0.15 },
+        elevationM: { value: 33, tolerance: 10 },
+        category: '4',
+      },
+    ],
+  },
 ];
