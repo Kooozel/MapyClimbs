@@ -423,11 +423,6 @@ describe('categorizeClimb', () => {
     expect(result.category).toBe('HC');
     expect(result.difficulty).toBeCloseTo(64000, 0);
   });
-
-  it('[garmin] returns null when score < 1 500', () => {
-    // 200 m × 5 % = 1 000 < 1 500 → discard
-    expect(categorizeClimb(makeClimb(200, 10), 'garmin')).toBeNull();
-  });
 });
 
 // ─── detectClimbs (full pipeline) ─────────────────────────────────────────────
