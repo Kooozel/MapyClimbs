@@ -13,9 +13,9 @@ import {
   type PortMessage,
   type TabStateResponse,
   type ScoringModel,
-  type Climb,
   type ElevationTuple,
   type CategorizationUpdatedMessage,
+  type AnalysisResult,
 } from "../types";
 import { MAPY_MATCHES } from "../constants";
 
@@ -62,8 +62,7 @@ export default defineBackground(() => {
     return {
       pendingGPX: `${StorageKey.PendingGPX}:${tabId}`,
       gpxCaptureTime: `${StorageKey.GpxCaptureTime}:${tabId}`,
-      lastClimbResult: `${StorageKey.LastClimbResult}:${tabId}`,
-      lastTotalDistance: `${StorageKey.LastTotalDistance}:${tabId}`,
+      lastAnalysisResult: `${StorageKey.LastAnalysisResult}:${tabId}`,
     };
   }
 
@@ -81,25 +80,21 @@ export default defineBackground(() => {
     tabId?: number
   ): void {
     try {
-      const climbs = detectClimbs(elevation, model);
-      const totalDistance = elevation.length > 0 ? elevation[elevation.length - 1][0] : 0;
+      const analysisResult = detectClimbs(elevation, model);
       if (tabId != null) {
         const keys = getTabStorageKeys(tabId);
         chrome.storage.local.set({
-          [keys.lastClimbResult]: climbs,
-          [keys.lastTotalDistance]: totalDistance,
+          [keys.lastAnalysisResult]: analysisResult,
         });
       } else {
         chrome.storage.local.set({
-          [StorageKey.LastClimbResult]: climbs,
-          [StorageKey.LastTotalDistance]: totalDistance,
+          [StorageKey.LastAnalysisResult]: analysisResult,
         });
       }
-      sendResponse({ climbs, totalDistance });
+      sendResponse({ result: analysisResult });
     } catch (error) {
       sendResponse({
-        climbs: [],
-        totalDistance: 0,
+        result: { climbs: [], totalDistance: 0, totalElevationGain: 0, totalElevationLoss: 0 },
         error: error instanceof Error ? error.message : String(error),
       });
     }
@@ -108,14 +103,13 @@ export default defineBackground(() => {
   function getTabState(tabId: number, sendResponse: (response: TabStateResponse) => void): void {
     const keys = getTabStorageKeys(tabId);
     chrome.storage.local.get(
-      [keys.pendingGPX, keys.gpxCaptureTime, keys.lastClimbResult, keys.lastTotalDistance],
+      [keys.pendingGPX, keys.gpxCaptureTime, keys.lastAnalysisResult],
       (data) => {
         sendResponse({
           type: "TAB_STATE_RESPONSE",
           pendingGPX: data[keys.pendingGPX] as string | undefined,
           captureTime: data[keys.gpxCaptureTime] as number | undefined,
-          lastClimbResult: data[keys.lastClimbResult] as Climb[] | undefined,
-          lastTotalDistance: data[keys.lastTotalDistance] as number | undefined,
+          lastAnalysisResult: data[keys.lastAnalysisResult] as AnalysisResult | undefined,
         });
       }
     );
@@ -134,12 +128,7 @@ export default defineBackground(() => {
 
   function clearTabState(tabId: number): void {
     const keys = getTabStorageKeys(tabId);
-    chrome.storage.local.remove([
-      keys.pendingGPX,
-      keys.gpxCaptureTime,
-      keys.lastClimbResult,
-      keys.lastTotalDistance,
-    ]);
+    chrome.storage.local.remove([keys.pendingGPX, keys.gpxCaptureTime, keys.lastAnalysisResult]);
   }
 
   // ── Popup port management ─────────────────────────────────────────────────
@@ -190,8 +179,12 @@ export default defineBackground(() => {
             runDetection(elevation, model, sendResponse, tabId);
           } catch (error) {
             sendResponse({
-              climbs: [],
-              totalDistance: 0,
+              result: {
+                climbs: [],
+                totalDistance: 0,
+                totalElevationGain: 0,
+                totalElevationLoss: 0,
+              },
               error: error instanceof Error ? error.message : String(error),
             });
           }
@@ -225,28 +218,33 @@ export default defineBackground(() => {
           chrome.tabs.query({ url: [...MAPY_MATCHES] }, (tabs) => {
             const tabIds = tabs.map((tab) => tab.id).filter((id): id is number => id != null);
             if (tabIds.length === 0) {
-              sendResponse({ climbs: [], totalDistance: 0 });
+              sendResponse({
+                result: {
+                  climbs: [],
+                  totalDistance: 0,
+                  totalElevationGain: 0,
+                  totalElevationLoss: 0,
+                },
+              });
               return;
             }
 
             const keys = tabIds.flatMap((tabId) => {
               const tabKeys = getTabStorageKeys(tabId);
-              return [tabKeys.lastClimbResult, tabKeys.lastTotalDistance];
+              return [tabKeys.lastAnalysisResult];
             });
 
             chrome.storage.local.get(keys, (data) => {
               const storageUpdates: Record<string, unknown> = {};
-              let totalDistance = 0;
 
               for (const tabId of tabIds) {
                 const tabKeys = getTabStorageKeys(tabId);
-                const storedClimbs = data[tabKeys.lastClimbResult] as Climb[] | undefined;
-                const tabTotalDistance =
-                  (data[tabKeys.lastTotalDistance] as number | undefined) ?? 0;
-                if (!storedClimbs || storedClimbs.length === 0) continue;
-                const climbs = recategorizeClimbs(storedClimbs, model);
-                storageUpdates[tabKeys.lastClimbResult] = climbs;
-                totalDistance = tabTotalDistance;
+                const storedAnalysisResult = data[tabKeys.lastAnalysisResult] as
+                  | AnalysisResult
+                  | undefined;
+                if (!storedAnalysisResult || storedAnalysisResult.climbs.length === 0) continue;
+                const analysisResult = recategorizeClimbs(storedAnalysisResult.climbs, model);
+                storageUpdates[tabKeys.lastAnalysisResult] = analysisResult;
               }
 
               if (Object.keys(storageUpdates).length > 0) {
@@ -255,10 +253,24 @@ export default defineBackground(() => {
                   tabIds.forEach((tabId) => {
                     chrome.tabs.sendMessage(tabId, msg).catch(() => {});
                   });
-                  sendResponse({ climbs: [], totalDistance });
+                  sendResponse({
+                    result: {
+                      climbs: [],
+                      totalDistance: 0,
+                      totalElevationGain: 0,
+                      totalElevationLoss: 0,
+                    },
+                  });
                 });
               } else {
-                sendResponse({ climbs: [], totalDistance });
+                sendResponse({
+                  result: {
+                    climbs: [],
+                    totalDistance: 0,
+                    totalElevationGain: 0,
+                    totalElevationLoss: 0,
+                  },
+                });
               }
             });
           });

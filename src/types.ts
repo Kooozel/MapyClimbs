@@ -13,8 +13,7 @@ export const StorageKey = {
   StorageVersion: "storageVersion",
   PendingGPX: "pendingGPX",
   GpxCaptureTime: "gpxCaptureTime",
-  LastClimbResult: "lastClimbResult",
-  LastTotalDistance: "lastTotalDistance",
+  LastAnalysisResult: "lastAnalysisResult",
   ScoringModel: "scoringModel",
   MapLayerVisible: "mapLayerVisible",
   LastSeenVersion: "lastSeenVersion",
@@ -62,8 +61,7 @@ export interface TabStateResponse {
   type: "TAB_STATE_RESPONSE";
   pendingGPX?: string;
   captureTime?: number;
-  lastClimbResult?: Climb[];
-  lastTotalDistance?: number;
+  lastAnalysisResult?: AnalysisResult;
 }
 
 /**
@@ -115,8 +113,7 @@ export interface CategorizationUpdatedMessage {
 
 /** Response shape for PROCESS_CLIMBS and ANALYZE_GPX messages. */
 export interface ClimbsResponse {
-  climbs: Climb[];
-  totalDistance: number;
+  result: AnalysisResult;
   error?: string;
 }
 
@@ -211,4 +208,18 @@ export interface RawClimb {
   segments: Segment[];
   totalDistance: number;
   totalElevation: number;
+}
+
+export interface AnalysisResult {
+  climbs: Climb[];
+  totalDistance: number;
+  totalElevationGain: number;
+  totalElevationLoss: number;
+  error?: string;
+}
+
+declare global {
+  interface XMLHttpRequest {
+    _isGPXRequest?: boolean;
+  }
 }
