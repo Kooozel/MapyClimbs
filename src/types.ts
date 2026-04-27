@@ -217,3 +217,9 @@ export interface AnalysisResult {
   totalElevationLoss: number;
   error?: string;
 }
+
+declare global {
+  interface XMLHttpRequest {
+    _isGPXRequest?: boolean;
+  }
+}
