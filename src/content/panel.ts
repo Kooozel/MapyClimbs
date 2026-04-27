@@ -14,21 +14,13 @@ import { ElementId, CssClass } from "../constants";
 import { showClimbRoute, hideClimbRoute } from "./route-highlight";
 
 function buildPanelContent(analysisResult: AnalysisResult): DocumentFragment {
-  const climbs = analysisResult.climbs;
-  const totalRouteDistance = analysisResult.totalDistance;
-  const totalRouteElevationGain = analysisResult.totalElevationGain;
-  const totalRouteElevationLoss = analysisResult.totalElevationLoss;
+  const { climbs } = analysisResult;
 
   const frag = document.createDocumentFragment();
 
   // Route overview and section label are pure data — no inline handlers.
   const staticWrapper = document.createElement("div");
-  staticWrapper.innerHTML = buildRouteOverview(
-    totalRouteDistance,
-    totalRouteElevationGain,
-    totalRouteElevationLoss,
-    climbs
-  );
+  staticWrapper.innerHTML = buildRouteOverview(analysisResult);
   while (staticWrapper.firstChild) frag.appendChild(staticWrapper.firstChild);
 
   // Each card element carries its own event listeners (no inline handlers).

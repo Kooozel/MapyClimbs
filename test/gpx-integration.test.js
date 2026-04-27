@@ -74,7 +74,8 @@ if (fixtures.length === 0) {
     try {
       const gpxContent = readFileSync(resolve(FIXTURES_DIR, file), 'utf-8');
       const elevationProfile = parseGPX(gpxContent);
-      detectedClimbs = detectClimbs(elevationProfile);
+      const { climbs } = detectClimbs(elevationProfile);
+      detectedClimbs = climbs;
       debugLog(file, detectedClimbs);
     } catch (err) {
       it(`should load and parse ${file}`, () => {
