@@ -429,29 +429,29 @@ describe('categorizeClimb', () => {
 
 describe('detectClimbs', () => {
   it('returns [] for null input', () => {
-    expect(detectClimbs(null)).toEqual([]);
+    expect(detectClimbs(null).climbs).toEqual([]);
   });
 
   it('returns [] for undefined input', () => {
-    expect(detectClimbs(undefined)).toEqual([]);
+    expect(detectClimbs(undefined).climbs).toEqual([]);
   });
 
   it('returns [] for a single-point array', () => {
-    expect(detectClimbs([[0, 100, 48, 16]])).toEqual([]);
+    expect(detectClimbs([[0, 100, 48, 16]]).climbs).toEqual([]);
   });
 
   it('returns [] for a flat route with no elevation gain', () => {
     const result = detectClimbs(FLAT_ROUTE);
-    expect(result).toEqual([]);
+    expect(result.climbs).toEqual([]);
   });
 
   it('detects exactly one climb on a clean single-climb route', () => {
     const result = detectClimbs(makeSingleClimbRoute());
-    expect(result).toHaveLength(1);
+    expect(result.climbs).toHaveLength(1);
   });
 
   it('single climb has correct structure', () => {
-    const [climb] = detectClimbs(makeSingleClimbRoute());
+    const [climb] = detectClimbs(makeSingleClimbRoute()).climbs;
     expect(climb).toMatchObject({
       distance:   expect.any(Number),
       elevation:  expect.any(Number),
@@ -464,7 +464,7 @@ describe('detectClimbs', () => {
   });
 
   it('single climb elevation gain is within ±15 % of the design value (600 m)', () => {
-    const [climb] = detectClimbs(makeSingleClimbRoute());
+    const [climb] = detectClimbs(makeSingleClimbRoute()).climbs;
     // After trimming and smoothing the 8 km × 7.5 % ramp, gain should be near 600 m
     expect(climb.elevation).toBeGreaterThan(600 * 0.85);
     expect(climb.elevation).toBeLessThan(600 * 1.15);
@@ -472,23 +472,23 @@ describe('detectClimbs', () => {
 
   it('detects exactly two climbs on a multi-climb route', () => {
     const result = detectClimbs(makeMultiClimbRoute());
-    expect(result).toHaveLength(2);
+    expect(result.climbs).toHaveLength(2);
   });
 
   it('two climbs are ordered by start distance', () => {
-    const [a, b] = detectClimbs(makeMultiClimbRoute());
+    const [a, b] = detectClimbs(makeMultiClimbRoute()).climbs;
     const aStart = a.segments[0].startDistance;
     const bStart = b.segments[0].startDistance;
     expect(aStart).toBeLessThan(bStart);
   });
 
   it('second climb has greater elevation gain than first (640 m vs 300 m design)', () => {
-    const [climbA, climbB] = detectClimbs(makeMultiClimbRoute());
+    const [climbA, climbB] = detectClimbs(makeMultiClimbRoute()).climbs;
     expect(climbB.elevation).toBeGreaterThan(climbA.elevation);
   });
 
   it('markerCoords and endCoords are populated when lat/lon data is present', () => {
-    const [climb] = detectClimbs(makeSingleClimbRoute());
+    const [climb] = detectClimbs(makeSingleClimbRoute()).climbs;
     expect(climb.markerCoords).not.toBeNull();
     expect(climb.endCoords).not.toBeNull();
     expect(climb.markerCoords).toHaveProperty('lat');
@@ -526,7 +526,7 @@ describe('detectClimbs', () => {
     }
 
     const result = detectClimbs(points);
-    expect(result).toHaveLength(2);
+    expect(result.climbs).toHaveLength(2);
   });
 
   it('discards a climb whose steep section is shorter than 100 m after trimming', () => {
@@ -541,7 +541,7 @@ describe('detectClimbs', () => {
     // Flat tail: 22 intervals × 15 m at elevation 30 m
     for (let i = 1; i <= 22; i++) points.push([75 + i * 15, 30, 48.0 + i * 0.00013, 16.0]);
 
-    const result = detectClimbs(points);
+    const result = detectClimbs(points).climbs;
     expect(result).toHaveLength(1);
   });
 });
