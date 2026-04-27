@@ -19,22 +19,16 @@ function buildPanelContent(analysisResult: AnalysisResult): DocumentFragment {
   const totalRouteElevationGain = analysisResult.totalElevationGain;
   const totalRouteElevationLoss = analysisResult.totalElevationLoss;
 
-  const climbsLabel =
-    climbs.length === 1
-      ? chrome.i18n.getMessage("panelClimbsDetectedSingular")
-      : chrome.i18n.getMessage("panelClimbsDetectedPlural", [String(climbs.length)]);
-
   const frag = document.createDocumentFragment();
 
   // Route overview and section label are pure data — no inline handlers.
   const staticWrapper = document.createElement("div");
-  staticWrapper.innerHTML =
-    buildRouteOverview(
-      totalRouteDistance,
-      totalRouteElevationGain,
-      totalRouteElevationLoss,
-      climbs
-    ) + `<div class="section-label">${climbsLabel}</div>`;
+  staticWrapper.innerHTML = buildRouteOverview(
+    totalRouteDistance,
+    totalRouteElevationGain,
+    totalRouteElevationLoss,
+    climbs
+  );
   while (staticWrapper.firstChild) frag.appendChild(staticWrapper.firstChild);
 
   // Each card element carries its own event listeners (no inline handlers).

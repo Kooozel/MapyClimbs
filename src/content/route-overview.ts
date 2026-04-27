@@ -18,6 +18,10 @@ export function buildRouteOverview(
 ): string {
   const distKm = metersToKm(totalDistance);
   const climbingKm = metersToKm(climbs.reduce((s, c) => s + c.distance, 0));
+  const climbsLabel =
+    climbs.length === 1
+      ? chrome.i18n.getMessage("panelClimbsDetectedSingular")
+      : chrome.i18n.getMessage("panelClimbsDetectedPlural");
 
   let stripSegments = "",
     stripLabels = "";
@@ -42,7 +46,7 @@ export function buildRouteOverview(
       <div class="route-stats-row">
         <div class="rstat"><span class="rstat-value">${distKm}</span><span class="rstat-label">${chrome.i18n.getMessage("panelKmTotal")}</span></div>
         <div class="rstat"><span class="rstat-value">+${Math.round(totalElevGain)}</span><span class="rstat-label">${chrome.i18n.getMessage("panelMClimbing")}</span></div>
-        <div class="rstat"><span class="rstat-value">-${Math.round(totalElevLoss)}</span><span class="rstat-label">${chrome.i18n.getMessage("panelMDescent")}</span></div>
+        <div class="rstat"><span class="rstat-value">${climbs.length}</span><span class="rstat-label">${climbsLabel}</span></div>
         <div class="rstat"><span class="rstat-value">${climbingKm}</span><span class="rstat-label">${chrome.i18n.getMessage("panelKmClimbs")}</span></div>
       </div>
       <div class="route-strip-wrap">

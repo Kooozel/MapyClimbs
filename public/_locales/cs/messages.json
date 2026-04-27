@@ -174,15 +174,12 @@
     "description": "Message shown when no climbs are found"
   },
   "panelClimbsDetectedSingular": {
-    "message": "zjištěno 1 stoupání",
+    "message": "stoupání",
     "description": "Section label when exactly one climb is found"
   },
   "panelClimbsDetectedPlural": {
-    "message": "zjištěno $COUNT$ stoupání",
-    "description": "Section label when multiple climbs are found",
-    "placeholders": {
-      "count": { "content": "$1", "example": "3" }
-    }
+    "message": "stoupání",
+    "description": "Section label when multiple climbs are found"
   },
 
   "whatsNewTitle": {

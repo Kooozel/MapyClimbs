@@ -174,15 +174,12 @@
     "description": "Message shown when no climbs are found"
   },
   "panelClimbsDetectedSingular": {
-    "message": "1 climb detected",
+    "message": "climb",
     "description": "Section label when exactly one climb is found"
   },
   "panelClimbsDetectedPlural": {
-    "message": "$COUNT$ climbs detected",
-    "description": "Section label when multiple climbs are found",
-    "placeholders": {
-      "count": { "content": "$1", "example": "3" }
-    }
+    "message": "climbs",
+    "description": "Section label when multiple climbs are found"
   },
 
   "whatsNewTitle": {
