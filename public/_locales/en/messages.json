@@ -131,8 +131,12 @@
     "description": "Stat label for total distance"
   },
   "panelMClimbing": {
-    "message": "m climbing",
+    "message": "m gained",
     "description": "Stat label for total elevation gain"
+  },
+  "panelMDescent": {
+    "message": "m lost",
+    "description": "Stat label for total elevation loss"
   },
   "panelMaxGrade": {
     "message": "max grade",

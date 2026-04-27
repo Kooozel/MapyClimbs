@@ -18,6 +18,7 @@ import type {
   RawClimb,
   Segment,
   ScoringModel,
+  AnalysisResult,
 } from "./types";
 import { applyScore } from "./scoring";
 import {
@@ -53,7 +54,7 @@ import {
 // ─── Pipeline entry point ────────────────────────────────────────────────────
 
 /**
- * Climb Detection Algorithm — 7-step pipeline.
+ * Climb Detection Algorithm — 5-step pipeline.
  * See types.ts for the Climb interface definition.
  *
  * @param elevationData - [[distance_m, elevation_m, lat, lon], ...]
@@ -61,8 +62,9 @@ import {
 export function detectClimbs(
   elevationData: ElevationTuple[],
   scoringModel: ScoringModel = "aso"
-): Climb[] {
-  if (!elevationData || elevationData.length < 2) return [];
+): AnalysisResult {
+  if (!elevationData || elevationData.length < 2)
+    return { climbs: [], totalDistance: 0, totalElevationGain: 0, totalElevationLoss: 0 };
 
   // Step 1: Build structured profile from raw elevation tuples
   const profile: GpsPoint[] = elevationData.map((point) => ({
@@ -92,7 +94,7 @@ export function detectClimbs(
   const mergedClimbs = mergeNearbyClimbs(rawClimbs, segments, resampled);
 
   // Step 5: Trim flat lead-in / tail, then score and categorize
-  return mergedClimbs
+  const trimmedClimbs = mergedClimbs
     .map((raw) => {
       const trimmed = trimClimbEndpoints(raw);
       return trimmed.totalDistance > 0 && trimmed.totalElevation > 0
@@ -100,6 +102,13 @@ export function detectClimbs(
         : null;
     })
     .filter((c): c is Climb => c !== null);
+
+  return {
+    climbs: trimmedClimbs,
+    totalDistance: profile[profile.length - 1].distance,
+    totalElevationGain: calculateStats(resampled).gain,
+    totalElevationLoss: calculateStats(resampled).descent,
+  };
 }
 
 // ─── Step 2: Resampling ───────────────────────────────────────────────────────
@@ -603,6 +612,23 @@ export function recategorizeClimbs(climbs: Climb[], model: ScoringModel): Climb[
       return scored ? { ...climb, ...scored } : null;
     })
     .filter((c): c is Climb => c !== null);
+}
+
+function calculateStats(resampled: GpsPoint[]) {
+  let gain = 0;
+  let descent = 0;
+
+  for (let i = 1; i < resampled.length; i++) {
+    const diff = resampled[i].elevation - resampled[i - 1].elevation;
+
+    if (diff > 0) {
+      gain += diff;
+    } else if (diff < 0) {
+      descent += Math.abs(diff);
+    }
+  }
+
+  return { gain, descent };
 }
 
 // ─── Test exports ─────────────────────────────────────────────────────────────

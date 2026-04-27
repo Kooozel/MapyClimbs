@@ -10,7 +10,6 @@ import { renderMapOverlay, setOverlayVisible } from "../content/map-overlay";
 import { tryInjectButton } from "../content/button-injector";
 import {
   StorageKey,
-  type Climb,
   type ElevationTuple,
   type ProcessClimbsMessage,
   type ClimbsResponse,
@@ -19,6 +18,7 @@ import {
   type GetTabStateMessage,
   type ClearTabStateMessage,
   type TabStateResponse,
+  type AnalysisResult,
 } from "../types";
 import { MAPY_MATCHES, ElementId } from "../constants";
 
@@ -46,11 +46,10 @@ export default defineContentScript({
  * (instantiate without the Chrome Extension environment).
  */
 class RoutePlannerController {
-  private climbs: Climb[] | null = null;
+  private analysisResult: AnalysisResult | null = null;
   private panelInjected = false;
   private _popupOpen = false;
   private lastGPXLength = 0;
-  private totalRouteDistance = 0;
   private lastURL = "";
   private lastRoutePlannerVisible = false;
 
@@ -58,10 +57,15 @@ class RoutePlannerController {
 
   init(): void {
     // Discard stale cached climbs that pre-date the marker-coords field.
-    chrome.storage.local.get([StorageKey.LastClimbResult], (data) => {
-      const cached = data[StorageKey.LastClimbResult] as Climb[] | undefined;
-      if (cached && Array.isArray(cached) && cached.length > 0 && !cached[0].markerCoords) {
-        chrome.storage.local.remove(StorageKey.LastClimbResult);
+    chrome.storage.local.get([StorageKey.LastAnalysisResult], (data) => {
+      const cached = data[StorageKey.LastAnalysisResult] as AnalysisResult | undefined;
+      if (
+        cached &&
+        Array.isArray(cached.climbs) &&
+        cached.climbs.length > 0 &&
+        !cached.climbs[0].markerCoords
+      ) {
+        chrome.storage.local.remove(StorageKey.LastAnalysisResult);
       }
     });
 
@@ -75,7 +79,8 @@ class RoutePlannerController {
     this.startSPAWatcher();
 
     window.addEventListener("resize", () => {
-      if (this.climbs && this.isRoutePlannerActive()) renderMapOverlay(this.climbs);
+      if (this.analysisResult && this.isRoutePlannerActive())
+        renderMapOverlay(this.analysisResult.climbs);
     });
 
     const mapContainer = document.querySelector("#map");
@@ -119,11 +124,10 @@ class RoutePlannerController {
         }
         if (msg.type !== "CATEGORIZATION_UPDATED") return;
         this.fetchTabState((data) => {
-          if (!data || !data.lastClimbResult) return;
-          this.climbs = data.lastClimbResult;
-          this.totalRouteDistance = data.lastTotalDistance ?? this.totalRouteDistance;
+          if (!data || !data.lastAnalysisResult) return;
+          this.analysisResult = data.lastAnalysisResult;
           this.renderPanel();
-          renderMapOverlay(this.climbs);
+          renderMapOverlay(this.analysisResult.climbs);
         });
       }
     );
@@ -148,8 +152,8 @@ class RoutePlannerController {
 
     // 3. Set timer to show it again after movement stops
     this.debounceTimer = window.setTimeout(() => {
-      if (this.climbs && this.isRoutePlannerActive()) {
-        renderMapOverlay(this.climbs); // Re-calculate positions
+      if (this.analysisResult && this.isRoutePlannerActive()) {
+        renderMapOverlay(this.analysisResult.climbs); // Re-calculate positions
         if (!this._popupOpen) overlay.style.visibility = "visible";
       }
     }, 350); // Adjust delay as needed
@@ -171,7 +175,7 @@ class RoutePlannerController {
 
       if (urlChanged) {
         this.lastURL = location.href;
-        if (this.climbs && visible) renderMapOverlay(this.climbs);
+        if (this.analysisResult && visible) renderMapOverlay(this.analysisResult.climbs);
       }
 
       if (this.lastRoutePlannerVisible !== visible) {
@@ -182,11 +186,10 @@ class RoutePlannerController {
           chrome.storage.local.remove([
             StorageKey.PendingGPX,
             StorageKey.GpxCaptureTime,
-            StorageKey.LastClimbResult,
-            StorageKey.LastTotalDistance,
+            StorageKey.LastAnalysisResult,
           ]);
-        } else if (this.climbs) {
-          renderMapOverlay(this.climbs);
+        } else if (this.analysisResult) {
+          renderMapOverlay(this.analysisResult.climbs);
         }
       }
     }, SPA_WATCH_MS);
@@ -204,8 +207,7 @@ class RoutePlannerController {
       if (!this.isRoutePlannerActive() || !data) return;
 
       const pendingGPX = data.pendingGPX;
-      const lastClimbResult = data.lastClimbResult;
-      const lastTotalDistance = data.lastTotalDistance;
+      const lastAnalysisResult = data.lastAnalysisResult;
 
       if (pendingGPX && pendingGPX.length !== this.lastGPXLength) {
         this.lastGPXLength = pendingGPX.length;
@@ -213,16 +215,15 @@ class RoutePlannerController {
         return;
       }
 
-      if (pendingGPX && lastClimbResult && !this.climbs) {
+      if (pendingGPX && lastAnalysisResult && !this.analysisResult) {
         if (
-          Array.isArray(lastClimbResult) &&
-          lastClimbResult.length > 0 &&
-          lastClimbResult[0].markerCoords
+          Array.isArray(lastAnalysisResult.climbs) &&
+          lastAnalysisResult.climbs.length > 0 &&
+          lastAnalysisResult.climbs[0].markerCoords
         ) {
-          this.climbs = lastClimbResult;
-          this.totalRouteDistance = lastTotalDistance ?? 0;
+          this.analysisResult = lastAnalysisResult;
           this.renderPanel();
-          renderMapOverlay(this.climbs);
+          renderMapOverlay(this.analysisResult.climbs);
         }
       }
     });
@@ -240,11 +241,10 @@ class RoutePlannerController {
 
     const message: ProcessClimbsMessage = { type: "PROCESS_CLIMBS", elevation: elevationProfile };
     chrome.runtime.sendMessage(message, (response: ClimbsResponse | undefined) => {
-      if (chrome.runtime.lastError || !response?.climbs) return;
-      this.climbs = response.climbs;
-      this.totalRouteDistance = response.totalDistance ?? 0;
+      if (chrome.runtime.lastError || !response?.result) return;
+      this.analysisResult = response.result;
       this.renderPanel();
-      renderMapOverlay(this.climbs);
+      renderMapOverlay(this.analysisResult.climbs);
     });
   }
 
@@ -253,7 +253,7 @@ class RoutePlannerController {
   private renderPanel(): void {
     const existing = document.getElementById(ElementId.Panel);
     if (existing) {
-      existing.replaceWith(buildPanel(this.climbs, this.totalRouteDistance));
+      existing.replaceWith(buildPanel(this.analysisResult));
       this.panelInjected = true;
     } else {
       this.panelInjected = false;
@@ -268,17 +268,16 @@ class RoutePlannerController {
     const target =
       document.querySelector(".route-modules") ?? document.querySelector(".route-container");
     if (!target) return;
-    target.appendChild(buildPanel(this.climbs, this.totalRouteDistance));
+    target.appendChild(buildPanel(this.analysisResult));
     this.panelInjected = true;
   }
 
   // ── State & cleanup ───────────────────────────────────────────────────────────
 
   private clearRoutePlannerState(): void {
-    this.climbs = null;
+    this.analysisResult = null;
     this.panelInjected = false;
     this.lastGPXLength = 0;
-    this.totalRouteDistance = 0;
     document.getElementById(ElementId.Button)?.remove();
     document.getElementById(ElementId.Panel)?.remove();
     const overlay = document.getElementById(ElementId.MarkerOverlay);
@@ -314,7 +313,7 @@ class RoutePlannerController {
       return;
     }
     if (!document.getElementById(ElementId.Button)) tryInjectButton();
-    if (this.climbs && (!this.panelInjected || !document.getElementById(ElementId.Panel))) {
+    if (this.analysisResult && (!this.panelInjected || !document.getElementById(ElementId.Panel))) {
       this.panelInjected = false;
       this.tryInjectPanel();
     }

@@ -5,22 +5,19 @@
  * Exports: buildPanel
  */
 
-import { buildClimbCard, calcMaxGradientOver } from "./climb-card";
+import { buildClimbCard } from "./climb-card";
 import { buildRouteOverview } from "./route-overview";
 import { renderEmptyPanel, renderPanelShell } from "./panel-template";
-import type { Climb } from "../types";
+import type { AnalysisResult } from "../types";
 import { StorageKey } from "../types";
 import { ElementId, CssClass } from "../constants";
 import { showClimbRoute, hideClimbRoute } from "./route-highlight";
 
-function buildPanelContent(climbs: Climb[], totalRouteDistance: number): DocumentFragment {
-  const totalDist =
-    totalRouteDistance || Math.max(...climbs.flatMap((c) => c.segments).map((s) => s.endDistance));
-  const totalElevGain = climbs.reduce((s, c) => s + c.elevation, 0);
-  const maxGradient = calcMaxGradientOver(
-    climbs.flatMap((c) => c.segments),
-    200
-  );
+function buildPanelContent(analysisResult: AnalysisResult): DocumentFragment {
+  const climbs = analysisResult.climbs;
+  const totalRouteDistance = analysisResult.totalDistance;
+  const totalRouteElevationGain = analysisResult.totalElevationGain;
+  const totalRouteElevationLoss = analysisResult.totalElevationLoss;
 
   const climbsLabel =
     climbs.length === 1
@@ -32,8 +29,12 @@ function buildPanelContent(climbs: Climb[], totalRouteDistance: number): Documen
   // Route overview and section label are pure data — no inline handlers.
   const staticWrapper = document.createElement("div");
   staticWrapper.innerHTML =
-    buildRouteOverview(totalDist, totalElevGain, maxGradient, climbs) +
-    `<div class="section-label">${climbsLabel}</div>`;
+    buildRouteOverview(
+      totalRouteDistance,
+      totalRouteElevationGain,
+      totalRouteElevationLoss,
+      climbs
+    ) + `<div class="section-label">${climbsLabel}</div>`;
   while (staticWrapper.firstChild) frag.appendChild(staticWrapper.firstChild);
 
   // Each card element carries its own event listeners (no inline handlers).
@@ -115,19 +116,17 @@ function wireCardClickHandlers(panel: HTMLElement): void {
 }
 
 /** Build the full sidebar panel element. */
-export function buildPanel(climbs: Climb[] | null, totalRouteDistance: number): HTMLElement {
+export function buildPanel(analysisResult: AnalysisResult | null): HTMLElement {
   const panel = document.createElement("div");
   panel.id = ElementId.Panel;
 
-  if (!climbs || climbs.length === 0) {
+  if (!analysisResult || !analysisResult.climbs || analysisResult.climbs.length === 0) {
     panel.innerHTML = renderEmptyPanel(chrome.runtime.getURL("images/icon-48.png"));
     return panel;
   }
 
   panel.innerHTML = renderPanelShell(chrome.runtime.getURL("images/icon-48.png"), "");
-  panel
-    .querySelector<HTMLElement>(".cip-inner")!
-    .appendChild(buildPanelContent(climbs, totalRouteDistance));
+  panel.querySelector<HTMLElement>(".cip-inner")!.appendChild(buildPanelContent(analysisResult));
 
   wireCollapseToggle(panel);
   wireLayerToggle(panel);
