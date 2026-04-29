@@ -8,10 +8,9 @@
  */
 
 import { installDownloadSuppressor } from "../injected/download-suppressor";
-import { installFetchInterceptor, installXhrInterceptor } from "../injected/gpx-interceptors";
+import { installXhrInterceptor } from "../injected/gpx-interceptors";
 
 export default defineUnlistedScript(() => {
   installDownloadSuppressor();
-  installFetchInterceptor();
   installXhrInterceptor();
 });

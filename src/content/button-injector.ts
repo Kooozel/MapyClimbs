@@ -20,32 +20,28 @@ function buildButton(): HTMLDivElement {
   return btn;
 }
 
-function onClimbButtonClick(): void {
-  const exportBtn = findGPXExportButton();
-  if (!exportBtn) return;
+async function onClimbButtonClick(): Promise<void> {
+  const routes = document.querySelectorAll<HTMLHeadingElement>(
+    "#layout-body > div > div.route-summary h3"
+  );
+  if (routes.length === 0) {
+    return;
+  }
 
-  const observer = new MutationObserver(() => {
-    const saveBtn = document.querySelector<HTMLElement>(".mymaps-dialog__saveBtn");
-    if (!saveBtn) return;
-    observer.disconnect();
+  let originalRoute;
 
-    const dialogRoot = saveBtn.closest<HTMLElement>(".mymaps-dialog__content");
-    if (dialogRoot) {
-      dialogRoot.style.setProperty("opacity", "0", "important");
-      dialogRoot.style.setProperty("pointer-events", "none", "important");
-      if (dialogRoot.parentElement) {
-        dialogRoot.parentElement.style.setProperty("opacity", "0", "important");
-        dialogRoot.parentElement.style.setProperty("pointer-events", "none", "important");
-      }
+  for (const route of routes) {
+    if (route.classList.contains("active")) {
+      originalRoute = route;
+    } else {
+      route.click();
     }
 
-    window.postMessage({ type: "CLIMB_SUPPRESS_DOWNLOAD" }, location.origin);
-    saveBtn.click();
-  });
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    await triggerExportAndSave();
+  }
 
-  observer.observe(document.body, { childList: true, subtree: true });
-  setTimeout(() => observer.disconnect(), 5000);
-  (exportBtn as HTMLElement).click();
+  originalRoute?.click();
 }
 
 function findGPXExportButton(): Element | null {
@@ -58,4 +54,52 @@ function findGPXExportButton(): Element | null {
     if (t === "Export" || t === "GPX" || t === "Export GPX") return el;
   }
   return null;
+}
+
+/**
+ * Encapsulates the MutationObserver logic into a Promise
+ * so we can "await" the completion of one route before starting the next.
+ */
+function triggerExportAndSave(): Promise<void> {
+  return new Promise((resolve) => {
+    const exportBtn = findGPXExportButton();
+    if (!exportBtn) {
+      resolve();
+      return;
+    }
+
+    const observer = new MutationObserver(() => {
+      const saveBtn = document.querySelector<HTMLElement>(".mymaps-dialog__saveBtn");
+      if (!saveBtn) return;
+
+      observer.disconnect();
+
+      // Visual suppression logic
+      const dialogRoot = saveBtn.closest<HTMLElement>(".mymaps-dialog__content");
+      if (dialogRoot) {
+        dialogRoot.style.setProperty("opacity", "0", "important");
+        if (dialogRoot.parentElement) {
+          dialogRoot.parentElement.style.setProperty("opacity", "0", "important");
+        }
+      }
+
+      window.postMessage({ type: "CLIMB_SUPPRESS_DOWNLOAD" }, location.origin);
+
+      saveBtn.click();
+
+      // Give the "Save" action a moment to process before resolving
+      setTimeout(resolve, 1000);
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    // Click the export button to trigger the dialog
+    (exportBtn as HTMLElement).click();
+
+    // Timeout safety
+    setTimeout(() => {
+      observer.disconnect();
+      resolve();
+    }, 5000);
+  });
 }

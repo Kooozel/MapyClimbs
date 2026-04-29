@@ -4,18 +4,17 @@
  */
 
 import { detectClimbs, recategorizeClimbs } from "../climb-engine";
-import { parseGPX } from "../gpx-parser";
 import {
   StorageKey,
   type ExtensionMessage,
   type ClimbsResponse,
   type GpxStoredResponse,
-  type PortMessage,
   type TabStateResponse,
   type ScoringModel,
   type ElevationTuple,
   type CategorizationUpdatedMessage,
   type AnalysisResult,
+  type GpxInfo,
 } from "../types";
 import { MAPY_MATCHES } from "../constants";
 
@@ -58,12 +57,27 @@ export default defineBackground(() => {
    * storage, and call `sendResponse`. Errors are caught and forwarded as an
    * empty-climbs response so the caller never hangs.
    */
-  function getTabStorageKeys(tabId: number) {
-    return {
+  function getTabStorageKeys(tabId: number, active?: string) {
+    // Base keys that are always the same for the tab
+    const baseKeys = {
       pendingGPX: `${StorageKey.PendingGPX}:${tabId}`,
       gpxCaptureTime: `${StorageKey.GpxCaptureTime}:${tabId}`,
-      lastAnalysisResult: `${StorageKey.LastAnalysisResult}:${tabId}`,
     };
+
+    if (active) {
+      // Return keys including the specific active route
+      return {
+        ...baseKeys,
+        lastAnalysisResult: `${StorageKey.LastAnalysisResult}:${tabId}:${active}`,
+      };
+    } else {
+      // Return keys without a specific active route
+      // (Useful for clearing all results or prefix matching)
+      return {
+        ...baseKeys,
+        lastAnalysisResult: `${StorageKey.LastAnalysisResult}:${tabId}`,
+      };
+    }
   }
 
   function getEffectiveTabId(
@@ -77,12 +91,13 @@ export default defineBackground(() => {
     elevation: ElevationTuple[],
     model: ScoringModel,
     sendResponse: (r: ClimbsResponse) => void,
+    activeRouteClass: string,
     tabId?: number
   ): void {
     try {
       const analysisResult = detectClimbs(elevation, model);
       if (tabId != null) {
-        const keys = getTabStorageKeys(tabId);
+        const keys = getTabStorageKeys(tabId, activeRouteClass);
         chrome.storage.local.set({
           [keys.lastAnalysisResult]: analysisResult,
         });
@@ -91,23 +106,28 @@ export default defineBackground(() => {
           [StorageKey.LastAnalysisResult]: analysisResult,
         });
       }
-      sendResponse({ result: analysisResult });
+      sendResponse({ result: analysisResult, activeRouteClass });
     } catch (error) {
       sendResponse({
         result: { climbs: [], totalDistance: 0, totalElevationGain: 0, totalElevationLoss: 0 },
         error: error instanceof Error ? error.message : String(error),
+        activeRouteClass: "",
       });
     }
   }
 
-  function getTabState(tabId: number, sendResponse: (response: TabStateResponse) => void): void {
-    const keys = getTabStorageKeys(tabId);
+  function getTabState(
+    tabId: number,
+    activeRouteClass: string,
+    sendResponse: (response: TabStateResponse) => void
+  ): void {
+    const keys = getTabStorageKeys(tabId, activeRouteClass);
     chrome.storage.local.get(
       [keys.pendingGPX, keys.gpxCaptureTime, keys.lastAnalysisResult],
       (data) => {
         sendResponse({
           type: "TAB_STATE_RESPONSE",
-          pendingGPX: data[keys.pendingGPX] as string | undefined,
+          pendingGPX: data[keys.pendingGPX] as GpxInfo | undefined,
           captureTime: data[keys.gpxCaptureTime] as number | undefined,
           lastAnalysisResult: data[keys.lastAnalysisResult] as AnalysisResult | undefined,
         });
@@ -115,20 +135,36 @@ export default defineBackground(() => {
     );
   }
 
-  function saveTabGpx(tabId: number, gpxContent: string, timestamp: number): void {
-    const keys = getTabStorageKeys(tabId);
+  function saveTabGpx(tabId: number, gpxInfo: GpxInfo, timestamp: number): void {
+    const keys = getTabStorageKeys(tabId, gpxInfo.activeRouteClass);
+    console.log(gpxInfo);
     chrome.storage.local.set(
-      { [keys.pendingGPX]: gpxContent, [keys.gpxCaptureTime]: timestamp },
+      { [keys.pendingGPX]: gpxInfo, [keys.gpxCaptureTime]: timestamp },
       () => {
         if (chrome.runtime.lastError) return;
-        notifyPopupPorts({ type: "GPX_CAPTURED", timestamp, tabId });
       }
     );
   }
 
   function clearTabState(tabId: number): void {
     const keys = getTabStorageKeys(tabId);
-    chrome.storage.local.remove([keys.pendingGPX, keys.gpxCaptureTime, keys.lastAnalysisResult]);
+
+    chrome.storage.local.get(null, (items) => {
+      const allKeys = Object.keys(items);
+
+      const keysToRemove = allKeys.filter(
+        (key) =>
+          key === keys.pendingGPX ||
+          key === keys.gpxCaptureTime ||
+          key.startsWith(keys.lastAnalysisResult)
+      );
+
+      if (keysToRemove.length > 0) {
+        chrome.storage.local.remove(keysToRemove, () => {
+          console.log(`Storage cleared for tab ${tabId}`);
+        });
+      }
+    });
   }
 
   // ── Popup port management ─────────────────────────────────────────────────
@@ -143,18 +179,17 @@ export default defineBackground(() => {
       });
     }
   });
-
-  function notifyPopupPorts(message: PortMessage): void {
-    popupPorts.forEach((port) => {
-      try {
-        port.postMessage(message);
-      } catch {
-        // Port may have been disconnected between the filter and postMessage
-      }
-    });
-  }
-
   // ── Message handler ───────────────────────────────────────────────────────
+
+  const EMPTY_RESULT = {
+    result: {
+      climbs: [],
+      totalDistance: 0,
+      totalElevationGain: 0,
+      totalElevationLoss: 0,
+    },
+    activeRouteClass: "",
+  };
 
   chrome.runtime.onMessage.addListener(
     (
@@ -167,38 +202,22 @@ export default defineBackground(() => {
         chrome.storage.local.get(StorageKey.ScoringModel, (pref) => {
           const model: ScoringModel =
             (pref[StorageKey.ScoringModel] as ScoringModel | undefined) ?? "aso";
-          runDetection(request.elevation, model, sendResponse, tabId);
-        });
-      } else if (request.type === "ANALYZE_GPX") {
-        const tabId = getEffectiveTabId(request, sender);
-        chrome.storage.local.get(StorageKey.ScoringModel, (pref) => {
-          const model: ScoringModel =
-            (pref[StorageKey.ScoringModel] as ScoringModel | undefined) ?? "aso";
-          try {
-            const elevation = parseGPX(request.gpxContent);
-            runDetection(elevation, model, sendResponse, tabId);
-          } catch (error) {
-            sendResponse({
-              result: {
-                climbs: [],
-                totalDistance: 0,
-                totalElevationGain: 0,
-                totalElevationLoss: 0,
-              },
-              error: error instanceof Error ? error.message : String(error),
-            });
-          }
+          runDetection(request.elevation, model, sendResponse, request.activeRouteClass, tabId);
         });
       } else if (request.type === "SAVE_TAB_GPX") {
         const tabId = getEffectiveTabId(request, sender);
         if (tabId != null) {
-          saveTabGpx(tabId, request.gpxContent, request.timestamp);
+          saveTabGpx(tabId, request.gpxInfo, request.timestamp);
         }
         sendResponse({ success: true });
       } else if (request.type === "GET_TAB_STATE") {
         const tabId = getEffectiveTabId(request, sender);
         if (tabId != null) {
-          getTabState(tabId, sendResponse as (response: TabStateResponse) => void);
+          getTabState(
+            tabId,
+            request.activeRouteClass,
+            sendResponse as (response: TabStateResponse) => void
+          );
         } else {
           sendResponse({ type: "TAB_STATE_RESPONSE" });
         }
@@ -208,9 +227,6 @@ export default defineBackground(() => {
           clearTabState(tabId);
         }
         sendResponse({ success: true });
-      } else if (request.type === "GPX_CAPTURED") {
-        notifyPopupPorts({ type: "GPX_CAPTURED", timestamp: request.timestamp });
-        sendResponse({ success: true });
       } else if (request.type === "RECATEGORIZE_CLIMBS") {
         chrome.storage.local.get(StorageKey.ScoringModel, (pref) => {
           const model: ScoringModel =
@@ -218,14 +234,7 @@ export default defineBackground(() => {
           chrome.tabs.query({ url: [...MAPY_MATCHES] }, (tabs) => {
             const tabIds = tabs.map((tab) => tab.id).filter((id): id is number => id != null);
             if (tabIds.length === 0) {
-              sendResponse({
-                result: {
-                  climbs: [],
-                  totalDistance: 0,
-                  totalElevationGain: 0,
-                  totalElevationLoss: 0,
-                },
-              });
+              sendResponse(EMPTY_RESULT);
               return;
             }
 
@@ -253,24 +262,10 @@ export default defineBackground(() => {
                   tabIds.forEach((tabId) => {
                     chrome.tabs.sendMessage(tabId, msg).catch(() => {});
                   });
-                  sendResponse({
-                    result: {
-                      climbs: [],
-                      totalDistance: 0,
-                      totalElevationGain: 0,
-                      totalElevationLoss: 0,
-                    },
-                  });
+                  sendResponse(EMPTY_RESULT);
                 });
               } else {
-                sendResponse({
-                  result: {
-                    climbs: [],
-                    totalDistance: 0,
-                    totalElevationGain: 0,
-                    totalElevationLoss: 0,
-                  },
-                });
+                sendResponse(EMPTY_RESULT);
               }
             });
           });

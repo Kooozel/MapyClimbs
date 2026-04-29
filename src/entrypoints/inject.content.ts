@@ -52,6 +52,7 @@ class RoutePlannerController {
   private lastGPXLength = 0;
   private lastURL = "";
   private lastRoutePlannerVisible = false;
+  private lastActiveRoute: string | null = null;
 
   // ── Entry point ─────────────────────────────────────────────────────────────
 
@@ -134,7 +135,9 @@ class RoutePlannerController {
   }
 
   private fetchTabState(callback: (response: TabStateResponse | undefined) => void): void {
-    const message: GetTabStateMessage = { type: "GET_TAB_STATE" };
+    const activeRouteClass =
+      document.querySelector(".route-class.active")?.className.split(" ")[0] ?? "h0";
+    const message: GetTabStateMessage = { type: "GET_TAB_STATE", activeRouteClass };
     chrome.runtime.sendMessage(message, callback);
   }
   private debounceTimer: number | null = null;
@@ -205,17 +208,17 @@ class RoutePlannerController {
   private pollForGPX(): void {
     this.fetchTabState((data) => {
       if (!this.isRoutePlannerActive() || !data) return;
-
-      const pendingGPX = data.pendingGPX;
+      const { gpxContent, activeRouteClass } = data.pendingGPX || {};
       const lastAnalysisResult = data.lastAnalysisResult;
 
-      if (pendingGPX && pendingGPX.length !== this.lastGPXLength) {
-        this.lastGPXLength = pendingGPX.length;
-        this.analyzeGPX(pendingGPX);
+      if (gpxContent && gpxContent.length !== this.lastGPXLength && activeRouteClass) {
+        this.lastGPXLength = gpxContent.length;
+        this.analyzeGPX(gpxContent, activeRouteClass);
+
         return;
       }
 
-      if (pendingGPX && lastAnalysisResult && !this.analysisResult) {
+      if (gpxContent && lastAnalysisResult && !this.analysisResult) {
         if (
           Array.isArray(lastAnalysisResult.climbs) &&
           lastAnalysisResult.climbs.length > 0 &&
@@ -231,7 +234,7 @@ class RoutePlannerController {
 
   // ── Analysis ──────────────────────────────────────────────────────────────────
 
-  private analyzeGPX(gpxContent: string): void {
+  private analyzeGPX(gpxContent: string, activeRouteClass: string): void {
     let elevationProfile: ElevationTuple[];
     try {
       elevationProfile = parseGPX(gpxContent);
@@ -239,7 +242,11 @@ class RoutePlannerController {
       return;
     }
 
-    const message: ProcessClimbsMessage = { type: "PROCESS_CLIMBS", elevation: elevationProfile };
+    const message: ProcessClimbsMessage = {
+      type: "PROCESS_CLIMBS",
+      elevation: elevationProfile,
+      activeRouteClass,
+    };
     chrome.runtime.sendMessage(message, (response: ClimbsResponse | undefined) => {
       if (chrome.runtime.lastError || !response?.result) return;
       this.analysisResult = response.result;
@@ -303,6 +310,15 @@ class RoutePlannerController {
     if (popupOpen !== this._popupOpen) {
       this._popupOpen = popupOpen;
       setOverlayVisible(!popupOpen);
+    }
+  }
+
+  private checkRouteChange(): void {
+    const activeRoute =
+      document.querySelector(".route-class.active")?.className.split(" ")[0] ?? null;
+    if (activeRoute !== this.lastActiveRoute) {
+      this.lastActiveRoute = activeRoute;
+      // this.handleRouteChange();
     }
   }
 

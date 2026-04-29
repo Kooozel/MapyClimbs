@@ -27,22 +27,13 @@ export type StorageKey = (typeof StorageKey)[keyof typeof StorageKey];
 export interface ProcessClimbsMessage {
   type: "PROCESS_CLIMBS";
   elevation: ElevationTuple[];
-  tabId?: number;
-}
-
-/**
- * Send raw GPX content to the background worker for one-shot parse + detect.
- * Preferred over PROCESS_CLIMBS for callers that have not yet parsed the GPX.
- */
-export interface AnalyzeGpxMessage {
-  type: "ANALYZE_GPX";
-  gpxContent: string;
+  activeRouteClass: string;
   tabId?: number;
 }
 
 export interface SaveTabGpxMessage {
   type: "SAVE_TAB_GPX";
-  gpxContent: string;
+  gpxInfo: GpxInfo;
   timestamp: number;
   tabId?: number;
 }
@@ -50,6 +41,7 @@ export interface SaveTabGpxMessage {
 export interface GetTabStateMessage {
   type: "GET_TAB_STATE";
   tabId?: number;
+  activeRouteClass: string;
 }
 
 export interface ClearTabStateMessage {
@@ -59,24 +51,9 @@ export interface ClearTabStateMessage {
 
 export interface TabStateResponse {
   type: "TAB_STATE_RESPONSE";
-  pendingGPX?: string;
+  pendingGPX?: GpxInfo;
   captureTime?: number;
   lastAnalysisResult?: AnalysisResult;
-}
-
-/**
- * Notification sent by the interceptor content script when a GPX export is
- * captured and already written to chrome.storage.local.
- */
-export interface GpxCapturedMessage {
-  type: "GPX_CAPTURED";
-  timestamp: number;
-}
-
-export interface PortMessage {
-  type: "GPX_CAPTURED";
-  timestamp: number;
-  tabId?: number;
 }
 
 /**
@@ -95,11 +72,9 @@ export interface MapLayerVisibilityMessage {
 
 export type ExtensionMessage =
   | ProcessClimbsMessage
-  | AnalyzeGpxMessage
   | SaveTabGpxMessage
   | GetTabStateMessage
   | ClearTabStateMessage
-  | GpxCapturedMessage
   | RecategorizeMessage
   | MapLayerVisibilityMessage;
 
@@ -114,6 +89,7 @@ export interface CategorizationUpdatedMessage {
 /** Response shape for PROCESS_CLIMBS and ANALYZE_GPX messages. */
 export interface ClimbsResponse {
   result: AnalysisResult;
+  activeRouteClass: string;
   error?: string;
 }
 
@@ -123,12 +99,6 @@ export interface GpxStoredResponse {
 }
 
 export type ExtensionResponse = ClimbsResponse | GpxStoredResponse;
-
-/** Message sent over the popup long-lived port by the background worker. */
-export interface PortMessage {
-  type: "GPX_CAPTURED";
-  timestamp: number;
-}
 
 /**
  * Climb difficulty category — enum-like const so callers can reference values
@@ -158,6 +128,8 @@ export type ScoringModel = "aso" | "garmin";
  * [distance_m, elevation_m, lat, lon]
  */
 export type ElevationTuple = [number, number, number, number];
+
+export type GpxInfo = { gpxContent: string; activeRouteClass: string };
 
 /** Intermediate GPS point used within the climb-detection pipeline. */
 export interface GpsPoint {
