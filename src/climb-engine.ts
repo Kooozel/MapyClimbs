@@ -64,7 +64,13 @@ export function detectClimbs(
   scoringModel: ScoringModel = "aso"
 ): AnalysisResult {
   if (!elevationData || elevationData.length < 2)
-    return { climbs: [], totalDistance: 0, totalElevationGain: 0, totalElevationLoss: 0 };
+    return {
+      climbs: [],
+      totalDistance: 0,
+      totalElevationGain: 0,
+      totalElevationLoss: 0,
+      timestamp: Date.now(),
+    };
 
   // Step 1: Build structured profile from raw elevation tuples
   const profile: GpsPoint[] = elevationData.map((point) => ({
@@ -108,6 +114,7 @@ export function detectClimbs(
     totalDistance: profile[profile.length - 1].distance,
     totalElevationGain: calculateStats(resampled).gain,
     totalElevationLoss: calculateStats(resampled).descent,
+    timestamp: Date.now(),
   };
 }
 

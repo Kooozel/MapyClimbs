@@ -21,6 +21,7 @@ import {
   type AnalysisResult,
 } from "../types";
 import { MAPY_MATCHES, ElementId } from "../constants";
+import { getTabId, getTabStorageKeys } from "../storage";
 
 // ── Timing constants ───────────────────────────────────────────────────────────
 /** How often (ms) to check storage for a newly-intercepted GPX file. */
@@ -52,22 +53,14 @@ class RoutePlannerController {
   private lastGPXLength = 0;
   private lastURL = "";
   private lastRoutePlannerVisible = false;
+  private lastActiveRoute: string | undefined = undefined;
+  private routesWired = false;
+  private isAnalyzing = false;
 
   // ── Entry point ─────────────────────────────────────────────────────────────
 
   init(): void {
     // Discard stale cached climbs that pre-date the marker-coords field.
-    chrome.storage.local.get([StorageKey.LastAnalysisResult], (data) => {
-      const cached = data[StorageKey.LastAnalysisResult] as AnalysisResult | undefined;
-      if (
-        cached &&
-        Array.isArray(cached.climbs) &&
-        cached.climbs.length > 0 &&
-        !cached.climbs[0].markerCoords
-      ) {
-        chrome.storage.local.remove(StorageKey.LastAnalysisResult);
-      }
-    });
 
     const observer = new MutationObserver(() => this.onMutation());
     observer.observe(document.body, { childList: true, subtree: true });
@@ -133,8 +126,19 @@ class RoutePlannerController {
     );
   }
 
-  private fetchTabState(callback: (response: TabStateResponse | undefined) => void): void {
-    const message: GetTabStateMessage = { type: "GET_TAB_STATE" };
+  private async fetchTabState(
+    callback: (response: TabStateResponse | undefined) => void
+  ): Promise<void> {
+    const tabId = await getTabId();
+    const activeRouteClass =
+      this.lastActiveRoute ??
+      document
+        .querySelector(".route-summary h3.active")
+        ?.className.split(" ")
+        .find((c) => c.startsWith("alt-")) ??
+      "alt-0";
+
+    const message: GetTabStateMessage = { type: "GET_TAB_STATE", activeRouteClass, tabId };
     chrome.runtime.sendMessage(message, callback);
   }
   private debounceTimer: number | null = null;
@@ -157,6 +161,40 @@ class RoutePlannerController {
         if (!this._popupOpen) overlay.style.visibility = "visible";
       }
     }, 350); // Adjust delay as needed
+  }
+
+  private alternativeRouteListeners(): void {
+    const container = document.querySelector("#layout-body > div > div.route-summary");
+    if (!container) return;
+
+    container.addEventListener("click", async (event) => {
+      const target = event.target as HTMLElement;
+      const routeClass = target.closest("h3")?.className.split(" ")[0] ?? null;
+      if (routeClass) {
+        if (routeClass === this.lastActiveRoute) return; // No change
+        this.lastActiveRoute = routeClass;
+        // Delay to allow the active class to update
+        setTimeout(() => this.handleAlternativeRouteChange(), 100);
+      }
+    });
+    (container as unknown as { _wired: boolean })._wired = true;
+  }
+
+  private async handleAlternativeRouteChange(): Promise<void> {
+    this.isAnalyzing = false; // Stop any active polling for the old route
+    this.clearUI(); // Instant visual feedback: old route is gone
+
+    const tabId = await getTabId();
+    const keys = getTabStorageKeys(tabId, this.lastActiveRoute);
+
+    chrome.storage.local.get([keys.lastAnalysisResult], (data) => {
+      const cached = data[keys.lastAnalysisResult] as AnalysisResult | undefined;
+      if (cached && this.isResultValid(cached)) {
+        this.analysisResult = cached;
+        this.renderPanel();
+        renderMapOverlay(cached.climbs);
+      }
+    });
   }
 
   // ── SPA watcher ──────────────────────────────────────────────────────────────
@@ -183,11 +221,7 @@ class RoutePlannerController {
         if (!visible) {
           const overlay = document.getElementById(ElementId.MarkerOverlay);
           if (overlay) overlay.innerHTML = "";
-          chrome.storage.local.remove([
-            StorageKey.PendingGPX,
-            StorageKey.GpxCaptureTime,
-            StorageKey.LastAnalysisResult,
-          ]);
+          chrome.storage.local.remove([StorageKey.PendingGPX, StorageKey.GpxCaptureTime]);
         } else if (this.analysisResult) {
           renderMapOverlay(this.analysisResult.climbs);
         }
@@ -202,50 +236,85 @@ class RoutePlannerController {
 
   // ── Storage polling ───────────────────────────────────────────────────────────
 
-  private pollForGPX(): void {
-    this.fetchTabState((data) => {
-      if (!this.isRoutePlannerActive() || !data) return;
+  private async pollForGPX(): Promise<void> {
+    if (!this.isRoutePlannerActive()) return;
+    await this.fetchTabState((data) => {
+      if (!data) return;
 
-      const pendingGPX = data.pendingGPX;
+      const { gpxContent, activeRouteClass } = data.pendingGPX || {};
       const lastAnalysisResult = data.lastAnalysisResult;
 
-      if (pendingGPX && pendingGPX.length !== this.lastGPXLength) {
-        this.lastGPXLength = pendingGPX.length;
-        this.analyzeGPX(pendingGPX);
+      // SCENARIO A: A new GPX file was intercepted but not yet processed
+      if (
+        this.isAnalyzing &&
+        gpxContent &&
+        gpxContent.length !== this.lastGPXLength &&
+        activeRouteClass
+      ) {
+        this.lastGPXLength = gpxContent.length;
+        this.analyzeGPX(gpxContent, activeRouteClass);
         return;
       }
 
-      if (pendingGPX && lastAnalysisResult && !this.analysisResult) {
-        if (
-          Array.isArray(lastAnalysisResult.climbs) &&
-          lastAnalysisResult.climbs.length > 0 &&
-          lastAnalysisResult.climbs[0].markerCoords
-        ) {
-          this.analysisResult = lastAnalysisResult;
-          this.renderPanel();
-          renderMapOverlay(this.analysisResult.climbs);
-        }
+      // SCENARIO B: The background script finished and saved a result
+      if (lastAnalysisResult && this.isResultValid(lastAnalysisResult)) {
+        this.analysisResult = lastAnalysisResult;
+        this.renderPanel();
+        renderMapOverlay(this.analysisResult.climbs);
+
+        this.isAnalyzing = false; // Stop polling
       }
     });
   }
 
+  /** Helper to validate result structure */
+  private isResultValid(result: AnalysisResult): boolean {
+    return !!(
+      result &&
+      Array.isArray(result.climbs) &&
+      result.climbs.length > 0 &&
+      result.climbs[0].markerCoords
+    );
+  }
+
+  /** Helper to wipe visual elements */
+  private clearUI(): void {
+    this.analysisResult = null;
+    this.panelInjected = false;
+    document.getElementById(ElementId.Panel)?.remove();
+    const overlay = document.getElementById(ElementId.MarkerOverlay);
+    if (overlay) overlay.innerHTML = "";
+  }
+
   // ── Analysis ──────────────────────────────────────────────────────────────────
 
-  private analyzeGPX(gpxContent: string): void {
+  private async analyzeGPX(gpxContent: string, activeRouteClass: string): Promise<void> {
     let elevationProfile: ElevationTuple[];
     try {
       elevationProfile = parseGPX(gpxContent);
     } catch {
       return;
     }
+    const tabId = await getTabId();
 
-    const message: ProcessClimbsMessage = { type: "PROCESS_CLIMBS", elevation: elevationProfile };
+    const message: ProcessClimbsMessage = {
+      type: "PROCESS_CLIMBS",
+      elevation: elevationProfile,
+      activeRouteClass,
+      tabId,
+    };
+
     chrome.runtime.sendMessage(message, (response: ClimbsResponse | undefined) => {
       if (chrome.runtime.lastError || !response?.result) return;
       this.analysisResult = response.result;
       this.renderPanel();
       renderMapOverlay(this.analysisResult.climbs);
     });
+  }
+
+  private handleClimbStart(routeClass: string): void {
+    this.lastActiveRoute = routeClass;
+    this.isAnalyzing = true;
   }
 
   // ── Panel ─────────────────────────────────────────────────────────────────────
@@ -274,7 +343,7 @@ class RoutePlannerController {
 
   // ── State & cleanup ───────────────────────────────────────────────────────────
 
-  private clearRoutePlannerState(): void {
+  private async clearRoutePlannerState(): Promise<void> {
     this.analysisResult = null;
     this.panelInjected = false;
     this.lastGPXLength = 0;
@@ -282,8 +351,8 @@ class RoutePlannerController {
     document.getElementById(ElementId.Panel)?.remove();
     const overlay = document.getElementById(ElementId.MarkerOverlay);
     if (overlay) overlay.innerHTML = "";
-
-    const message: ClearTabStateMessage = { type: "CLEAR_TAB_STATE" };
+    const tabId = await getTabId();
+    const message: ClearTabStateMessage = { type: "CLEAR_TAB_STATE", tabId };
     chrome.runtime.sendMessage(message, () => {
       void chrome.runtime.lastError;
     });
@@ -310,9 +379,27 @@ class RoutePlannerController {
     this.checkPopupOverlap();
     if (!this.isRoutePlannerActive()) {
       this.clearRoutePlannerState();
+      this.routesWired = false;
+      this.lastActiveRoute = undefined; // Reset state
       return;
     }
-    if (!document.getElementById(ElementId.Button)) tryInjectButton();
+
+    if (!this.routesWired) {
+      this.alternativeRouteListeners();
+      this.routesWired = true;
+    }
+
+    if (this.lastActiveRoute === undefined) {
+      const activeH3 = document.querySelector(".route-summary h3.active");
+      this.lastActiveRoute =
+        activeH3?.className.split(" ").find((c) => c.startsWith("alt-")) ?? "alt-0";
+
+      // Trigger an immediate poll now that we have a route ID
+      this.pollForGPX();
+    }
+
+    if (!document.getElementById(ElementId.Button))
+      tryInjectButton((routeClass) => this.handleClimbStart(routeClass));
     if (this.analysisResult && (!this.panelInjected || !document.getElementById(ElementId.Panel))) {
       this.panelInjected = false;
       this.tryInjectPanel();

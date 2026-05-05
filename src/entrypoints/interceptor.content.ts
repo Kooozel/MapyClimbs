@@ -5,8 +5,9 @@
  * chrome.runtime.sendMessage.
  */
 
-import { type SaveTabGpxMessage } from "../types";
+import { GpxInfo, type SaveTabGpxMessage } from "../types";
 import { MAPY_MATCHES } from "../constants";
+import { getTabId } from "../storage";
 
 export default defineContentScript({
   matches: [...MAPY_MATCHES],
@@ -17,10 +18,9 @@ export default defineContentScript({
     window.addEventListener("message", (event: MessageEvent) => {
       if (event.source !== window) return;
       if (event.origin !== location.origin) return;
-
       if (isGpxFetchedEvent(event.data)) {
         const ts = typeof event.data.timestamp === "number" ? event.data.timestamp : Date.now();
-        storeAndNotifyGPX(event.data.gpxContent, ts);
+        storeAndNotifyGPX(event.data, ts);
       }
     });
   },
@@ -41,28 +41,30 @@ function injectInterceptorScript(): void {
 
 interface PageGpxFetchedEvent {
   type: "GPX_FETCHED";
-  gpxContent: string;
+  gpxInfo: GpxInfo;
   timestamp?: number;
 }
 
 function isGpxFetchedEvent(data: unknown): data is PageGpxFetchedEvent {
-  return (
-    typeof data === "object" &&
-    data !== null &&
-    (data as Record<string, unknown>)["type"] === "GPX_FETCHED" &&
-    typeof (data as Record<string, unknown>)["gpxContent"] === "string"
-  );
+  if (typeof data !== "object" || data === null) return false;
+  const maybe = data as Record<string, unknown>;
+  if (maybe.type !== "GPX_FETCHED") return false;
+  const gpxInfo = maybe.gpxInfo;
+  if (typeof gpxInfo !== "object" || gpxInfo === null) return false;
+  return typeof (gpxInfo as { gpxContent?: unknown }).gpxContent === "string";
 }
 
 // ── Storage write + background notification ───────────────────────────────────
 
-function storeAndNotifyGPX(gpxContent: string, timestamp: number): void {
-  if (gpxContent.length === 0) return;
+async function storeAndNotifyGPX(eventData: PageGpxFetchedEvent, timestamp: number): Promise<void> {
+  if (eventData.gpxInfo.gpxContent.length === 0) return;
+  const tabId = await getTabId();
 
   const message: SaveTabGpxMessage = {
     type: "SAVE_TAB_GPX",
-    gpxContent,
+    gpxInfo: eventData.gpxInfo,
     timestamp,
+    tabId,
   };
 
   chrome.runtime.sendMessage(message, () => {
