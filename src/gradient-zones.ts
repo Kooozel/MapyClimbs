@@ -123,6 +123,27 @@ export function simplifyProfile(profile: ProfilePoint[]): ProfilePoint[] {
 }
 
 /**
+ * Returns the maximum gradient over any contiguous span of at least
+ * `minDistance` metres in the profile.
+ * Gradient is computed geometrically (elevation / distance) — the same
+ * formula used by buildGradientZones — so the stat matches the steepest
+ * color band on the chart when called with the simplified profile.
+ */
+export function calcMaxGradientFromProfile(profile: ProfilePoint[], minDistance: number): number {
+  let best = 0;
+  for (let i = 0; i < profile.length - 1; i++) {
+    for (let j = i + 1; j < profile.length; j++) {
+      const dist = profile[j].distance - profile[i].distance;
+      if (dist < minDistance) continue;
+      const grad = ((profile[j].elevation - profile[i].elevation) / dist) * 100;
+      best = Math.max(best, grad);
+      break; // shortest window from i that satisfies minDistance; wider spans only average down
+    }
+  }
+  return best;
+}
+
+/**
  * Converts a profile into contiguous color zones.
  * Adjacent segments with the same color are merged into a single zone.
  */

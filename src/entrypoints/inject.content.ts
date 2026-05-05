@@ -163,29 +163,33 @@ class RoutePlannerController {
     }, 350); // Adjust delay as needed
   }
 
-  private alternativeRouteListeners(): void {
+  private alternativeRouteListeners(): boolean {
     const container = document.querySelector("#layout-body > div > div.route-summary");
-    if (!container) return;
+    if (!container) return false;
 
-    container.addEventListener("click", async (event) => {
+    container.addEventListener("click", (event) => {
       const target = event.target as HTMLElement;
-      const routeClass = target.closest("h3")?.className.split(" ")[0] ?? null;
-      if (routeClass) {
-        if (routeClass === this.lastActiveRoute) return; // No change
+      const routeClass =
+        target
+          .closest("h3")
+          ?.className.split(" ")
+          .find((c) => c.startsWith("alt-")) ?? null;
+      if (routeClass && routeClass !== this.lastActiveRoute) {
         this.lastActiveRoute = routeClass;
-        // Delay to allow the active class to update
+        // Delay to allow the active class to update in the DOM
         setTimeout(() => this.handleAlternativeRouteChange(), 100);
       }
     });
-    (container as unknown as { _wired: boolean })._wired = true;
+    return true;
   }
 
   private async handleAlternativeRouteChange(): Promise<void> {
-    this.isAnalyzing = false; // Stop any active polling for the old route
-    this.clearUI(); // Instant visual feedback: old route is gone
+    const routeClass = this.lastActiveRoute; // Capture before async gap
+    this.isAnalyzing = false;
+    this.clearUI();
 
     const tabId = await getTabId();
-    const keys = getTabStorageKeys(tabId, this.lastActiveRoute);
+    const keys = getTabStorageKeys(tabId, routeClass);
 
     chrome.storage.local.get([keys.lastAnalysisResult], (data) => {
       const cached = data[keys.lastAnalysisResult] as AnalysisResult | undefined;
@@ -226,6 +230,17 @@ class RoutePlannerController {
           renderMapOverlay(this.analysisResult.climbs);
         }
       }
+
+      // Fallback: detect active-route changes that the click listener may have missed
+      // (e.g. clicking the route path on the map, keyboard navigation).
+      if (visible && this.lastActiveRoute !== undefined) {
+        const activeH3 = document.querySelector(".route-summary h3.active");
+        const domRoute = activeH3?.className.split(" ").find((c) => c.startsWith("alt-"));
+        if (domRoute && domRoute !== this.lastActiveRoute) {
+          this.lastActiveRoute = domRoute;
+          void this.handleAlternativeRouteChange();
+        }
+      }
     }, SPA_WATCH_MS);
   }
 
@@ -256,8 +271,16 @@ class RoutePlannerController {
         return;
       }
 
-      // SCENARIO B: The background script finished and saved a result
-      if (lastAnalysisResult && this.isResultValid(lastAnalysisResult)) {
+      // SCENARIO B: The background script finished and saved a result.
+      // Only render when there is genuinely new data: either nothing is shown
+      // yet (null) or an analysis was actively requested (isAnalyzing). This
+      // prevents the 2-second poll from rebuilding the panel and resetting the
+      // scroll position while the user is browsing the results.
+      if (
+        lastAnalysisResult &&
+        this.isResultValid(lastAnalysisResult) &&
+        (!this.analysisResult || this.isAnalyzing)
+      ) {
         this.analysisResult = lastAnalysisResult;
         this.renderPanel();
         renderMapOverlay(this.analysisResult.climbs);
@@ -385,8 +408,7 @@ class RoutePlannerController {
     }
 
     if (!this.routesWired) {
-      this.alternativeRouteListeners();
-      this.routesWired = true;
+      this.routesWired = this.alternativeRouteListeners();
     }
 
     if (this.lastActiveRoute === undefined) {

@@ -10,6 +10,14 @@
 /** Minimum distance (m) between two consecutive profile points after resampling. */
 export const RESAMPLE_MIN_INTERVAL_M = 12;
 
+// ── Profile interpolation (between Step 2 and Step 3) ────────────────────────
+
+/** Minimum gap (m) that interpolateProfile() will fill with intermediate points.
+ *  Pre-smoothing interpolation makes the rolling-average window behave uniformly
+ *  across dense and sparse sections, but also shifts climb boundaries — so this
+ *  is exported for future use rather than wired into detectClimbs() today. */
+export const INTERPOLATE_MAX_GAP_M = 25;
+
 // ── Smoothing — gradient estimation window (Step 3, Pass 1) ──────────────────
 
 /** Half-width (m) of the window used to estimate local gradient magnitude. */
@@ -34,6 +42,9 @@ export const SMOOTH_WINDOW_MAX_M = 250;
 export const SPIKE_GRADIENT_THRESHOLD = 0.12;
 /** Gradient (fraction) the neighbouring segment must be below to confirm a spike. */
 export const SPIKE_NEIGHBOR_THRESHOLD = 0.08;
+/** Maximum segment length (m) for a point to be considered a spike candidate.
+ *  Segments longer than this represent real terrain, not GPS jitter. */
+export const SPIKE_MAX_SEGMENT_M = RESAMPLE_MIN_INTERVAL_M * 2;
 
 // ── Climb identification (Step 4) ─────────────────────────────────────────────
 
@@ -59,16 +70,16 @@ export const CLIMB_END_FLAT_M = 700;
 // ── Climb merging (Step 4 cont.) ─────────────────────────────────────────────
 //
 // Gap distance uses a two-part formula:
-//   effectiveMaxGap = MERGE_MAX_GAP_M + min(combinedGain × MERGE_GAP_GAIN_SCALE, MERGE_GAP_MAX_BONUS_M)
+//   effectiveMaxGap = adjustedBase + min(smallerGain × MERGE_GAP_GAIN_SCALE, MERGE_GAP_MAX_BONUS_M)
 //
 // CLIMB_END_FLAT_M (above) creates a real distance gap between raw climb candidates
 // when a long flat section ends a climb. MERGE_GAP_GAIN_SCALE then decides whether
-// that gap is small enough relative to the combined elevation gain to justify merging.
+// that gap is small enough relative to the smaller climb's elevation gain to merge.
 
 /** Base maximum gap (m) between two climbs that can be merged. Gain-scaling extends this. */
 export const MERGE_MAX_GAP_M = 1200;
-/** Metres of extra merge-gap allowance per metre of combined elevation gain. */
-export const MERGE_GAP_GAIN_SCALE = 2.0;
+/** Metres of extra merge-gap allowance per metre of the smaller climb's elevation gain. */
+export const MERGE_GAP_GAIN_SCALE = 5.5;
 /** Cap on the gain-based bonus (m), keeping total effective gap from growing unbounded. */
 export const MERGE_GAP_MAX_BONUS_M = 4000;
 /** Tighter base gap (m) used when the terrain in the gap *descends* in the raw profile.
@@ -77,7 +88,7 @@ export const MERGE_GAP_MAX_BONUS_M = 4000;
  *  The effective cap is max(MERGE_DESCENT_GAP_MAX_M, smallerGain × MERGE_DESCENT_SCALE)
  *  so large high-gain climbs can still bridge longer descent gaps (e.g. a levelling
  *  section mid-mountain). */
-export const MERGE_DESCENT_GAP_MAX_M = 400;
+export const MERGE_DESCENT_GAP_MAX_M = 760;
 export const MERGE_DESCENT_SCALE = 4;
 /** Absolute maximum valley drop (m) allowed between two merged climbs. */
 export const MERGE_MAX_VALLEY_DROP_M = 20;

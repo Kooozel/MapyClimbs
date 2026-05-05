@@ -29,8 +29,10 @@ import {
   SMOOTH_WINDOW_MIN_M,
   SMOOTH_WINDOW_MID_M,
   SMOOTH_WINDOW_MAX_M,
+  INTERPOLATE_MAX_GAP_M,
   SPIKE_GRADIENT_THRESHOLD,
   SPIKE_NEIGHBOR_THRESHOLD,
+  SPIKE_MAX_SEGMENT_M,
   CLIMB_START_GRADE_PCT,
   CLIMB_MIN_DISTANCE_M,
   CLIMB_MIN_ELEVATION_M,
@@ -80,9 +82,14 @@ export function detectClimbs(
     lon: point[3] ?? null,
   }));
 
-  // Step 2: Remove GPS micro-jitter, smooth elevation, compute per-segment gradients
+  // Step 2: Remove GPS micro-jitter, fill wide gaps, smooth elevation, compute gradients
   const resampled = resamplePoints(profile);
-  const smoothed = smoothElevationProfile(resampled);
+  // Step 2b: Fill gaps > INTERPOLATE_MAX_GAP_M so the smoother's window covers a
+  // consistent number of points regardless of local GPS sampling density.
+  // rawProfile stays as `resampled` — rawElevationGain/rawElevationAt already
+  // interpolate the raw profile internally and must not see artificial points.
+  const interpolated = interpolateProfile(resampled);
+  const smoothed = smoothElevationProfile(interpolated);
   const segments = calculateGradients(smoothed);
 
   // Step 3: Identify raw climb candidates
@@ -138,6 +145,37 @@ export function resamplePoints(profile: GpsPoint[]): GpsPoint[] {
   }
 
   return resampled;
+}
+
+// ─── Step 2b: Profile interpolation ─────────────────────────────────────────
+
+export function interpolateProfile(profile: GpsPoint[]): GpsPoint[] {
+  if (profile.length <= 1) return profile;
+
+  const result: GpsPoint[] = [profile[0]];
+
+  for (let i = 1; i < profile.length; i++) {
+    const prev = profile[i - 1];
+    const curr = profile[i];
+    const gap = curr.distance - prev.distance;
+
+    if (gap > INTERPOLATE_MAX_GAP_M) {
+      const steps = Math.round(gap / RESAMPLE_MIN_INTERVAL_M);
+      for (let s = 1; s < steps; s++) {
+        const t = s / steps;
+        result.push({
+          distance: prev.distance + t * gap,
+          elevation: prev.elevation + t * (curr.elevation - prev.elevation),
+          lat: prev.lat != null && curr.lat != null ? prev.lat + t * (curr.lat - prev.lat) : null,
+          lon: prev.lon != null && curr.lon != null ? prev.lon + t * (curr.lon - prev.lon) : null,
+        });
+      }
+    }
+
+    result.push(curr);
+  }
+
+  return result;
 }
 
 // ─── Step 3: Smoothing ────────────────────────────────────────────────────────
@@ -223,20 +261,22 @@ export function smoothElevationProfile(profile: GpsPoint[]): GpsPoint[] {
 
     const center = profile[i].distance;
     let sumElev = 0,
-      count = 0;
+      sumWeight = 0;
 
     for (let j = i; j >= 0 && center - profile[j].distance <= windowMeters; j--) {
-      sumElev += profile[j].elevation;
-      count++;
+      const w = 1 - (center - profile[j].distance) / windowMeters;
+      sumElev += profile[j].elevation * w;
+      sumWeight += w;
     }
     for (let j = i + 1; j < profile.length && profile[j].distance - center <= windowMeters; j++) {
-      sumElev += profile[j].elevation;
-      count++;
+      const w = 1 - (profile[j].distance - center) / windowMeters;
+      sumElev += profile[j].elevation * w;
+      sumWeight += w;
     }
 
     smoothed[i] = {
       distance: profile[i].distance,
-      elevation: count > 0 ? sumElev / count : profile[i].elevation,
+      elevation: sumWeight > 0 ? sumElev / sumWeight : profile[i].elevation,
       lat: profile[i].lat,
       lon: profile[i].lon,
     };
@@ -256,8 +296,14 @@ function filterNoiseSpikes(profile: GpsPoint[]): GpsPoint[] {
     const curr = original[i];
     const next = original[i + 1];
 
-    const prevGrad = Math.abs((curr.elevation - prev.elevation) / (curr.distance - prev.distance));
-    const nextGrad = Math.abs((next.elevation - curr.elevation) / (next.distance - curr.distance));
+    const leftDist = curr.distance - prev.distance;
+    const rightDist = next.distance - curr.distance;
+
+    // Long segments represent real terrain, not GPS jitter — skip spike detection.
+    if (leftDist > SPIKE_MAX_SEGMENT_M || rightDist > SPIKE_MAX_SEGMENT_M) continue;
+
+    const prevGrad = Math.abs((curr.elevation - prev.elevation) / leftDist);
+    const nextGrad = Math.abs((next.elevation - curr.elevation) / rightDist);
 
     if (
       (prevGrad > SPIKE_GRADIENT_THRESHOLD && nextGrad < SPIKE_NEIGHBOR_THRESHOLD) ||
@@ -639,4 +685,8 @@ function calculateStats(resampled: GpsPoint[]) {
 }
 
 // ─── Test exports ─────────────────────────────────────────────────────────────
-export { resamplePoints as _resamplePoints, smoothElevationProfile as _smoothElevationProfile };
+export {
+  resamplePoints as _resamplePoints,
+  smoothElevationProfile as _smoothElevationProfile,
+  interpolateProfile as _interpolateProfile,
+};
