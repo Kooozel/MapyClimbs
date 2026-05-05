@@ -9,6 +9,7 @@ import { generateElevationChart } from "./chart";
 import { getCategoryClass } from "./category";
 import { metersToKm, metersToKmNum, toPercent, formatMinutes } from "../format";
 import type { Climb, Segment } from "../types";
+import { buildProfilePoints, simplifyProfile, calcMaxGradientFromProfile } from "../gradient-zones";
 
 // ── Climb metrics ─────────────────────────────────────────────────────────────
 
@@ -78,7 +79,8 @@ const PEAK_SVG =
 
 export function buildClimbCard(climb: Climb, index: number): HTMLElement {
   const catClass = getCategoryClass(climb.category);
-  const maxGrad = calcMaxGradientOver(climb.segments, 200);
+  const simplifiedProfile = simplifyProfile(buildProfilePoints(climb.segments));
+  const maxGrad = calcMaxGradientFromProfile(simplifiedProfile, 200);
   const summit = findSummit(climb);
   const timeStr = formatMinutes(estimateClimbTime(climb));
   const chart = generateElevationChart(climb.segments, climb.distance);

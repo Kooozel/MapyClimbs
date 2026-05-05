@@ -29,29 +29,29 @@ export const fixtures = [
     climbCount: 5,
     climbs: [
       {
-        distanceKm: { value: 2.36, tolerance: 0.15 },
-        elevationM: { value: 125, tolerance: 15 },
+        distanceKm: { value: 2.08, tolerance: 0.2 },
+        elevationM: { value: 116, tolerance: 15 },
         category: '4',
       },
       {
-        distanceKm: { value: 1.08, tolerance: 0.15 },
-        elevationM: { value: 65, tolerance: 10 },
+        distanceKm: { value: 0.89, tolerance: 0.15 },
+        elevationM: { value: 61, tolerance: 10 },
         category: '4',
       },
       {
-        distanceKm: { value: 1.95, tolerance: 0.15 },
-        elevationM: { value: 53, tolerance: 10 },
+        distanceKm: { value: 1.75, tolerance: 0.2 },
+        elevationM: { value: 52, tolerance: 10 },
         category: '4',
       },
       {
-        distanceKm: { value: 0.90, tolerance: 0.15 },
-        elevationM: { value: 32, tolerance: 10 },
+        distanceKm: { value: 0.72, tolerance: 0.15 },
+        elevationM: { value: 28, tolerance: 10 },
         category: '4',
       },
       {
-        distanceKm: { value: 5.00, tolerance: 0.2 },
-        elevationM: { value: 274, tolerance: 20 },
-        category: '3',
+        distanceKm: { value: 7.25, tolerance: 0.5 },
+        elevationM: { value: 333, tolerance: 30 },
+        category: '2',
       },
     ],
   },
@@ -60,13 +60,13 @@ export const fixtures = [
     climbCount: 2,
     climbs: [
       {
-        distanceKm: { value: 6.90, tolerance: 0.2 },
-        elevationM: { value: 363, tolerance: 20 },
+        distanceKm: { value: 5.82, tolerance: 0.3 },
+        elevationM: { value: 335, tolerance: 25 },
         category: '2',
       },
       {
-        distanceKm: { value: 3.23, tolerance: 0.15 },
-        elevationM: { value: 123, tolerance: 15 },
+        distanceKm: { value: 1.86, tolerance: 0.2 },
+        elevationM: { value: 71, tolerance: 15 },
         category: '4',
       },
     ],
@@ -76,8 +76,8 @@ export const fixtures = [
     climbCount: 1,
     climbs: [
       {
-        distanceKm: { value: 13.0, tolerance: 0.3 },
-        elevationM: { value: 871, tolerance: 25 },
+        distanceKm: { value: 12.95, tolerance: 0.3 },
+        elevationM: { value: 872, tolerance: 25 },
         category: '1',
       },
     ],
@@ -87,33 +87,33 @@ export const fixtures = [
     climbCount: 6,
     climbs: [
       {
-        distanceKm: { value: 0.88, tolerance: 0.15 },
-        elevationM: { value: 54, tolerance: 15 },
+        distanceKm: { value: 1.04, tolerance: 0.15 },
+        elevationM: { value: 59, tolerance: 15 },
         category: '4',
       },
       {
-        distanceKm: { value: 0.55, tolerance: 0.1 },
-        elevationM: { value: 46, tolerance: 15 },
-        category: '4',
-      },
-      {
-        distanceKm: { value: 0.55, tolerance: 0.1 },
-        elevationM: { value: 36, tolerance: 10 },
-        category: '4',
-      },
-      {
-        distanceKm: { value: 0.68, tolerance: 0.1 },
+        distanceKm: { value: 0.57, tolerance: 0.1 },
         elevationM: { value: 47, tolerance: 15 },
         category: '4',
       },
       {
-        distanceKm: { value: 4.31, tolerance: 0.2 },
-        elevationM: { value: 233, tolerance: 20 },
+        distanceKm: { value: 0.35, tolerance: 0.1 },
+        elevationM: { value: 33, tolerance: 10 },
+        category: '4',
+      },
+      {
+        distanceKm: { value: 0.64, tolerance: 0.1 },
+        elevationM: { value: 45, tolerance: 15 },
+        category: '4',
+      },
+      {
+        distanceKm: { value: 4.11, tolerance: 0.25 },
+        elevationM: { value: 228, tolerance: 25 },
         category: '3',
       },
       {
-        distanceKm: { value: 0.71, tolerance: 0.15 },
-        elevationM: { value: 33, tolerance: 10 },
+        distanceKm: { value: 0.49, tolerance: 0.15 },
+        elevationM: { value: 32, tolerance: 10 },
         category: '4',
       },
     ],
@@ -123,23 +123,23 @@ export const fixtures = [
     climbCount: 4,
     climbs: [
       {
-        distanceKm: { value: 2.36, tolerance: 0.15 },
-        elevationM: { value: 125, tolerance: 15 },
+        distanceKm: { value: 2.08, tolerance: 0.2 },
+        elevationM: { value: 116, tolerance: 15 },
         category: '4',
       },
       {
-        distanceKm: { value: 1.08, tolerance: 0.15 },
-        elevationM: { value: 65, tolerance: 10 },
+        distanceKm: { value: 0.89, tolerance: 0.15 },
+        elevationM: { value: 61, tolerance: 10 },
         category: '4',
       },
       {
-        distanceKm: { value: 1.95, tolerance: 0.15 },
-        elevationM: { value: 53, tolerance: 10 },
+        distanceKm: { value: 1.75, tolerance: 0.2 },
+        elevationM: { value: 52, tolerance: 10 },
         category: '4',
       },
       {
-        distanceKm: { value: 3.96, tolerance: 0.2 },
-        elevationM: { value: 268, tolerance: 20 },
+        distanceKm: { value: 3.87, tolerance: 0.3 },
+        elevationM: { value: 270, tolerance: 25 },
         category: '2',
       },
     ],

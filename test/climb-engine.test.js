@@ -12,6 +12,7 @@ import { describe, it, expect } from 'vitest';
 import {
   detectClimbs,
   resamplePoints,
+  _interpolateProfile as interpolateProfile,
   smoothElevationProfile,
   mergeNearbyClimbs,
   categorizeClimb,
@@ -187,6 +188,67 @@ describe('resamplePoints', () => {
   });
 });
 
+// ─── interpolateProfile ───────────────────────────────────────────────────────
+
+describe('interpolateProfile', () => {
+  it('returns a single point unchanged', () => {
+    const single = [pt(0, 100)];
+    expect(interpolateProfile(single)).toBe(single);
+  });
+
+  it('does not insert points when all gaps are within INTERPOLATE_MAX_GAP_M (25 m)', () => {
+    const profile = [pt(0, 100), pt(20, 110), pt(40, 120)];
+    const result = interpolateProfile(profile);
+    expect(result).toHaveLength(3);
+    expect(result[0]).toEqual(profile[0]);
+    expect(result[1]).toEqual(profile[1]);
+    expect(result[2]).toEqual(profile[2]);
+  });
+
+  it('fills a wide gap so the maximum inter-point distance is approximately RESAMPLE_MIN_INTERVAL_M', () => {
+    const profile = [pt(0, 0), pt(120, 60)]; // 120 m gap → exceeds 25 m threshold, should be filled
+    const result = interpolateProfile(profile);
+    expect(result.length).toBeGreaterThan(2);
+    for (let i = 1; i < result.length; i++) {
+      expect(result[i].distance - result[i - 1].distance).toBeLessThanOrEqual(25);
+    }
+    // Original endpoints preserved
+    expect(result[0].distance).toBe(0);
+    expect(result[result.length - 1].distance).toBe(120);
+  });
+
+  it('interpolates elevation linearly between endpoints', () => {
+    const profile = [pt(0, 0), pt(120, 120)]; // 120 m gap, 120 m elevation (slope = 1)
+    const result = interpolateProfile(profile);
+    for (const p of result) {
+      // On a straight line: elevation == distance (slope = 1)
+      expect(p.elevation).toBeCloseTo(p.distance, 6);
+    }
+  });
+
+  it('interpolates lat/lon linearly between endpoints', () => {
+    const a = { distance: 0, elevation: 0, lat: 48.0, lon: 16.0 };
+    const b = { distance: 120, elevation: 10, lat: 48.12, lon: 16.12 };
+    const result = interpolateProfile([a, b]);
+    expect(result.length).toBeGreaterThan(2);
+    for (const p of result) {
+      const t = p.distance / 120;
+      expect(p.lat).toBeCloseTo(48.0 + t * 0.12, 8);
+      expect(p.lon).toBeCloseTo(16.0 + t * 0.12, 8);
+    }
+  });
+
+  it('sets lat/lon to null for interpolated points when either endpoint has null coords', () => {
+    const a = { distance: 0, elevation: 0, lat: null, lon: null };
+    const b = { distance: 100, elevation: 10, lat: null, lon: null };
+    const result = interpolateProfile([a, b]);
+    for (const p of result) {
+      expect(p.lat).toBeNull();
+      expect(p.lon).toBeNull();
+    }
+  });
+});
+
 // ─── smoothElevationProfile ───────────────────────────────────────────────────
 
 describe('smoothElevationProfile', () => {
@@ -212,17 +274,19 @@ describe('smoothElevationProfile', () => {
   });
 
   it('reduces a prominent one-sided spike', () => {
-    // 50 flat points at 100 m, one spike at index 25 (250 m on each side), then flat again.
-    // Approach to the spike: 100→300 in 1 step (200 % grade) — spike.
-    // Departure from the spike: 300→103 (flat) — one-sided.
+    // 51 points at 12 m spacing (matching post-interpolation point density):
+    // 25 flat at 100 m, one spike at 300 m, 25 flat at 103 m.
+    // With a 50 m triangular-kernel window the spike gains 4 neighbours on each
+    // side (12, 24, 36, 48 m away), all at ~100 m, pulling the weighted average
+    // well below the raw peak.
     const profile = [
-      ...Array.from({ length: 25 }, (_, i) => pt(i * 50, 100)),
-      pt(25 * 50, 300),  // spike ← steep in, flat out
-      ...Array.from({ length: 25 }, (_, i) => pt((26 + i) * 50, 103)),
+      ...Array.from({ length: 25 }, (_, i) => pt(i * 12, 100)),
+      pt(25 * 12, 300),  // spike
+      ...Array.from({ length: 25 }, (_, i) => pt((26 + i) * 12, 103)),
     ];
 
     const result = smoothElevationProfile(profile);
-    // Spike must be substantially reduced (rolling average + filterNoiseSpikes)
+    // Spike must be substantially reduced toward the flat baseline (~100 m)
     expect(result[25].elevation).toBeLessThan(200);
   });
 
