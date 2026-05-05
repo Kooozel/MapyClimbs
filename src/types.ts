@@ -28,25 +28,25 @@ export interface ProcessClimbsMessage {
   type: "PROCESS_CLIMBS";
   elevation: ElevationTuple[];
   activeRouteClass: string;
-  tabId?: number;
+  tabId: number;
 }
 
 export interface SaveTabGpxMessage {
   type: "SAVE_TAB_GPX";
   gpxInfo: GpxInfo;
   timestamp: number;
-  tabId?: number;
+  tabId: number;
 }
 
 export interface GetTabStateMessage {
   type: "GET_TAB_STATE";
-  tabId?: number;
+  tabId: number;
   activeRouteClass: string;
 }
 
 export interface ClearTabStateMessage {
   type: "CLEAR_TAB_STATE";
-  tabId?: number;
+  tabId: number;
 }
 
 export interface TabStateResponse {
@@ -54,6 +54,14 @@ export interface TabStateResponse {
   pendingGPX?: GpxInfo;
   captureTime?: number;
   lastAnalysisResult?: AnalysisResult;
+}
+
+export interface GetTabIdMessage {
+  type: "GET_TAB_ID";
+}
+
+export interface TabIdResponse {
+  tabId?: number;
 }
 
 /**
@@ -76,7 +84,8 @@ export type ExtensionMessage =
   | GetTabStateMessage
   | ClearTabStateMessage
   | RecategorizeMessage
-  | MapLayerVisibilityMessage;
+  | MapLayerVisibilityMessage
+  | GetTabIdMessage;
 
 /**
  * Sent by background → active mapy tab content script after re-categorisation
@@ -187,6 +196,7 @@ export interface AnalysisResult {
   totalDistance: number;
   totalElevationGain: number;
   totalElevationLoss: number;
+  timestamp: number;
   error?: string;
 }
 

@@ -7,6 +7,7 @@
 
 import { GpxInfo, type SaveTabGpxMessage } from "../types";
 import { MAPY_MATCHES } from "../constants";
+import { getTabId } from "../storage";
 
 export default defineContentScript({
   matches: [...MAPY_MATCHES],
@@ -55,13 +56,15 @@ function isGpxFetchedEvent(data: unknown): data is PageGpxFetchedEvent {
 
 // ── Storage write + background notification ───────────────────────────────────
 
-function storeAndNotifyGPX(eventData: PageGpxFetchedEvent, timestamp: number): void {
+async function storeAndNotifyGPX(eventData: PageGpxFetchedEvent, timestamp: number): Promise<void> {
   if (eventData.gpxInfo.gpxContent.length === 0) return;
+  const tabId = await getTabId();
 
   const message: SaveTabGpxMessage = {
     type: "SAVE_TAB_GPX",
     gpxInfo: eventData.gpxInfo,
     timestamp,
+    tabId,
   };
 
   chrome.runtime.sendMessage(message, () => {

@@ -1,13 +1,13 @@
 import { ElementId } from "../constants";
 
-export function tryInjectButton(): void {
+export function tryInjectButton(onClick: (routeClass: string) => void): void {
   if (document.getElementById(ElementId.Button)) return;
   const target = document.querySelector(".route-actions");
   if (!target) return;
-  target.appendChild(buildButton());
+  target.appendChild(buildButton(onClick));
 }
 
-function buildButton(): HTMLDivElement {
+function buildButton(onClick: (routeClass: string) => void): HTMLDivElement {
   const btn = document.createElement("div");
   btn.id = ElementId.Button;
   btn.className = "icon-action";
@@ -16,31 +16,41 @@ function buildButton(): HTMLDivElement {
       <img src="${chrome.runtime.getURL("images/icon-48.png")}" width="24" height="24" alt="" aria-hidden="true">
       <span>${chrome.i18n.getMessage("panelTitle")}</span>
     </button>`;
-  btn.querySelector("button")!.addEventListener("click", onClimbButtonClick);
+
+  // Pass the callback into the runner
+  btn.querySelector("button")!.addEventListener("click", () => runAutomatedClimb(onClick));
   return btn;
 }
 
-async function onClimbButtonClick(): Promise<void> {
+async function runAutomatedClimb(onRouteActive: (routeClass: string) => void): Promise<void> {
   const routes = document.querySelectorAll<HTMLHeadingElement>(
     "#layout-body > div > div.route-summary h3"
   );
-  if (routes.length === 0) {
-    return;
-  }
+  if (routes.length === 0) return;
 
-  let originalRoute;
+  let originalRoute: HTMLHeadingElement | null = null;
 
   for (const route of routes) {
+    const routeClass = route.className.split(" ").find((c) => c.startsWith("alt-")) ?? "alt-0";
+
     if (route.classList.contains("active")) {
       originalRoute = route;
     } else {
       route.click();
+      await new Promise((resolve) => setTimeout(resolve, 800));
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    // 2. IMPORTANT: Update the Controller's state so it knows which key to use
+    onRouteActive(routeClass);
+
+    // 3. Trigger the export for THIS specific route
     await triggerExportAndSave();
+
+    // Give the interceptor a moment to catch the file before switching tabs
+    await new Promise((resolve) => setTimeout(resolve, 1000));
   }
 
+  // Restore the original route view
   originalRoute?.click();
 }
 
