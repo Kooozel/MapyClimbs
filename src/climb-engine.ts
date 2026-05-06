@@ -116,6 +116,17 @@ export function detectClimbs(
     })
     .filter((c): c is Climb => c !== null);
 
+  // Snap each climb's endCoords to the raw-profile elevation peak within a
+  // conservative lookahead (≤ 300 m, clamped to half the gap before the next
+  // climb) to correct for smoothing-induced under-extension at the summit.
+  for (let i = 0; i < trimmedClimbs.length; i++) {
+    const nextStart =
+      i + 1 < trimmedClimbs.length ? trimmedClimbs[i + 1].segments[0].startDistance : Infinity;
+    const lastSeg = trimmedClimbs[i].segments[trimmedClimbs[i].segments.length - 1];
+    const lookahead = Math.min(300, (nextStart - lastSeg.endDistance) / 2);
+    trimmedClimbs[i] = snapEndCoordsToRawPeak(trimmedClimbs[i], resampled, lookahead);
+  }
+
   return {
     climbs: trimmedClimbs,
     totalDistance: profile[profile.length - 1].distance,
@@ -561,6 +572,95 @@ export function mergeNearbyClimbs(
 }
 
 // ─── Step 5: Trim + categorize ────────────────────────────────────────────────
+
+/**
+ * Extends the climb to the highest raw-profile point within
+ * [lastSeg.endDistance, lastSeg.endDistance + lookaheadM].
+ *
+ * Corrects for smoothing-induced under-extension: the flat summit plateau
+ * bleeds into the smoothing window and lowers the apparent gradient at the
+ * peak, causing trimClimbEndpoints to cut off the final metres before the
+ * true summit. A synthetic extension segment is appended so the route
+ * polyline, elevation chart, and end-pin all reach the real top.
+ *
+ * If the raw peak is not actually higher than the current smoothed endpoint
+ * (rare over-smoothing artefact), the climb is returned unchanged.
+ */
+function snapEndCoordsToRawPeak(climb: Climb, rawProfile: GpsPoint[], lookaheadM: number): Climb {
+  if (lookaheadM <= 0) return climb;
+  const lastSeg = climb.segments[climb.segments.length - 1];
+  if (!lastSeg) return climb;
+
+  const endDist = lastSeg.endDistance;
+  const limitDist = endDist + lookaheadM;
+
+  // Use the RAW terrain elevation at endDist as the baseline — not the smoothed
+  // lastSeg.endElevation. The smoother can depress the endpoint by 1–3 m, which
+  // would cause every post-summit raw point to look like an upward extension.
+  const rawEndElev = rawElevationAt(rawProfile, endDist);
+
+  // Walk forward tracking the running maximum. Stop as soon as the elevation
+  // drops more than 2 m below that maximum — that marks the start of a real
+  // descent and prevents snapping past the actual summit into a later hill.
+  const DESCENT_STOP_M = 2;
+  let runningMax = rawEndElev;
+  let peakPoint: GpsPoint | null = null;
+
+  for (const pt of rawProfile) {
+    if (pt.distance < endDist) continue;
+    if (pt.distance > limitDist) break;
+    if (pt.elevation > runningMax) {
+      runningMax = pt.elevation;
+      if (pt.lat != null && pt.lon != null) peakPoint = pt;
+    } else if (pt.elevation < runningMax - DESCENT_STOP_M) {
+      break;
+    }
+  }
+
+  if (!peakPoint || peakPoint.lat == null || peakPoint.lon == null) return climb;
+  if (peakPoint.distance <= endDist) return climb;
+
+  const distToPeak = peakPoint.distance - endDist;
+
+  // Reject GPS-noise micro-highs: the raw peak must be at least 1.5 m above
+  // the raw trim baseline.
+  if (peakPoint.elevation - rawEndElev < 1.5) return climb;
+
+  // Reject long post-summit extensions: the maximum smoothing-induced trim gap
+  // is half the widest smoothing window (250 m / 2 = 125 m). 150 m gives a
+  // safe margin while excluding the 200–300 m false-plateau cases.
+  if (distToPeak > 150) return climb;
+
+  const distExtension = peakPoint.distance - endDist;
+  const elevExtension = peakPoint.elevation - lastSeg.endElevation;
+  if (elevExtension <= 0) return climb;
+
+  const extensionSeg: Segment = {
+    startDistance: endDist,
+    endDistance: peakPoint.distance,
+    distance: distExtension,
+    elevation: elevExtension,
+    gradient: (elevExtension / distExtension) * 100,
+    startElevation: lastSeg.endElevation,
+    endElevation: peakPoint.elevation,
+    startLat: lastSeg.endLat,
+    startLon: lastSeg.endLon,
+    endLat: peakPoint.lat,
+    endLon: peakPoint.lon,
+  };
+
+  const newDistance = climb.distance + distExtension;
+  const newElevation = climb.elevation + elevExtension;
+
+  return {
+    ...climb,
+    segments: [...climb.segments, extensionSeg],
+    distance: newDistance,
+    elevation: newElevation,
+    avgGrade: (newElevation / newDistance) * 100,
+    endCoords: { lat: peakPoint.lat, lon: peakPoint.lon },
+  };
+}
 
 function trimClimbEndpoints(climb: RawClimb): RawClimb {
   const trimmed: RawClimb = { ...climb, segments: [...climb.segments] };
