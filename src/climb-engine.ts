@@ -34,9 +34,7 @@ import {
   SPIKE_NEIGHBOR_THRESHOLD,
   SPIKE_MAX_SEGMENT_M,
   CLIMB_START_GRADE_PCT,
-  CLIMB_MIN_DISTANCE_M,
-  CLIMB_MIN_ELEVATION_M,
-  CLIMB_MIN_AVG_GRADE_PCT,
+  CLIMB_MIN_ELEVATION_NOISE_M,
   DESCENT_END_GRADE_PCT,
   DESCENT_END_DISTANCE_M,
   CLIMB_END_FLAT_M,
@@ -370,10 +368,8 @@ function identifyClimbs(segments: Segment[], rawProfile: GpsPoint[]): RawClimb[]
     if (!currentClimb) return;
     // Strip the accumulated flat/descent tail so the candidate ends at the
     // last climbing segment — creating a real gap the merge step can measure.
-    if (currentClimb.totalDistance >= CLIMB_MIN_DISTANCE_M) {
-      const finalized = finalizeRawClimb(currentClimb, tailTrimGrade, rawProfile);
-      if (finalized) climbs.push(finalized);
-    }
+    const finalized = finalizeRawClimb(currentClimb, tailTrimGrade, rawProfile);
+    if (finalized) climbs.push(finalized);
     currentClimb = null;
     descentDistance = 0;
     flatDistance = 0;
@@ -464,13 +460,8 @@ function finalizeRawClimb(
   const s0 = candidate.segments[0];
   const sN = candidate.segments[candidate.segments.length - 1];
   const measuredGain = rawElevationGain(rawProfile, s0.startDistance, sN.endDistance);
-  const measuredAvgGrade = (measuredGain / candidate.totalDistance) * 100;
 
-  if (
-    candidate.totalDistance >= CLIMB_MIN_DISTANCE_M &&
-    measuredGain >= CLIMB_MIN_ELEVATION_M &&
-    measuredAvgGrade >= CLIMB_MIN_AVG_GRADE_PCT
-  ) {
+  if (measuredGain >= CLIMB_MIN_ELEVATION_NOISE_M) {
     return candidate;
   }
   return null;

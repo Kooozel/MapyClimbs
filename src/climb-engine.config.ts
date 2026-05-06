@@ -50,12 +50,10 @@ export const SPIKE_MAX_SEGMENT_M = RESAMPLE_MIN_INTERVAL_M * 2;
 
 /** Gradient (%) at or above which a new climb candidate begins. */
 export const CLIMB_START_GRADE_PCT = 4;
-/** Minimum total distance (m) for a climb candidate to be kept. */
-export const CLIMB_MIN_DISTANCE_M = 300;
-/** Minimum total elevation gain (m) for a climb candidate to be kept. */
-export const CLIMB_MIN_ELEVATION_M = 30;
-/** Minimum average gradient (%) for a climb candidate to be kept. */
-export const CLIMB_MIN_AVG_GRADE_PCT = 2;
+/** Minimum elevation gain (m) to pass the GPS-noise floor after trimming.
+ *  Keeps phantom climbs from sensor jitter off the results; real filtering
+ *  is done per scoring model via the Uncategorized threshold. */
+export const CLIMB_MIN_ELEVATION_NOISE_M = 5;
 /** Gradient (%) at or below which a segment counts as a descent. */
 export const DESCENT_END_GRADE_PCT = -1;
 /** Accumulated descent distance (m) that ends the current climb candidate. */

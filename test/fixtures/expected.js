@@ -57,7 +57,7 @@ export const fixtures = [
   },
   {
     file: 'ond_mal.gpx',
-    climbCount: 2,
+    climbCount: 3,
     climbs: [
       {
         distanceKm: { value: 5.82, tolerance: 0.3 },
@@ -65,9 +65,14 @@ export const fixtures = [
         category: '2',
       },
       {
-        distanceKm: { value: 1.86, tolerance: 0.2 },
-        elevationM: { value: 71, tolerance: 15 },
+        distanceKm: { value: 3.11, tolerance: 0.25 },
+        elevationM: { value: 122, tolerance: 15 },
         category: '4',
+      },
+      {
+        distanceKm: { value: 0.11, tolerance: 0.05 },
+        elevationM: { value: 7, tolerance: 5 },
+        category: 'uncategorized',
       },
     ],
   },
@@ -84,16 +89,41 @@ export const fixtures = [
   },
   {
     file: 'hukvaldy.gpx',
-    climbCount: 6,
+    climbCount: 12,
     climbs: [
+      {
+        distanceKm: { value: 0.37, tolerance: 0.1 },
+        elevationM: { value: 14, tolerance: 5 },
+        category: 'uncategorized',
+      },
+      {
+        distanceKm: { value: 0.29, tolerance: 0.1 },
+        elevationM: { value: 12, tolerance: 5 },
+        category: 'uncategorized',
+      },
       {
         distanceKm: { value: 1.04, tolerance: 0.15 },
         elevationM: { value: 59, tolerance: 15 },
         category: '4',
       },
       {
-        distanceKm: { value: 0.57, tolerance: 0.1 },
-        elevationM: { value: 47, tolerance: 15 },
+        distanceKm: { value: 0.15, tolerance: 0.07 },
+        elevationM: { value: 11, tolerance: 5 },
+        category: '4',
+      },
+      {
+        distanceKm: { value: 0.16, tolerance: 0.07 },
+        elevationM: { value: 7, tolerance: 5 },
+        category: 'uncategorized',
+      },
+      {
+        distanceKm: { value: 1.73, tolerance: 0.2 },
+        elevationM: { value: 74, tolerance: 15 },
+        category: '4',
+      },
+      {
+        distanceKm: { value: 0.37, tolerance: 0.1 },
+        elevationM: { value: 21, tolerance: 8 },
         category: '4',
       },
       {
@@ -112,8 +142,13 @@ export const fixtures = [
         category: '3',
       },
       {
-        distanceKm: { value: 0.49, tolerance: 0.15 },
+        distanceKm: { value: 0.49, tolerance: 0.1 },
         elevationM: { value: 32, tolerance: 10 },
+        category: '4',
+      },
+      {
+        distanceKm: { value: 0.21, tolerance: 0.07 },
+        elevationM: { value: 16, tolerance: 7 },
         category: '4',
       },
     ],

@@ -71,7 +71,12 @@ function renderCategories(model: ScoringModel): void {
   const mins = cfg.thresholds.map((t) => t.min);
   catList.innerHTML = cfg.thresholds
     .map((t, i) => {
-      const label = t.category === "HC" ? "HC" : `Cat ${t.category}`;
+      const label =
+        t.category === "HC"
+          ? "HC"
+          : t.category === "uncategorized"
+            ? "Uncat."
+            : `Cat ${t.category}`;
       const score = formatThreshold(t.min, i, mins);
       return (
         `<div class="cat-row">` +

@@ -160,6 +160,10 @@
       "cat": { "content": "$1", "example": "HC" }
     }
   },
+  "panelCatUncategorized": {
+    "message": "Uncat.",
+    "description": "Badge label for climbs below the scoring model's minimum category"
+  },
   "panelDistance": { "message": "Distance", "description": "Climb stat label" },
   "panelElevation": { "message": "Elevation", "description": "Climb stat label" },
   "panelAvgGrade": { "message": "Avg grade", "description": "Climb stat label" },

@@ -160,6 +160,10 @@
       "cat": { "content": "$1", "example": "HC" }
     }
   },
+  "panelCatUncategorized": {
+    "message": "Neklas.",
+    "description": "Badge label for climbs below the scoring model's minimum category"
+  },
   "panelDistance": { "message": "Vzdálenost", "description": "Climb stat label" },
   "panelElevation": { "message": "Převýšení", "description": "Climb stat label" },
   "panelAvgGrade": { "message": "Průměrný sklon", "description": "Climb stat label" },

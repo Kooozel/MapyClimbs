@@ -403,12 +403,28 @@ describe('categorizeClimb', () => {
     expect(categorizeClimb(null)).toBeNull();
   });
 
-  it('assigns category 4 when score < 75', () => {
+  it('assigns category 4 when score ≥ 8 and < 75', () => {
     // 5 km × 2 %² = 5 × 4 = 20  →  Cat 4
     const climb = makeClimb(5000, 100);
     const result = categorizeClimb(climb);
     expect(result.category).toBe('4');
     expect(result.difficulty).toBeCloseTo(20, 0);
+  });
+
+  it('[aso] assigns Uncategorized when score < 8', () => {
+    // 0.4 km × 2 %² = 0.4 × 4 = 1.6  →  Uncategorized
+    const climb = makeClimb(400, 8);
+    const result = categorizeClimb(climb);
+    expect(result.category).toBe('uncategorized');
+    expect(result.difficulty).toBeCloseTo(1.6, 1);
+  });
+
+  it('[aso] assigns category 4 exactly at the lower boundary (score = 8)', () => {
+    // 2 km × 2 %² = 2 × 4 = 8  →  Cat 4
+    const climb = makeClimb(2000, 40);
+    const result = categorizeClimb(climb);
+    expect(result.category).toBe('4');
+    expect(result.difficulty).toBeCloseTo(8, 1);
   });
 
   it('assigns category 3 at the lower boundary (score = 75)', () => {
@@ -486,6 +502,20 @@ describe('categorizeClimb', () => {
     const result = categorizeClimb(makeClimb(8000, 640), 'garmin');
     expect(result.category).toBe('HC');
     expect(result.difficulty).toBeCloseTo(64000, 0);
+  });
+
+  it('[garmin] assigns category 4 exactly at the lower boundary (score = 8 000)', () => {
+    // 1 000 m × 8 % = 8 000 → Cat 4
+    const result = categorizeClimb(makeClimb(1000, 80), 'garmin');
+    expect(result.category).toBe('4');
+    expect(result.difficulty).toBeCloseTo(8000, 0);
+  });
+
+  it('[garmin] assigns Uncategorized when score < 8 000', () => {
+    // 500 m × 6 % = 3 000 → Uncategorized
+    const result = categorizeClimb(makeClimb(500, 30), 'garmin');
+    expect(result.category).toBe('uncategorized');
+    expect(result.difficulty).toBeCloseTo(3000, 0);
   });
 });
 
@@ -596,9 +626,8 @@ describe('detectClimbs', () => {
   it('discards a climb whose steep section is shorter than 100 m after trimming', () => {
     // 75 m at 40 % grade (+30 m elevation) satisfies identifyClimbs minimums when
     // followed by a 330 m flat tail (total 405 m, +30 m, 7.4 % avg).
-    // With raw-elevation validation the 30 m gain meets CLIMB_MIN_ELEVATION_M,
-    // so the smoothed candidate (285 m after smoothing extends the climbing zone)
-    // survives as a valid category-4 climb.
+    // The 30 m gain passes the noise floor, so the smoothed candidate (≈285 m
+    // after smoothing extends the climbing zone) survives as a valid climb.
     const points = [];
     // Steep section: 5 intervals × 15 m, each +6 m (40 % grade)
     for (let i = 0; i <= 5; i++) points.push([i * 15, i * 6, 48.0, 16.0]);

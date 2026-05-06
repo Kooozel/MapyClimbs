@@ -12,6 +12,7 @@ export const CATEGORY_CLASS: Record<ClimbCategory, string> = {
   "2": "cat2",
   "3": "cat3",
   "4": "cat4",
+  uncategorized: "uncat",
 };
 
 export const CATEGORY_COLOR: Record<ClimbCategory, string> = {
@@ -20,12 +21,13 @@ export const CATEGORY_COLOR: Record<ClimbCategory, string> = {
   "2": "#F57C00",
   "3": "#FBC02D",
   "4": "#4CAF50",
+  uncategorized: "#9E9E9E",
 };
 
 export function getCategoryClass(cat: ClimbCategory): string {
-  return CATEGORY_CLASS[cat] ?? "cat4";
+  return CATEGORY_CLASS[cat] ?? "uncat";
 }
 
 export function getCategoryColor(cat: ClimbCategory): string {
-  return CATEGORY_COLOR[cat] ?? "#4CAF50";
+  return CATEGORY_COLOR[cat] ?? "#9E9E9E";
 }

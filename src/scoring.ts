@@ -33,7 +33,8 @@ export const SCORING_CONFIGS: Readonly<Record<ScoringModel, ScoringConfig>> = {
       { category: ClimbCategory.Cat1, min: 300 },
       { category: ClimbCategory.Cat2, min: 150 },
       { category: ClimbCategory.Cat3, min: 75 },
-      { category: ClimbCategory.Cat4, min: 0 },
+      { category: ClimbCategory.Cat4, min: 8 },
+      { category: ClimbCategory.Uncategorized, min: 0 },
     ],
   },
   garmin: {
@@ -44,7 +45,8 @@ export const SCORING_CONFIGS: Readonly<Record<ScoringModel, ScoringConfig>> = {
       { category: ClimbCategory.Cat1, min: 48000 },
       { category: ClimbCategory.Cat2, min: 32000 },
       { category: ClimbCategory.Cat3, min: 16000 },
-      { category: ClimbCategory.Cat4, min: 0 },
+      { category: ClimbCategory.Cat4, min: 8000 },
+      { category: ClimbCategory.Uncategorized, min: 0 },
     ],
   },
 };

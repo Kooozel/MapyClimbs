@@ -8,7 +8,7 @@
 import { generateElevationChart } from "./chart";
 import { getCategoryClass } from "./category";
 import { metersToKm, metersToKmNum, toPercent, formatMinutes } from "../format";
-import type { Climb, Segment } from "../types";
+import { ClimbCategory, type Climb, type Segment } from "../types";
 import { buildProfilePoints, simplifyProfile, calcMaxGradientFromProfile } from "../gradient-zones";
 
 // ── Climb metrics ─────────────────────────────────────────────────────────────
@@ -98,7 +98,7 @@ export function buildClimbCard(climb: Climb, index: number): HTMLElement {
       <div class="climb-header">
         <div class="climb-title-group">
           <span class="climb-name">${climbLabel}</span>
-          <span class="climb-badge">${chrome.i18n.getMessage("panelCat", [climb.category])}</span>
+          <span class="climb-badge">${climb.category === ClimbCategory.Uncategorized ? chrome.i18n.getMessage("panelCatUncategorized") : chrome.i18n.getMessage("panelCat", [climb.category])}</span>
         </div>
       </div>
       <div class="climb-stats">
