@@ -98,8 +98,9 @@ export function buildProfilePoints(segments: Segment[]): ProfilePoint[] {
 
 /**
  * Reduces a dense profile to 8–20 key inflection points.
- * Preserves gradient change points; falls back to even-step sampling when
- * too many points exist.
+ * Preserves gradient change points, then fills any large distance gaps so no
+ * portion of the route is skipped in the chart. Falls back to even-step
+ * sampling when too many gradient-change points exist.
  */
 export function simplifyProfile(profile: ProfilePoint[]): ProfilePoint[] {
   if (profile.length <= 3) return profile;
@@ -117,6 +118,45 @@ export function simplifyProfile(profile: ProfilePoint[]): ProfilePoint[] {
     const step = Math.floor(profile.length / maxSegs);
     for (let i = step; i < profile.length - 1; i += step) keys.push(i);
     keys.push(profile.length - 1);
+  } else {
+    // Fill large distance gaps so the chart covers the full route. Without
+    // this, gradient inflections clustered near one end leave a long straight
+    // line across the rest (most visible on short routes where the smoothing
+    // window causes noisy gradients near the start).
+    //
+    // Gap-fill can exceed maxSegs — the limit is the profile itself, since
+    // adding more bisection keys only improves chart accuracy.
+    const totalDist = profile[profile.length - 1].distance;
+    const maxGap = totalDist / (maxSegs - 1);
+    const hardCap = profile.length;
+    let changed = true;
+    while (changed && keys.length < hardCap) {
+      changed = false;
+      for (let i = 0; i < keys.length - 1; i++) {
+        const p0 = profile[keys[i]];
+        const p1 = profile[keys[i + 1]];
+        if (p1.distance - p0.distance <= maxGap) continue;
+        // Find the profile point nearest the midpoint distance
+        const midDist = (p0.distance + p1.distance) / 2;
+        let best = keys[i] + 1;
+        for (let j = best + 1; j < keys[i + 1]; j++) {
+          if (Math.abs(profile[j].distance - midDist) < Math.abs(profile[best].distance - midDist))
+            best = j;
+        }
+        // Only insert if the midpoint deviates from linear interpolation — a
+        // perfectly uniform profile needs no extra points.
+        const pb = profile[best];
+        const linearElev =
+          p0.elevation +
+          ((pb.distance - p0.distance) / (p1.distance - p0.distance)) *
+            (p1.elevation - p0.elevation);
+        if (Math.abs(pb.elevation - linearElev) > 0.5) {
+          keys.splice(i + 1, 0, best);
+          changed = true;
+          break;
+        }
+      }
+    }
   }
 
   return [...new Set(keys)].sort((a, b) => a - b).map((i) => profile[i]);

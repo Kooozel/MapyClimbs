@@ -120,6 +120,7 @@ export const ClimbCategory = {
   Cat2: "2",
   Cat3: "3",
   Cat4: "4",
+  Uncategorized: "uncategorized",
 } as const;
 export type ClimbCategory = (typeof ClimbCategory)[keyof typeof ClimbCategory];
 
