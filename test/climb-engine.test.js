@@ -517,6 +517,35 @@ describe('categorizeClimb', () => {
     expect(result.category).toBe('uncategorized');
     expect(result.difficulty).toBeCloseTo(3000, 0);
   });
+
+  it('[garmin] assigns Uncategorized at exactly min score (1 500)', () => {
+    // 500 m × 3 % = 1 500 → Uncategorized (geometric minimums exactly met)
+    const result = categorizeClimb(makeClimb(500, 15), 'garmin');
+    expect(result.category).toBe('uncategorized');
+    expect(result.difficulty).toBeCloseTo(1500, 0);
+  });
+
+  // ── Per-model geometric minimums ─────────────────────────────────────────
+
+  it('[aso] returns null when distance < minDistanceM (300 m)', () => {
+    // 299 m @ 3.3 % → score ≥ 0 but distance below ASO minimum
+    expect(categorizeClimb(makeClimb(299, 10))).toBeNull();
+  });
+
+  it('[aso] returns null when avgGrade < minAvgGradePct (2 %)', () => {
+    // 500 m, elevation 9 m → avgGrade = 1.8 % < 2 %
+    expect(categorizeClimb(makeClimb(500, 9))).toBeNull();
+  });
+
+  it('[garmin] returns null when distance < minDistanceM (500 m)', () => {
+    // 499 m @ 5 % → score = 2 495 but distance below Garmin minimum
+    expect(categorizeClimb(makeClimb(499, 25), 'garmin')).toBeNull();
+  });
+
+  it('[garmin] returns null when avgGrade < minAvgGradePct (3 %)', () => {
+    // 600 m, elevation 17 m → avgGrade ≈ 2.83 % < 3 %
+    expect(categorizeClimb(makeClimb(600, 17), 'garmin')).toBeNull();
+  });
 });
 
 // ─── detectClimbs (full pipeline) ─────────────────────────────────────────────
@@ -623,11 +652,10 @@ describe('detectClimbs', () => {
     expect(result.climbs).toHaveLength(2);
   });
 
-  it('discards a climb whose steep section is shorter than 100 m after trimming', () => {
-    // 75 m at 40 % grade (+30 m elevation) satisfies identifyClimbs minimums when
-    // followed by a 330 m flat tail (total 405 m, +30 m, 7.4 % avg).
-    // The 30 m gain passes the noise floor, so the smoothed candidate (≈285 m
-    // after smoothing extends the climbing zone) survives as a valid climb.
+  it('filters a short steep climb below the ASO 300 m minimum distance', () => {
+    // 75 m at 40 % grade (+30 m elevation) followed by a 330 m flat tail.
+    // The smoothed candidate is ≈285 m after trimming — below the ASO minDistanceM
+    // of 300 m — so it is correctly filtered out by the scoring model.
     const points = [];
     // Steep section: 5 intervals × 15 m, each +6 m (40 % grade)
     for (let i = 0; i <= 5; i++) points.push([i * 15, i * 6, 48.0, 16.0]);
@@ -635,6 +663,6 @@ describe('detectClimbs', () => {
     for (let i = 1; i <= 22; i++) points.push([75 + i * 15, 30, 48.0 + i * 0.00013, 16.0]);
 
     const result = detectClimbs(points).climbs;
-    expect(result).toHaveLength(1);
+    expect(result).toHaveLength(0);
   });
 });

@@ -72,6 +72,7 @@
   --cat2: #ef6c00;
   --cat3: #e0a800;
   --cat4: #43a047;
+  --uncat: #9e9e9e;
 
   --text1: #011e39;
   --text2: #677888;
@@ -314,6 +315,9 @@
 }
 #climb-inject-panel .climb-item.cat4 {
   border-left-color: var(--cat4);
+}
+#climb-inject-panel .climb-item.uncat {
+  border-left-color: var(--uncat);
 }
 
 #climb-inject-panel .climb-header {

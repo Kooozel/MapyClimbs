@@ -49,11 +49,11 @@ export const SPIKE_MAX_SEGMENT_M = RESAMPLE_MIN_INTERVAL_M * 2;
 // ── Climb identification (Step 4) ─────────────────────────────────────────────
 
 /** Gradient (%) at or above which a new climb candidate begins. */
-export const CLIMB_START_GRADE_PCT = 4;
+export const CLIMB_START_GRADE_PCT = 3;
 /** Minimum elevation gain (m) to pass the GPS-noise floor after trimming.
  *  Keeps phantom climbs from sensor jitter off the results; real filtering
  *  is done per scoring model via the Uncategorized threshold. */
-export const CLIMB_MIN_ELEVATION_NOISE_M = 5;
+export const CLIMB_MIN_ELEVATION_NOISE_M = 15;
 /** Gradient (%) at or below which a segment counts as a descent. */
 export const DESCENT_END_GRADE_PCT = -1;
 /** Accumulated descent distance (m) that ends the current climb candidate. */
@@ -97,7 +97,7 @@ export const MERGE_VALLEY_RATIO = 0.2;
 
 /** Gradient (%) below which leading/trailing segments are trimmed.
  *  Must match CLIMB_START_GRADE_PCT so identification and trimming use the same boundary. */
-export const TRIM_MIN_GRADE_PCT = 4;
+export const TRIM_MIN_GRADE_PCT = 3;
 /** Backward look-behind window (m) used to judge whether a candidate end-segment lies in a
  *  genuinely steep zone. At each candidate endIndex the algorithm sums the steep and total
  *  distance of the last TRIM_TAIL_WINDOW_M metres. If the steep fraction is below
