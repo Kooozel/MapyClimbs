@@ -19,7 +19,12 @@
 import type { Climb, Segment } from "../types";
 import { ElementId, CssClass } from "../constants";
 import { mercatorToPixel } from "../map-geometry";
-import { type GradientZone, type ZoneFilterFn, buildClimbZones } from "../gradient-zones";
+import {
+  type GradientZone,
+  type ZoneFilterFn,
+  buildClimbZones,
+  CYCLING_GRADE_COLORS,
+} from "../gradient-zones";
 
 export type { ZoneFilterFn };
 
@@ -198,7 +203,8 @@ export function createRouteSvg(
   climbs: Climb[],
   vp: Viewport,
   mb: DOMRect,
-  zoneFilter?: ZoneFilterFn
+  zoneFilter?: ZoneFilterFn,
+  gradeColors: [number, string][] = CYCLING_GRADE_COLORS
 ): SVGSVGElement {
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.id = ElementId.RouteSvg;
@@ -215,7 +221,13 @@ export function createRouteSvg(
     const geoPts = buildGeoPoints(climb.segments, vp, mb);
     if (geoPts.length < 2) return;
 
-    const distZones = buildClimbZones(climb.segments, totalDistance, zoneFilter, vp.zoom);
+    const distZones = buildClimbZones(
+      climb.segments,
+      totalDistance,
+      zoneFilter,
+      vp.zoom,
+      gradeColors
+    );
     const zones = buildZonePolylines(geoPts, distZones, totalDistance);
 
     // ── Glow (per-zone color, blurred, appended first so it sits behind lines) ──

@@ -11,9 +11,11 @@ import {
   type GpxStoredResponse,
   type TabStateResponse,
   type ScoringModel,
+  type RouteMode,
   type ElevationTuple,
   type CategorizationUpdatedMessage,
   type AnalysisResult,
+  type GpxInfo,
   type TabIdResponse,
 } from "../types";
 import { MAPY_MATCHES } from "../constants";
@@ -63,10 +65,12 @@ export default defineBackground(() => {
     model: ScoringModel,
     sendResponse: (r: ClimbsResponse) => void,
     activeRouteClass: string,
-    tabId?: number
+    tabId?: number,
+    routeMode?: RouteMode
   ): void {
     try {
-      const analysisResult = detectClimbs(elevation, model);
+      const detected = detectClimbs(elevation, model);
+      const analysisResult: AnalysisResult = routeMode ? { ...detected, routeMode } : detected;
       if (tabId != null) {
         const keys = getTabStorageKeys(tabId, activeRouteClass);
         chrome.storage.local.set({
@@ -130,7 +134,13 @@ export default defineBackground(() => {
             | AnalysisResult
             | undefined;
           if (!storedAnalysisResult || storedAnalysisResult.climbs.length === 0) continue;
-          const analysisResult = recategorizeClimbs(storedAnalysisResult.climbs, model);
+          // Hiking routes keep their model regardless of user's cycling preference
+          const effectiveModel: ScoringModel =
+            storedAnalysisResult.routeMode === "hiking" ? "hiking" : model;
+          const analysisResult: AnalysisResult = {
+            ...storedAnalysisResult,
+            climbs: recategorizeClimbs(storedAnalysisResult.climbs, effectiveModel),
+          };
           storageUpdates[tabKeys.lastAnalysisResult] = analysisResult;
         }
 
@@ -161,15 +171,20 @@ export default defineBackground(() => {
       if (request.type === "GET_TAB_ID") {
         sendResponse({ tabId: sender.tab?.id });
       } else if (request.type === "PROCESS_CLIMBS") {
-        chrome.storage.local.get(StorageKey.ScoringModel, (pref) => {
+        const tabKeys = getTabStorageKeys(request.tabId);
+        chrome.storage.local.get([StorageKey.ScoringModel, tabKeys.pendingGPX], (data) => {
           const model: ScoringModel =
-            (pref[StorageKey.ScoringModel] as ScoringModel | undefined) ?? "aso";
+            (data[StorageKey.ScoringModel] as ScoringModel | undefined) ?? "aso";
+          const pendingGpx = data[tabKeys.pendingGPX] as GpxInfo | undefined;
+          const routeMode = pendingGpx?.routeMode;
+          const effectiveModel: ScoringModel = routeMode === "hiking" ? "hiking" : model;
           runDetection(
             request.elevation,
-            model,
+            effectiveModel,
             sendResponse,
             request.activeRouteClass,
-            request.tabId
+            request.tabId,
+            routeMode
           );
         });
       } else if (request.type === "SAVE_TAB_GPX") {

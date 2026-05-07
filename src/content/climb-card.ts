@@ -5,10 +5,10 @@
  * Exports: buildClimbCard, calcMaxGradientOver
  */
 
-import { generateElevationChart } from "./chart";
+import { generateElevationChart, CYCLING_GRADE_COLORS, HIKING_GRADE_COLORS } from "./chart";
 import { getCategoryClass } from "./category";
 import { metersToKm, metersToKmNum, toPercent, formatMinutes } from "../format";
-import { ClimbCategory, type Climb, type Segment } from "../types";
+import { ClimbCategory, type Climb, type Segment, type RouteMode } from "../types";
 import { buildProfilePoints, simplifyProfile, calcMaxGradientFromProfile } from "../gradient-zones";
 
 // ── Climb metrics ─────────────────────────────────────────────────────────────
@@ -77,13 +77,14 @@ const PEAK_SVG =
 
 // ── Climb card ────────────────────────────────────────────────────────────────
 
-export function buildClimbCard(climb: Climb, index: number): HTMLElement {
+export function buildClimbCard(climb: Climb, index: number, routeMode?: RouteMode): HTMLElement {
   const catClass = getCategoryClass(climb.category);
   const simplifiedProfile = simplifyProfile(buildProfilePoints(climb.segments));
   const maxGrad = calcMaxGradientFromProfile(simplifiedProfile, 200);
   const summit = findSummit(climb);
   const timeStr = formatMinutes(estimateClimbTime(climb));
-  const chart = generateElevationChart(climb.segments, climb.distance);
+  const gradeColors = routeMode === "hiking" ? HIKING_GRADE_COLORS : CYCLING_GRADE_COLORS;
+  const chart = generateElevationChart(climb.segments, climb.distance, gradeColors);
   const climbLabel = chrome.i18n.getMessage("panelClimb", [String(index + 1)]);
 
   const el = document.createElement("div");

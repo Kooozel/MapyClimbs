@@ -12,6 +12,7 @@
 
 import type {
   Climb,
+  ClimbCategory,
   Coords,
   ElevationTuple,
   GpsPoint,
@@ -20,7 +21,7 @@ import type {
   ScoringModel,
   AnalysisResult,
 } from "./types";
-import { applyScore } from "./scoring";
+import { applyScore, applyHikingScore } from "./scoring";
 import {
   RESAMPLE_MIN_INTERVAL_M,
   SMOOTH_GRAD_WINDOW_M,
@@ -712,11 +713,52 @@ function trimClimbEndpoints(climb: RawClimb): RawClimb {
   return { segments: [], totalDistance: 0, totalElevation: 0 };
 }
 
+/**
+ * Returns the maximum sustained gradient (as a decimal, e.g. 0.30 for 30%)
+ * over any contiguous window of at least `windowM` metres within `segments`.
+ * Uses distance-weighted average gradient, matching the approach in climb-card.ts.
+ */
+export function computeMaxSustainedGradient(segments: Segment[], windowM = 200): number {
+  let bestPct = 0;
+  for (let i = 0; i < segments.length; i++) {
+    let dist = 0;
+    let weightedGrad = 0;
+    for (let j = i; j < segments.length; j++) {
+      dist += segments[j].distance;
+      weightedGrad += segments[j].gradient * segments[j].distance;
+      if (dist >= windowM) {
+        bestPct = Math.max(bestPct, weightedGrad / dist);
+        break;
+      }
+    }
+  }
+  return bestPct / 100;
+}
+
 export function categorizeClimb(climb: RawClimb, scoringModel: ScoringModel = "aso"): Climb | null {
   if (!climb || climb.totalDistance === 0 || climb.totalElevation === 0) return null;
 
   const avgGrade = (climb.totalElevation / climb.totalDistance) * 100;
-  const scored = applyScore(climb.totalDistance, avgGrade, scoringModel);
+
+  let scored: { difficulty: number; category: ClimbCategory } | null;
+
+  if (scoringModel === "hiking") {
+    const summitElevationM = Math.max(...climb.segments.map((s) => s.endElevation));
+    const maxGradientDecimal = computeMaxSustainedGradient(climb.segments);
+    scored = applyHikingScore(
+      {
+        totalElevationM: climb.totalElevation,
+        totalDistanceM: climb.totalDistance,
+        summitElevationM,
+        maxGradientDecimal,
+      },
+      climb.totalDistance,
+      avgGrade
+    );
+  } else {
+    scored = applyScore(climb.totalDistance, avgGrade, scoringModel);
+  }
+
   if (!scored) return null;
 
   const firstSeg = climb.segments[0];
@@ -752,7 +794,23 @@ export function categorizeClimb(climb: RawClimb, scoringModel: ScoringModel = "a
 export function recategorizeClimbs(climbs: Climb[], model: ScoringModel): Climb[] {
   return climbs
     .map((climb): Climb | null => {
-      const scored = applyScore(climb.distance, climb.avgGrade, model);
+      let scored: { difficulty: number; category: ClimbCategory } | null;
+      if (model === "hiking") {
+        const summitElevationM = Math.max(...climb.segments.map((s) => s.endElevation));
+        const maxGradientDecimal = computeMaxSustainedGradient(climb.segments);
+        scored = applyHikingScore(
+          {
+            totalElevationM: climb.elevation,
+            totalDistanceM: climb.distance,
+            summitElevationM,
+            maxGradientDecimal,
+          },
+          climb.distance,
+          climb.avgGrade
+        );
+      } else {
+        scored = applyScore(climb.distance, climb.avgGrade, model);
+      }
       return scored ? { ...climb, ...scored } : null;
     })
     .filter((c): c is Climb => c !== null);
@@ -780,4 +838,5 @@ export {
   resamplePoints as _resamplePoints,
   smoothElevationProfile as _smoothElevationProfile,
   interpolateProfile as _interpolateProfile,
+  computeMaxSustainedGradient as _computeMaxSustainedGradient,
 };

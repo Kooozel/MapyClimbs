@@ -1,8 +1,9 @@
 import { metersToKm } from "../format";
-import { StorageKey, type Climb } from "../types";
+import { StorageKey, type AnalysisResult } from "../types";
 import { CATEGORY_COLOR } from "./category";
 import { ElementId, CssClass } from "../constants";
 import { mercatorToPixel } from "../map-geometry";
+import { CYCLING_GRADE_COLORS, HIKING_GRADE_COLORS } from "../gradient-zones";
 import {
   createRouteSvg,
   initRouteDashLengths,
@@ -16,10 +17,14 @@ const PIN_SIZE = 28;
 /** Duration (ms) of the card-flash highlight triggered by clicking a map pin. */
 const CARD_FLASH_MS = 1500;
 
-export function renderMapOverlay(climbs: Climb[]): void {
+export function renderMapOverlay(analysisResult: AnalysisResult): void {
+  const { climbs } = analysisResult;
   if (!climbs?.length) return;
   const vp = viewportFromURL();
   if (!vp) return;
+
+  const gradeColors =
+    analysisResult.routeMode === "hiking" ? HIKING_GRADE_COLORS : CYCLING_GRADE_COLORS;
 
   const mapContainer = document.querySelector("#map");
   if (!mapContainer) return;
@@ -112,7 +117,7 @@ export function renderMapOverlay(climbs: Climb[]): void {
   });
 
   // ── Polyline SVG layer ──────────────────────────────────────────────────
-  const svg = createRouteSvg(climbs, vp, mb);
+  const svg = createRouteSvg(climbs, vp, mb, undefined, gradeColors);
   overlay.appendChild(svg);
   initRouteDashLengths(svg);
 }

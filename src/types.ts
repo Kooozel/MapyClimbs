@@ -127,11 +127,16 @@ export type ClimbCategory = (typeof ClimbCategory)[keyof typeof ClimbCategory];
 /**
  * Scoring model used to classify climbs.
  * - "aso": ASO/Tour de France formula — score = dist(km) × avgGrade²
- *   Thresholds: HC ≥ 600 | Cat 1 ≥ 300 | Cat 2 ≥ 150 | Cat 3 ≥ 75 | Cat 4 < 75
  * - "garmin": Garmin ClimbPro formula — score = dist(m) × avgGrade(%)
- *   Thresholds: HC ≥ 64 000 | Cat 1 ≥ 48 000 | Cat 2 ≥ 32 000 | Cat 3 ≥ 16 000 | Cat 4 ≥ 8 000
+ * - "hiking": TRAILS-GPX formula — score = H²/(8L) + altitude bonus + G_max term
  */
-export type ScoringModel = "aso" | "garmin";
+export type ScoringModel = "aso" | "garmin" | "hiking";
+
+/**
+ * Transport mode detected from the Mapy.cz route-planner UI at GPX-capture time.
+ * Determines which scoring model is applied automatically.
+ */
+export type RouteMode = "cycling" | "hiking" | "other";
 
 /**
  * Raw elevation tuple as produced by gpx-parser.
@@ -139,7 +144,7 @@ export type ScoringModel = "aso" | "garmin";
  */
 export type ElevationTuple = [number, number, number, number];
 
-export type GpxInfo = { gpxContent: string; activeRouteClass: string };
+export type GpxInfo = { gpxContent: string; activeRouteClass: string; routeMode?: RouteMode };
 
 /** Intermediate GPS point used within the climb-detection pipeline. */
 export interface GpsPoint {
@@ -198,6 +203,7 @@ export interface AnalysisResult {
   totalElevationGain: number;
   totalElevationLoss: number;
   timestamp: number;
+  routeMode?: RouteMode;
   error?: string;
 }
 

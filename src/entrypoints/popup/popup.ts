@@ -67,6 +67,7 @@ function formatThreshold(min: number, index: number, allMins: readonly number[])
 }
 
 function renderCategories(model: ScoringModel): void {
+  if (model === "hiking") return; // auto-detected only; not shown in popup settings
   const cfg = SCORING_CONFIGS[model];
   const mins = cfg.thresholds.map((t) => t.min);
   catList.innerHTML = cfg.thresholds
