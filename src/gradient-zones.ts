@@ -59,7 +59,8 @@ export const CYCLING_GRADE_COLORS: [number, string][] = [
   [6, "#FBC02D"],
   [9, "#F57C00"],
   [12, "#D32F2F"],
-  [Infinity, "#800020"],
+  [15, "#800020"],
+  [Infinity, "#3B0010"],
 ];
 
 /** Hiking grade thresholds (5/10/20/30%) — wider bands reflect walking pace. */
@@ -68,7 +69,8 @@ export const HIKING_GRADE_COLORS: [number, string][] = [
   [10, "#FBC02D"],
   [20, "#F57C00"],
   [30, "#D32F2F"],
-  [Infinity, "#800020"],
+  [40, "#800020"],
+  [Infinity, "#3B0010"],
 ];
 
 /** @deprecated Use CYCLING_GRADE_COLORS. Kept for backward compatibility. */

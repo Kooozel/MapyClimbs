@@ -538,10 +538,10 @@
 
 #climb-inject-panel .climb-legend {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   padding: 5px 2px 2px;
-  flex-wrap: wrap;
-  font-size: 9.5px;
+  flex-wrap: nowrap;
+  font-size: 9px;
   color: var(--text2);
   line-height: 1;
 }
