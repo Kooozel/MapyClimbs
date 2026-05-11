@@ -19,9 +19,7 @@ export function buildRouteOverview(analysisResult: AnalysisResult): string {
       ? chrome.i18n.getMessage("panelClimbsDetectedSingular")
       : chrome.i18n.getMessage("panelClimbsDetectedPlural");
 
-  let stripSegments = "",
-    stripLabels = "";
-  climbs.forEach((climb, i) => {
+  const strips = climbs.map((climb, i) => {
     const startPct = ratioToPercent(climb.segments[0].startDistance, totalDistance);
     const endPct = ratioToPercent(
       climb.segments[climb.segments.length - 1].endDistance,
@@ -36,11 +34,13 @@ export function buildRouteOverview(analysisResult: AnalysisResult): string {
         : climb.category === ClimbCategory.Uncategorized
           ? chrome.i18n.getMessage("panelCatUncategorized")
           : chrome.i18n.getMessage("panelCat", [climb.category]);
-    stripSegments += `<div class="strip-segment" style="left:${startPct};width:${toPercent(widthPct)};background:${color};opacity:0.85;" title="${chrome.i18n.getMessage("panelClimb", [String(i + 1)])}: ${catLabel}"></div>`;
-    if (widthPct > 4) {
-      stripLabels += `<span class="strip-label" style="left:${midPct}">${i + 1}</span>`;
-    }
+    return {
+      seg: `<div class="strip-segment" style="left:${startPct};width:${toPercent(widthPct)};background:${color};opacity:0.85;" title="${chrome.i18n.getMessage("panelClimb", [String(i + 1)])}: ${catLabel}"></div>`,
+      label: widthPct > 4 ? `<span class="strip-label" style="left:${midPct}">${i + 1}</span>` : "",
+    };
   });
+  const stripSegments = strips.map((s) => s.seg).join("");
+  const stripLabels = strips.map((s) => s.label).join("");
 
   return `
     <div class="route-overview">

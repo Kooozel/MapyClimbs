@@ -333,6 +333,15 @@ export function showClimbRoute(index: number): void {
 }
 
 /**
+ * Cancels all pending zone-start timers. Call before replacing the SVG overlay
+ * so in-flight animations from the previous render don't target stale elements.
+ */
+export function clearAllPendingTimers(): void {
+  _pendingTimers.forEach((timers) => timers.forEach(clearTimeout));
+  _pendingTimers.clear();
+}
+
+/**
  * Hides the route for climb at `index`, cancelling any active animations.
  */
 export function hideClimbRoute(index: number): void {

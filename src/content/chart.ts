@@ -6,9 +6,7 @@ import type { Segment } from "../types";
 import { ratioToPercent } from "../format";
 import {
   type ProfilePoint,
-  type GradientZone,
   CYCLING_GRADE_COLORS,
-  HIKING_GRADE_COLORS,
   getColorForGrade,
   buildProfilePoints,
   simplifyProfile,
@@ -16,18 +14,6 @@ import {
   mergeShortZones,
   segmentGradient,
 } from "../gradient-zones";
-
-// Re-export for consumers that previously imported these from chart.ts
-export type { ProfilePoint, GradientZone };
-export {
-  CYCLING_GRADE_COLORS,
-  HIKING_GRADE_COLORS,
-  getColorForGrade,
-  buildProfilePoints,
-  simplifyProfile,
-  buildGradientZones,
-  mergeShortZones,
-};
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 

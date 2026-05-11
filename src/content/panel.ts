@@ -49,26 +49,26 @@ function wireLayerToggle(panel: HTMLElement): void {
   const eyeIcon = layerBtn.querySelector<SVGElement>(".cip-eye-icon")!;
   const eyeOffIcon = layerBtn.querySelector<SVGElement>(".cip-eye-off-icon")!;
 
+  let isVisible = true;
+
+  const applyVisibility = (visible: boolean) => {
+    eyeIcon.style.display = visible ? "" : "none";
+    eyeOffIcon.style.display = visible ? "none" : "";
+    layerBtn.classList.toggle("cip-layer-off", !visible);
+  };
+
   chrome.storage.local.get(StorageKey.MapLayerVisible, (pref) => {
-    const visible = pref[StorageKey.MapLayerVisible] as boolean | undefined;
-    const isVisible = visible !== false;
-    eyeIcon.style.display = isVisible ? "" : "none";
-    eyeOffIcon.style.display = isVisible ? "none" : "";
-    layerBtn.classList.toggle("cip-layer-off", !isVisible);
+    isVisible = (pref[StorageKey.MapLayerVisible] as boolean | undefined) !== false;
+    applyVisibility(isVisible);
   });
 
   layerBtn.addEventListener("click", (e) => {
     e.stopPropagation();
-    chrome.storage.local.get(StorageKey.MapLayerVisible, (pref) => {
-      const current = (pref[StorageKey.MapLayerVisible] as boolean | undefined) !== false;
-      const next = !current;
-      chrome.storage.local.set({ [StorageKey.MapLayerVisible]: next });
-      eyeIcon.style.display = next ? "" : "none";
-      eyeOffIcon.style.display = next ? "none" : "";
-      layerBtn.classList.toggle("cip-layer-off", !next);
-      const overlay = document.getElementById(ElementId.MarkerOverlay);
-      if (overlay) overlay.style.display = next ? "" : "none";
-    });
+    isVisible = !isVisible;
+    chrome.storage.local.set({ [StorageKey.MapLayerVisible]: isVisible });
+    applyVisibility(isVisible);
+    const overlay = document.getElementById(ElementId.MarkerOverlay);
+    if (overlay) overlay.style.display = isVisible ? "" : "none";
   });
 }
 

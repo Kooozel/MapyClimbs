@@ -48,7 +48,7 @@ export default defineContentScript({
 class RoutePlannerController {
   private analysisResult: AnalysisResult | null = null;
   private panelInjected = false;
-  private _popupOpen = false;
+  private popupOpen = false;
   private lastGPXLength = 0;
   private lastURL = "";
   private lastRoutePlannerVisible = false;
@@ -157,7 +157,7 @@ class RoutePlannerController {
     this.debounceTimer = window.setTimeout(() => {
       if (this.analysisResult && this.isRoutePlannerActive()) {
         renderMapOverlay(this.analysisResult); // Re-calculate positions
-        if (!this._popupOpen) overlay.style.visibility = "visible";
+        if (!this.popupOpen) overlay.style.visibility = "visible";
       }
     }, 350); // Adjust delay as needed
   }
@@ -251,9 +251,9 @@ class RoutePlannerController {
 
   // ── Storage polling ───────────────────────────────────────────────────────────
 
-  private async pollForGPX(): Promise<void> {
+  private pollForGPX(): void {
     if (!this.isRoutePlannerActive()) return;
-    await this.fetchTabState((data) => {
+    void this.fetchTabState((data) => {
       if (!data) return;
 
       const { gpxContent, activeRouteClass } = data.pendingGPX || {};
@@ -400,15 +400,9 @@ class RoutePlannerController {
   // ── State & cleanup ───────────────────────────────────────────────────────────
 
   private async clearRoutePlannerState(): Promise<void> {
-    this.isAutomating = false;
-    this.hideFullscreenLoader();
-    this.analysisResult = null;
-    this.panelInjected = false;
+    this.clearUI();
     this.lastGPXLength = 0;
     document.getElementById(ElementId.Button)?.remove();
-    document.getElementById(ElementId.Panel)?.remove();
-    const overlay = document.getElementById(ElementId.MarkerOverlay);
-    if (overlay) overlay.innerHTML = "";
     const tabId = await getTabId();
     const message: ClearTabStateMessage = { type: "CLEAR_TAB_STATE", tabId };
     chrome.runtime.sendMessage(message, () => {
@@ -427,8 +421,8 @@ class RoutePlannerController {
     // The container element may always be present in the DOM; only treat as
     // open when it actually contains content (i.e. a popup is being shown).
     const popupOpen = holderOpen || dialogOpen;
-    if (popupOpen !== this._popupOpen) {
-      this._popupOpen = popupOpen;
+    if (popupOpen !== this.popupOpen) {
+      this.popupOpen = popupOpen;
       setOverlayVisible(!popupOpen);
     }
   }

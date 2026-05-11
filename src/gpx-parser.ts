@@ -5,6 +5,12 @@
 
 import type { ElevationTuple } from "./types";
 
+interface TrackPoint {
+  lat: number;
+  lon: number;
+  ele: number;
+}
+
 /**
  * Parse GPX XML content and return an elevation profile.
  * Throws on malformed XML or empty track.
@@ -35,12 +41,6 @@ export function parseGPX(gpxContent: string): ElevationTuple[] {
     throw new Error("No track points found in GPX file");
   }
 
-  interface TrackPoint {
-    lat: number;
-    lon: number;
-    ele: number;
-  }
-
   const trackPoints: TrackPoint[] = [];
 
   for (let i = 0; i < trkpts.length; i++) {
@@ -61,9 +61,7 @@ export function parseGPX(gpxContent: string): ElevationTuple[] {
     }
   }
 
-  if (trackPoints.length === 0) {
-    throw new Error("No valid track points found in GPX file");
-  }
+  if (trackPoints.length === 0) throw new Error("No valid track points found in GPX file");
 
   const elevationProfile: ElevationTuple[] = [];
   let cumulativeDistance = 0;

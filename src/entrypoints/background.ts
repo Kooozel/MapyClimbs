@@ -73,13 +73,7 @@ export default defineBackground(() => {
       const analysisResult: AnalysisResult = routeMode ? { ...detected, routeMode } : detected;
       if (tabId != null) {
         const keys = getTabStorageKeys(tabId, activeRouteClass);
-        chrome.storage.local.set({
-          [keys.lastAnalysisResult]: analysisResult,
-        });
-      } else {
-        chrome.storage.local.set({
-          [StorageKey.LastAnalysisResult]: analysisResult,
-        });
+        chrome.storage.local.set({ [keys.lastAnalysisResult]: analysisResult });
       }
       sendResponse({ result: analysisResult, activeRouteClass });
     } catch (error) {
@@ -98,9 +92,7 @@ export default defineBackground(() => {
   }
 
   function updateClimbCategorization(
-    sendResponse: (
-      response: ClimbsResponse | GpxStoredResponse | TabStateResponse | TabIdResponse
-    ) => void,
+    sendResponse: (response: ClimbsResponse) => void,
     model: ScoringModel
   ): void {
     const EMPTY_RESULT = {

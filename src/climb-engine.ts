@@ -126,11 +126,12 @@ export function detectClimbs(
     trimmedClimbs[i] = snapEndCoordsToRawPeak(trimmedClimbs[i], resampled, lookahead);
   }
 
+  const { gain, descent } = calculateStats(resampled);
   return {
     climbs: trimmedClimbs,
     totalDistance: profile[profile.length - 1].distance,
-    totalElevationGain: calculateStats(resampled).gain,
-    totalElevationLoss: calculateStats(resampled).descent,
+    totalElevationGain: gain,
+    totalElevationLoss: descent,
     timestamp: Date.now(),
   };
 }
@@ -735,32 +736,30 @@ export function computeMaxSustainedGradient(segments: Segment[], windowM = 200):
   return bestPct / 100;
 }
 
+function scoreForHiking(
+  elevation: number,
+  distance: number,
+  avgGrade: number,
+  segments: Segment[]
+): { difficulty: number; category: ClimbCategory } | null {
+  const summitElevationM = segments.reduce((m, s) => Math.max(m, s.endElevation), -Infinity);
+  const maxGradientDecimal = computeMaxSustainedGradient(segments);
+  return applyHikingScore(
+    { totalElevationM: elevation, totalDistanceM: distance, summitElevationM, maxGradientDecimal },
+    distance,
+    avgGrade
+  );
+}
+
 export function categorizeClimb(climb: RawClimb, scoringModel: ScoringModel = "aso"): Climb | null {
   if (!climb || climb.totalDistance === 0 || climb.totalElevation === 0) return null;
 
   const avgGrade = (climb.totalElevation / climb.totalDistance) * 100;
 
-  let scored: { difficulty: number; category: ClimbCategory } | null;
-
-  if (scoringModel === "hiking") {
-    const summitElevationM = climb.segments.reduce(
-      (m, s) => Math.max(m, s.endElevation),
-      -Infinity
-    );
-    const maxGradientDecimal = computeMaxSustainedGradient(climb.segments);
-    scored = applyHikingScore(
-      {
-        totalElevationM: climb.totalElevation,
-        totalDistanceM: climb.totalDistance,
-        summitElevationM,
-        maxGradientDecimal,
-      },
-      climb.totalDistance,
-      avgGrade
-    );
-  } else {
-    scored = applyScore(climb.totalDistance, avgGrade, scoringModel);
-  }
+  const scored =
+    scoringModel === "hiking"
+      ? scoreForHiking(climb.totalElevation, climb.totalDistance, avgGrade, climb.segments)
+      : applyScore(climb.totalDistance, avgGrade, scoringModel);
 
   if (!scored) return null;
 
@@ -797,26 +796,10 @@ export function categorizeClimb(climb: RawClimb, scoringModel: ScoringModel = "a
 export function recategorizeClimbs(climbs: Climb[], model: ScoringModel): Climb[] {
   return climbs
     .map((climb): Climb | null => {
-      let scored: { difficulty: number; category: ClimbCategory } | null;
-      if (model === "hiking") {
-        const summitElevationM = climb.segments.reduce(
-          (m, s) => Math.max(m, s.endElevation),
-          -Infinity
-        );
-        const maxGradientDecimal = computeMaxSustainedGradient(climb.segments);
-        scored = applyHikingScore(
-          {
-            totalElevationM: climb.elevation,
-            totalDistanceM: climb.distance,
-            summitElevationM,
-            maxGradientDecimal,
-          },
-          climb.distance,
-          climb.avgGrade
-        );
-      } else {
-        scored = applyScore(climb.distance, climb.avgGrade, model);
-      }
+      const scored =
+        model === "hiking"
+          ? scoreForHiking(climb.elevation, climb.distance, climb.avgGrade, climb.segments)
+          : applyScore(climb.distance, climb.avgGrade, model);
       return scored ? { ...climb, ...scored } : null;
     })
     .filter((c): c is Climb => c !== null);

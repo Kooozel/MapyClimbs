@@ -5,30 +5,19 @@
  * Exports: buildClimbCard, calcMaxGradientOver
  */
 
-import { generateElevationChart, CYCLING_GRADE_COLORS, HIKING_GRADE_COLORS } from "./chart";
+import { generateElevationChart } from "./chart";
 import { getCategoryClass } from "./category";
 import { metersToKm, metersToKmNum, toPercent, formatMinutes } from "../format";
-import { ClimbCategory, type Climb, type Segment, type RouteMode } from "../types";
-import { buildProfilePoints, simplifyProfile, calcMaxGradientFromProfile } from "../gradient-zones";
+import { ClimbCategory, type Climb, type RouteMode } from "../types";
+import {
+  CYCLING_GRADE_COLORS,
+  HIKING_GRADE_COLORS,
+  buildProfilePoints,
+  simplifyProfile,
+  calcMaxGradientFromProfile,
+} from "../gradient-zones";
 
 // ── Climb metrics ─────────────────────────────────────────────────────────────
-
-export function calcMaxGradientOver(segments: Segment[], minDistance: number): number {
-  let best = 0;
-  for (let i = 0; i < segments.length; i++) {
-    let dist = 0,
-      weightedGrad = 0;
-    for (let j = i; j < segments.length; j++) {
-      dist += segments[j].distance;
-      weightedGrad += segments[j].gradient * segments[j].distance;
-      if (dist >= minDistance) {
-        best = Math.max(best, weightedGrad / dist);
-        break;
-      }
-    }
-  }
-  return best;
-}
 
 function estimatedSpeedKmh(avgGrade: number): number {
   return 12 / (1 + avgGrade / 5);
