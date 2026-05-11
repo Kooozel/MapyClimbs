@@ -41,7 +41,7 @@ export function buildRouteOverview(analysisResult: AnalysisResult): string {
       <div class="route-overview-title">${chrome.i18n.getMessage("panelRouteOverview")}</div>
       <div class="route-stats-row">
         <div class="rstat"><span class="rstat-value">${distKm}</span><span class="rstat-label">${chrome.i18n.getMessage("panelKmTotal")}</span></div>
-        <div class="rstat"><span class="rstat-value">+${Math.round(totalElevationGain)}</span><span class="rstat-label">${chrome.i18n.getMessage("panelMClimbing")}</span></div>
+        <div class="rstat"><span class="rstat-value">+${Math.round(totalElevationGain)}</span><span class="rstat-label rstat-label--info">${chrome.i18n.getMessage("panelMClimbing")}<span class="rstat-info" data-tooltip="${chrome.i18n.getMessage("panelElevationGainTooltip")}">ⓘ</span></span></div>
         <div class="rstat"><span class="rstat-value">${climbs.length}</span><span class="rstat-label">${climbsLabel}</span></div>
         <div class="rstat"><span class="rstat-value">${climbingKm}</span><span class="rstat-label">${chrome.i18n.getMessage("panelKmClimbs")}</span></div>
       </div>

@@ -353,7 +353,7 @@ class RoutePlannerController {
     this.isAutomating = false;
     if (!this.isAnalyzing) {
       this.hideFullscreenLoader();
-      if (this.analysisResult) renderMapOverlay(this.analysisResult.climbs);
+      if (this.analysisResult) renderMapOverlay(this.analysisResult);
     }
   }
 
@@ -382,7 +382,7 @@ class RoutePlannerController {
     if (!this.isAutomating) {
       const hadLoader = !!document.getElementById(ElementId.Loader);
       this.hideFullscreenLoader();
-      if (hadLoader && this.analysisResult) renderMapOverlay(this.analysisResult.climbs);
+      if (hadLoader && this.analysisResult) renderMapOverlay(this.analysisResult);
     }
     const existing = document.getElementById(ElementId.Panel);
     if (existing) {

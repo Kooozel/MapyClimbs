@@ -134,6 +134,10 @@
     "message": "m nastoupáno",
     "description": "Stat label for total elevation gain"
   },
+  "panelElevationGainTooltip": {
+    "message": "Vypočteno z GPX dat. Může se lišit od hodnoty Mapy.com.",
+    "description": "Tooltip explaining elevation gain discrepancy with Mapy.cz"
+  },
   "panelMDescent": {
     "message": "m sestoupáno",
     "description": "Stat label for total elevation loss"

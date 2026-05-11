@@ -40,14 +40,14 @@ export const SCORING_CONFIGS: Readonly<Record<Exclude<ScoringModel, "hiking">, S
       { category: ClimbCategory.Cat2, min: 150 },
       { category: ClimbCategory.Cat3, min: 75 },
       { category: ClimbCategory.Cat4, min: 8 },
-      { category: ClimbCategory.Uncategorized, min: 1 },
+      { category: ClimbCategory.Uncategorized, min: 4.5 },
     ],
   },
   garmin: {
     // Garmin ClimbPro: score = distance (m) × avgGrade (%)
     score: (distanceM, avgGrade) => distanceM * avgGrade,
-    minDistanceM: 500,
-    minAvgGradePct: 3,
+    minDistanceM: 300,
+    minAvgGradePct: 2,
     thresholds: [
       { category: ClimbCategory.HC, min: 64000 },
       { category: ClimbCategory.Cat1, min: 48000 },

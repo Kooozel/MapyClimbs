@@ -134,6 +134,10 @@
     "message": "m gained",
     "description": "Stat label for total elevation gain"
   },
+  "panelElevationGainTooltip": {
+    "message": "Calculated from GPX data. May differ from Mapy.com",
+    "description": "Tooltip explaining elevation gain discrepancy with Mapy.cz"
+  },
   "panelMDescent": {
     "message": "m lost",
     "description": "Stat label for total elevation loss"
