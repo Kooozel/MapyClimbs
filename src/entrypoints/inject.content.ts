@@ -56,6 +56,7 @@ class RoutePlannerController {
   private lastActiveRoute: string | undefined = undefined;
   private routesWired = false;
   private isAnalyzing = false;
+  private isAutomating = false;
 
   // ── Entry point ─────────────────────────────────────────────────────────────
 
@@ -183,6 +184,7 @@ class RoutePlannerController {
   }
 
   private async handleAlternativeRouteChange(): Promise<void> {
+    if (this.isAutomating) return;
     const routeClass = this.lastActiveRoute; // Capture before async gap
     this.isAnalyzing = false;
     this.clearUI();
@@ -283,6 +285,7 @@ class RoutePlannerController {
         this.analysisResult = lastAnalysisResult;
         this.renderPanel();
         renderMapOverlay(this.analysisResult);
+        if (!this.isAutomating) renderMapOverlay(this.analysisResult);
 
         this.isAnalyzing = false; // Stop polling
       }
@@ -301,6 +304,8 @@ class RoutePlannerController {
 
   /** Helper to wipe visual elements */
   private clearUI(): void {
+    this.isAutomating = false;
+    this.hideFullscreenLoader();
     this.analysisResult = null;
     this.panelInjected = false;
     document.getElementById(ElementId.Panel)?.remove();
@@ -331,17 +336,54 @@ class RoutePlannerController {
       this.analysisResult = response.result;
       this.renderPanel();
       renderMapOverlay(this.analysisResult);
+      if (!this.isAutomating) renderMapOverlay(this.analysisResult);
     });
   }
 
   private handleClimbStart(routeClass: string): void {
+    if (!this.isAutomating) {
+      this.isAutomating = true;
+      this.showFullscreenLoader();
+    }
     this.lastActiveRoute = routeClass;
     this.isAnalyzing = true;
+  }
+
+  private handleAutomationDone(): void {
+    this.isAutomating = false;
+    if (!this.isAnalyzing) {
+      this.hideFullscreenLoader();
+      if (this.analysisResult) renderMapOverlay(this.analysisResult.climbs);
+    }
+  }
+
+  // ── Fullscreen loader ─────────────────────────────────────────────────────────
+
+  private showFullscreenLoader(): void {
+    if (document.getElementById(ElementId.Loader)) return;
+    const el = document.createElement("div");
+    el.id = ElementId.Loader;
+    el.innerHTML = `
+      <div class="cip-loader-card">
+        <img src="${chrome.runtime.getURL("images/icon-48.png")}" width="32" height="32" alt="" aria-hidden="true">
+        <div class="cip-spinner" aria-hidden="true"></div>
+        <span>${chrome.i18n.getMessage("panelAnalyzing")}</span>
+      </div>`;
+    document.body.appendChild(el);
+  }
+
+  private hideFullscreenLoader(): void {
+    document.getElementById(ElementId.Loader)?.remove();
   }
 
   // ── Panel ─────────────────────────────────────────────────────────────────────
 
   private renderPanel(): void {
+    if (!this.isAutomating) {
+      const hadLoader = !!document.getElementById(ElementId.Loader);
+      this.hideFullscreenLoader();
+      if (hadLoader && this.analysisResult) renderMapOverlay(this.analysisResult.climbs);
+    }
     const existing = document.getElementById(ElementId.Panel);
     if (existing) {
       existing.replaceWith(buildPanel(this.analysisResult));
@@ -366,6 +408,8 @@ class RoutePlannerController {
   // ── State & cleanup ───────────────────────────────────────────────────────────
 
   private async clearRoutePlannerState(): Promise<void> {
+    this.isAutomating = false;
+    this.hideFullscreenLoader();
     this.analysisResult = null;
     this.panelInjected = false;
     this.lastGPXLength = 0;
@@ -420,7 +464,10 @@ class RoutePlannerController {
     }
 
     if (!document.getElementById(ElementId.Button))
-      tryInjectButton((routeClass) => this.handleClimbStart(routeClass));
+      tryInjectButton(
+        (routeClass) => this.handleClimbStart(routeClass),
+        () => this.handleAutomationDone()
+      );
     if (this.analysisResult && (!this.panelInjected || !document.getElementById(ElementId.Panel))) {
       this.panelInjected = false;
       this.tryInjectPanel();

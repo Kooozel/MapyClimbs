@@ -177,6 +177,10 @@
     "message": "Na této trase nebylo zjištěno žádné stoupání.",
     "description": "Message shown when no climbs are found"
   },
+  "panelAnalyzing": {
+    "message": "Analyzuji trasu…",
+    "description": "Loading message shown in sidebar panel while GPX is being processed"
+  },
   "panelClimbsDetectedSingular": {
     "message": "stoupání",
     "description": "Section label when exactly one climb is found"

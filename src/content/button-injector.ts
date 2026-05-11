@@ -1,13 +1,19 @@
 import { ElementId } from "../constants";
 
-export function tryInjectButton(onClick: (routeClass: string) => void): void {
+export function tryInjectButton(
+  onRouteActive: (routeClass: string) => void,
+  onDone: () => void
+): void {
   if (document.getElementById(ElementId.Button)) return;
   const target = document.querySelector(".route-actions");
   if (!target) return;
-  target.appendChild(buildButton(onClick));
+  target.appendChild(buildButton(onRouteActive, onDone));
 }
 
-function buildButton(onClick: (routeClass: string) => void): HTMLDivElement {
+function buildButton(
+  onRouteActive: (routeClass: string) => void,
+  onDone: () => void
+): HTMLDivElement {
   const btn = document.createElement("div");
   btn.id = ElementId.Button;
   btn.className = "icon-action";
@@ -17,12 +23,16 @@ function buildButton(onClick: (routeClass: string) => void): HTMLDivElement {
       <span>${chrome.i18n.getMessage("panelTitle")}</span>
     </button>`;
 
-  // Pass the callback into the runner
-  btn.querySelector("button")!.addEventListener("click", () => runAutomatedClimb(onClick));
+  btn
+    .querySelector("button")!
+    .addEventListener("click", () => runAutomatedClimb(onRouteActive, onDone));
   return btn;
 }
 
-async function runAutomatedClimb(onRouteActive: (routeClass: string) => void): Promise<void> {
+async function runAutomatedClimb(
+  onRouteActive: (routeClass: string) => void,
+  onDone: () => void
+): Promise<void> {
   const routes = document.querySelectorAll<HTMLHeadingElement>(
     "#layout-body > div > div.route-summary h3"
   );
@@ -52,6 +62,7 @@ async function runAutomatedClimb(onRouteActive: (routeClass: string) => void): P
 
   // Restore the original route view
   originalRoute?.click();
+  onDone();
 }
 
 function findGPXExportButton(): Element | null {
@@ -78,37 +89,39 @@ function triggerExportAndSave(): Promise<void> {
       return;
     }
 
+    // Hide the backdrop before it paints; removed after dialog is fully gone
+    const suppressStyle = document.createElement("style");
+    suppressStyle.textContent = "body>div.mymaps-dialog__cover{opacity:0!important}";
+    document.head.appendChild(suppressStyle);
+
     const observer = new MutationObserver(() => {
       const saveBtn = document.querySelector<HTMLElement>(".mymaps-dialog__saveBtn");
       if (!saveBtn) return;
 
       observer.disconnect();
 
-      // Visual suppression logic
       const dialogRoot = saveBtn.closest<HTMLElement>(".mymaps-dialog__content");
       if (dialogRoot) {
         dialogRoot.style.setProperty("opacity", "0", "important");
-        if (dialogRoot.parentElement) {
+        if (dialogRoot.parentElement)
           dialogRoot.parentElement.style.setProperty("opacity", "0", "important");
-        }
       }
 
       window.postMessage({ type: "CLIMB_SUPPRESS_DOWNLOAD" }, location.origin);
-
       saveBtn.click();
 
-      // Give the "Save" action a moment to process before resolving
-      setTimeout(resolve, 1000);
+      setTimeout(() => {
+        suppressStyle.remove();
+        resolve();
+      }, 1000);
     });
 
     observer.observe(document.body, { childList: true, subtree: true });
-
-    // Click the export button to trigger the dialog
     (exportBtn as HTMLElement).click();
 
-    // Timeout safety
     setTimeout(() => {
       observer.disconnect();
+      suppressStyle.remove();
       resolve();
     }, 5000);
   });

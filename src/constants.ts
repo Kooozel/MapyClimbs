@@ -27,6 +27,8 @@ export const ElementId = {
   MarkerOverlay: "climb-marker-overlay",
   /** The inline SVG element inside the overlay that holds polyline elements. */
   RouteSvg: "climb-route-svg",
+  /** Fullscreen overlay shown while route GPX is being captured and analyzed. */
+  Loader: "cip-loader",
 } as const;
 
 // ── CSS class names ───────────────────────────────────────────────────────────

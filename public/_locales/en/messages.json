@@ -177,6 +177,10 @@
     "message": "No climbs detected on this route.",
     "description": "Message shown when no climbs are found"
   },
+  "panelAnalyzing": {
+    "message": "Analyzing route…",
+    "description": "Loading message shown in sidebar panel while GPX is being processed"
+  },
   "panelClimbsDetectedSingular": {
     "message": "climb",
     "description": "Section label when exactly one climb is found"
