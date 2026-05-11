@@ -9,7 +9,6 @@ import { buildPanel } from "../content/panel";
 import { renderMapOverlay, setOverlayVisible } from "../content/map-overlay";
 import { tryInjectButton } from "../content/button-injector";
 import {
-  StorageKey,
   type ElevationTuple,
   type ProcessClimbsMessage,
   type ClimbsResponse,
@@ -186,6 +185,7 @@ class RoutePlannerController {
   private async handleAlternativeRouteChange(): Promise<void> {
     if (this.isAutomating) return;
     const routeClass = this.lastActiveRoute; // Capture before async gap
+    if (!routeClass) return;
     this.isAnalyzing = false;
     this.clearUI();
 
@@ -226,7 +226,6 @@ class RoutePlannerController {
         if (!visible) {
           const overlay = document.getElementById(ElementId.MarkerOverlay);
           if (overlay) overlay.innerHTML = "";
-          chrome.storage.local.remove([StorageKey.PendingGPX, StorageKey.GpxCaptureTime]);
         } else if (this.analysisResult) {
           renderMapOverlay(this.analysisResult);
         }
@@ -246,7 +245,7 @@ class RoutePlannerController {
   }
 
   private onRouteChange(): void {
-    this.clearRoutePlannerState();
+    void this.clearRoutePlannerState();
     if (this.isRoutePlannerActive()) this.pollForGPX();
   }
 
@@ -284,7 +283,6 @@ class RoutePlannerController {
       ) {
         this.analysisResult = lastAnalysisResult;
         this.renderPanel();
-        renderMapOverlay(this.analysisResult);
         if (!this.isAutomating) renderMapOverlay(this.analysisResult);
 
         this.isAnalyzing = false; // Stop polling
@@ -294,12 +292,7 @@ class RoutePlannerController {
 
   /** Helper to validate result structure */
   private isResultValid(result: AnalysisResult): boolean {
-    return !!(
-      result &&
-      Array.isArray(result.climbs) &&
-      result.climbs.length > 0 &&
-      result.climbs[0].markerCoords
-    );
+    return !!(result && Array.isArray(result.climbs) && result.climbs.length > 0);
   }
 
   /** Helper to wipe visual elements */
@@ -335,7 +328,6 @@ class RoutePlannerController {
       if (chrome.runtime.lastError || !response?.result) return;
       this.analysisResult = response.result;
       this.renderPanel();
-      renderMapOverlay(this.analysisResult);
       if (!this.isAutomating) renderMapOverlay(this.analysisResult);
     });
   }
@@ -444,7 +436,7 @@ class RoutePlannerController {
   private onMutation(): void {
     this.checkPopupOverlap();
     if (!this.isRoutePlannerActive()) {
-      this.clearRoutePlannerState();
+      void this.clearRoutePlannerState();
       this.routesWired = false;
       this.lastActiveRoute = undefined; // Reset state
       return;

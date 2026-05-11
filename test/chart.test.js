@@ -38,10 +38,15 @@ describe('getColorForGrade', () => {
     expect(getColorForGrade(9)).toBe('#D32F2F');
   });
 
-  it('returns bordeaux at the 12% boundary and above', () => {
+  it('returns bordeaux for grades 12–14%', () => {
     expect(getColorForGrade(12)).toBe('#800020');
-    expect(getColorForGrade(25)).toBe('#800020');
-    expect(getColorForGrade(100)).toBe('#800020');
+    expect(getColorForGrade(14.9)).toBe('#800020');
+  });
+
+  it('returns dark maroon at the 15% boundary and above', () => {
+    expect(getColorForGrade(15)).toBe('#3B0010');
+    expect(getColorForGrade(25)).toBe('#3B0010');
+    expect(getColorForGrade(100)).toBe('#3B0010');
   });
 });
 

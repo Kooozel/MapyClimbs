@@ -6,7 +6,7 @@
 
 import { getCategoryColor } from "./category";
 import { metersToKm, toPercent, ratioToPercent } from "../format";
-import type { AnalysisResult } from "../types";
+import { ClimbCategory, type AnalysisResult } from "../types";
 
 // ── Route overview ────────────────────────────────────────────────────────────
 
@@ -30,7 +30,13 @@ export function buildRouteOverview(analysisResult: AnalysisResult): string {
     const widthPct = parseFloat(endPct) - parseFloat(startPct);
     const color = getCategoryColor(climb.category);
     const midPct = toPercent(parseFloat(startPct) + widthPct / 2);
-    stripSegments += `<div class="strip-segment" style="left:${startPct};width:${toPercent(widthPct)};background:${color};opacity:0.85;" title="${chrome.i18n.getMessage("panelClimb", [String(i + 1)])}: ${chrome.i18n.getMessage("panelCat", [climb.category])}"></div>`;
+    const catLabel =
+      climb.category === ClimbCategory.HC
+        ? "HC"
+        : climb.category === ClimbCategory.Uncategorized
+          ? chrome.i18n.getMessage("panelCatUncategorized")
+          : chrome.i18n.getMessage("panelCat", [climb.category]);
+    stripSegments += `<div class="strip-segment" style="left:${startPct};width:${toPercent(widthPct)};background:${color};opacity:0.85;" title="${chrome.i18n.getMessage("panelClimb", [String(i + 1)])}: ${catLabel}"></div>`;
     if (widthPct > 4) {
       stripLabels += `<span class="strip-label" style="left:${midPct}">${i + 1}</span>`;
     }

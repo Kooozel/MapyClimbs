@@ -84,7 +84,6 @@ export type ExtensionMessage =
   | GetTabStateMessage
   | ClearTabStateMessage
   | RecategorizeMessage
-  | MapLayerVisibilityMessage
   | GetTabIdMessage;
 
 /**

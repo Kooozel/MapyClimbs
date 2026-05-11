@@ -50,10 +50,7 @@ async function runAutomatedClimb(
       await new Promise((resolve) => setTimeout(resolve, 800));
     }
 
-    // 2. IMPORTANT: Update the Controller's state so it knows which key to use
     onRouteActive(routeClass);
-
-    // 3. Trigger the export for THIS specific route
     await triggerExportAndSave();
 
     // Give the interceptor a moment to catch the file before switching tabs

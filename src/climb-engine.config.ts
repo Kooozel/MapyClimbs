@@ -107,9 +107,5 @@ export const TRIM_TAIL_WINDOW_M = 200;
  *  the candidate endpoint to be accepted. Lower values tolerate noisy climbs; higher
  *  values enforce a cleaner end. */
 export const TRIM_STEEP_RATIO = 0.2;
-/** Minimum elevation gain (m) that must exist in the suffix after an endIndex candidate for
- *  the endpoint to be accepted. Prevents a single noise spike in an otherwise flat tail from
- *  anchoring the climb end too far along the route. */
-export const TRIM_TAIL_MIN_ELEV_M = 15;
 /** Minimum remaining distance (m) after trimming; shorter climbs are discarded. */
 export const TRIM_MIN_DISTANCE_M = 100;

@@ -120,28 +120,30 @@ export default defineBackground(() => {
         return;
       }
 
-      const keys = tabIds.flatMap((tabId) => {
-        const tabKeys = getTabStorageKeys(tabId);
-        return [tabKeys.lastAnalysisResult];
-      });
+      // Results are stored per-tab per-route-class (e.g. lastAnalysisResult:<tabId>:alt-0).
+      // Read all storage to find every matching key for the open tabs.
+      chrome.storage.local.get(null, (allItems) => {
+        const resultKeys = tabIds.flatMap((tabId) => {
+          const prefix = getTabStorageKeys(tabId).lastAnalysisResult;
+          return Object.keys(allItems).filter((k) => k.startsWith(prefix));
+        });
 
-      chrome.storage.local.get(keys, (data) => {
+        if (resultKeys.length === 0) {
+          sendResponse(EMPTY_RESULT);
+          return;
+        }
+
         const storageUpdates: Record<string, unknown> = {};
 
-        for (const tabId of tabIds) {
-          const tabKeys = getTabStorageKeys(tabId);
-          const storedAnalysisResult = data[tabKeys.lastAnalysisResult] as
-            | AnalysisResult
-            | undefined;
+        for (const key of resultKeys) {
+          const storedAnalysisResult = allItems[key] as AnalysisResult | undefined;
           if (!storedAnalysisResult || storedAnalysisResult.climbs.length === 0) continue;
-          // Hiking routes keep their model regardless of user's cycling preference
           const effectiveModel: ScoringModel =
             storedAnalysisResult.routeMode === "hiking" ? "hiking" : model;
-          const analysisResult: AnalysisResult = {
+          storageUpdates[key] = {
             ...storedAnalysisResult,
             climbs: recategorizeClimbs(storedAnalysisResult.climbs, effectiveModel),
           };
-          storageUpdates[tabKeys.lastAnalysisResult] = analysisResult;
         }
 
         if (Object.keys(storageUpdates).length > 0) {

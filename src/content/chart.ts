@@ -14,6 +14,7 @@ import {
   simplifyProfile,
   buildGradientZones,
   mergeShortZones,
+  segmentGradient,
 } from "../gradient-zones";
 
 // Re-export for consumers that previously imported these from chart.ts
@@ -74,12 +75,6 @@ export function generateElevationChart(
 // mergeShortZones all live in ../gradient-zones — imported + re-exported above.
 
 // ── SVG building blocks ───────────────────────────────────────────────────────
-
-/** Gradient % between two profile points (private, chart-only). */
-function segmentGradient(a: ProfilePoint, b: ProfilePoint): number {
-  const dD = b.distance - a.distance;
-  return dD > 0 ? ((b.elevation - a.elevation) / dD) * 100 : 0;
-}
 
 function buildCoords(profile: ProfilePoint[], totalDistance: number) {
   const W = CHART_W,

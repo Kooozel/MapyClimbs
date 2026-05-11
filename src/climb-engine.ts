@@ -743,7 +743,10 @@ export function categorizeClimb(climb: RawClimb, scoringModel: ScoringModel = "a
   let scored: { difficulty: number; category: ClimbCategory } | null;
 
   if (scoringModel === "hiking") {
-    const summitElevationM = Math.max(...climb.segments.map((s) => s.endElevation));
+    const summitElevationM = climb.segments.reduce(
+      (m, s) => Math.max(m, s.endElevation),
+      -Infinity
+    );
     const maxGradientDecimal = computeMaxSustainedGradient(climb.segments);
     scored = applyHikingScore(
       {
@@ -796,7 +799,10 @@ export function recategorizeClimbs(climbs: Climb[], model: ScoringModel): Climb[
     .map((climb): Climb | null => {
       let scored: { difficulty: number; category: ClimbCategory } | null;
       if (model === "hiking") {
-        const summitElevationM = Math.max(...climb.segments.map((s) => s.endElevation));
+        const summitElevationM = climb.segments.reduce(
+          (m, s) => Math.max(m, s.endElevation),
+          -Infinity
+        );
         const maxGradientDecimal = computeMaxSustainedGradient(climb.segments);
         scored = applyHikingScore(
           {

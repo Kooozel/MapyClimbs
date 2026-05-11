@@ -73,12 +73,9 @@ export const HIKING_GRADE_COLORS: [number, string][] = [
   [Infinity, "#3B0010"],
 ];
 
-/** @deprecated Use CYCLING_GRADE_COLORS. Kept for backward compatibility. */
-export const GRADE_COLORS = CYCLING_GRADE_COLORS;
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-// ── Private helpers ───────────────────────────────────────────────────────────
-
-function segmentGradient(a: ProfilePoint, b: ProfilePoint): number {
+export function segmentGradient(a: ProfilePoint, b: ProfilePoint): number {
   const dD = b.distance - a.distance;
   return dD > 0 ? ((b.elevation - a.elevation) / dD) * 100 : 0;
 }

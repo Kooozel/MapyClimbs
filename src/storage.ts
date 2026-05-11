@@ -1,33 +1,14 @@
 import { AnalysisResult, GpxInfo, StorageKey, TabStateResponse } from "./types";
 
 export function getTabStorageKeys(tabId: number, active?: string) {
-  // Base keys that are always the same for the tab
   const baseKeys = {
     pendingGPX: `${StorageKey.PendingGPX}:${tabId}`,
     gpxCaptureTime: `${StorageKey.GpxCaptureTime}:${tabId}`,
   };
 
-  if (active) {
-    // Return keys including the specific active route
-    return {
-      ...baseKeys,
-      lastAnalysisResult: `${StorageKey.LastAnalysisResult}:${tabId}:${active}`,
-    };
-  } else {
-    // Return keys without a specific active route
-    // (Useful for clearing all results or prefix matching)
-    return {
-      ...baseKeys,
-      lastAnalysisResult: `${StorageKey.LastAnalysisResult}:${tabId}`,
-    };
-  }
-}
-
-export function getEffectiveTabId(
-  request: { tabId?: number },
-  sender: chrome.runtime.MessageSender
-): number | undefined {
-  return request.tabId ?? sender.tab?.id ?? undefined;
+  return active
+    ? { ...baseKeys, lastAnalysisResult: `${StorageKey.LastAnalysisResult}:${tabId}:${active}` }
+    : { ...baseKeys, lastAnalysisResult: `${StorageKey.LastAnalysisResult}:${tabId}` };
 }
 
 let cachedTabId: number | null = null;
@@ -36,8 +17,9 @@ export async function getTabId(): Promise<number> {
   if (cachedTabId !== null) return cachedTabId;
 
   const response = await chrome.runtime.sendMessage({ type: "GET_TAB_ID" });
-  cachedTabId = response.tabId;
-  return cachedTabId!;
+  if (response?.tabId == null) throw new Error("GET_TAB_ID returned no tabId");
+  cachedTabId = response.tabId as number;
+  return cachedTabId;
 }
 
 export function getTabState(
