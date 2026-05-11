@@ -4,13 +4,26 @@
  * and broadcast them via postMessage to the content script.
  */
 
+type RouteMode = "cycling" | "hiking" | "other";
+
+function detectRouteMode(): RouteMode {
+  if (document.querySelector("button.active .icon-bike")) return "cycling";
+  if (document.querySelector("button.active .icon-walk")) return "hiking";
+  return "other";
+}
+
 function postGpxFetched(gpxContent: string): void {
   if (!gpxContent.length) return;
   const activeRouteClass = document
     .querySelector<HTMLHeadingElement>("#layout-body > div > div.route-summary h3.active")
     ?.className.split(" ")[0];
+  const routeMode = detectRouteMode();
   window.postMessage(
-    { type: "GPX_FETCHED", gpxInfo: { gpxContent, activeRouteClass }, timestamp: Date.now() },
+    {
+      type: "GPX_FETCHED",
+      gpxInfo: { gpxContent, activeRouteClass, routeMode },
+      timestamp: Date.now(),
+    },
     location.origin
   );
 }

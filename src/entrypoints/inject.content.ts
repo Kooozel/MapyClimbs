@@ -72,8 +72,7 @@ class RoutePlannerController {
     this.startSPAWatcher();
 
     window.addEventListener("resize", () => {
-      if (this.analysisResult && this.isRoutePlannerActive())
-        renderMapOverlay(this.analysisResult.climbs);
+      if (this.analysisResult && this.isRoutePlannerActive()) renderMapOverlay(this.analysisResult);
     });
 
     const mapContainer = document.querySelector("#map");
@@ -120,7 +119,7 @@ class RoutePlannerController {
           if (!data || !data.lastAnalysisResult) return;
           this.analysisResult = data.lastAnalysisResult;
           this.renderPanel();
-          renderMapOverlay(this.analysisResult.climbs);
+          renderMapOverlay(this.analysisResult);
         });
       }
     );
@@ -157,7 +156,7 @@ class RoutePlannerController {
     // 3. Set timer to show it again after movement stops
     this.debounceTimer = window.setTimeout(() => {
       if (this.analysisResult && this.isRoutePlannerActive()) {
-        renderMapOverlay(this.analysisResult.climbs); // Re-calculate positions
+        renderMapOverlay(this.analysisResult); // Re-calculate positions
         if (!this._popupOpen) overlay.style.visibility = "visible";
       }
     }, 350); // Adjust delay as needed
@@ -196,7 +195,7 @@ class RoutePlannerController {
       if (cached && this.isResultValid(cached)) {
         this.analysisResult = cached;
         this.renderPanel();
-        renderMapOverlay(cached.climbs);
+        renderMapOverlay(cached);
       }
     });
   }
@@ -217,7 +216,7 @@ class RoutePlannerController {
 
       if (urlChanged) {
         this.lastURL = location.href;
-        if (this.analysisResult && visible) renderMapOverlay(this.analysisResult.climbs);
+        if (this.analysisResult && visible) renderMapOverlay(this.analysisResult);
       }
 
       if (this.lastRoutePlannerVisible !== visible) {
@@ -227,7 +226,7 @@ class RoutePlannerController {
           if (overlay) overlay.innerHTML = "";
           chrome.storage.local.remove([StorageKey.PendingGPX, StorageKey.GpxCaptureTime]);
         } else if (this.analysisResult) {
-          renderMapOverlay(this.analysisResult.climbs);
+          renderMapOverlay(this.analysisResult);
         }
       }
 
@@ -283,7 +282,7 @@ class RoutePlannerController {
       ) {
         this.analysisResult = lastAnalysisResult;
         this.renderPanel();
-        renderMapOverlay(this.analysisResult.climbs);
+        renderMapOverlay(this.analysisResult);
 
         this.isAnalyzing = false; // Stop polling
       }
@@ -331,7 +330,7 @@ class RoutePlannerController {
       if (chrome.runtime.lastError || !response?.result) return;
       this.analysisResult = response.result;
       this.renderPanel();
-      renderMapOverlay(this.analysisResult.climbs);
+      renderMapOverlay(this.analysisResult);
     });
   }
 

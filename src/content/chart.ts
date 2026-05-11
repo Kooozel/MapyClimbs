@@ -7,7 +7,8 @@ import { ratioToPercent } from "../format";
 import {
   type ProfilePoint,
   type GradientZone,
-  GRADE_COLORS,
+  CYCLING_GRADE_COLORS,
+  HIKING_GRADE_COLORS,
   getColorForGrade,
   buildProfilePoints,
   simplifyProfile,
@@ -18,6 +19,8 @@ import {
 // Re-export for consumers that previously imported these from chart.ts
 export type { ProfilePoint, GradientZone };
 export {
+  CYCLING_GRADE_COLORS,
+  HIKING_GRADE_COLORS,
   getColorForGrade,
   buildProfilePoints,
   simplifyProfile,
@@ -53,13 +56,17 @@ const MIN_TICK_PX = 38;
 // ── Public entry point ────────────────────────────────────────────────────────
 
 /** Returns an HTML string with the SVG elevation chart, or '' when data is insufficient. */
-export function generateElevationChart(segments: Segment[], totalDistanceMeters: number): string {
+export function generateElevationChart(
+  segments: Segment[],
+  totalDistanceMeters: number,
+  gradeColors: [number, string][] = CYCLING_GRADE_COLORS
+): string {
   if (!segments || segments.length === 0) return "";
 
   const profile = buildProfilePoints(segments);
   if (profile.length < 2) return "";
 
-  return renderElevationSVG(simplifyProfile(profile), totalDistanceMeters);
+  return renderElevationSVG(simplifyProfile(profile), totalDistanceMeters, gradeColors);
 }
 
 // ── Profile building ──────────────────────────────────────────────────────────
@@ -119,12 +126,16 @@ function buildCurvePaths(
   };
 }
 
-function buildGradientStops(profile: ProfilePoint[], totalDistance: number): string {
+function buildGradientStops(
+  profile: ProfilePoint[],
+  totalDistance: number,
+  gradeColors: [number, string][]
+): string {
   const stops: string[] = [];
   for (let i = 0; i < profile.length - 1; i++) {
     const a = profile[i],
       b = profile[i + 1];
-    const col = getColorForGrade(segmentGradient(a, b));
+    const col = getColorForGrade(segmentGradient(a, b), gradeColors);
     const sPct = ratioToPercent(a.distance, totalDistance || 1, 2);
     const ePct = ratioToPercent(b.distance, totalDistance || 1, 2);
     stops.push(
@@ -193,22 +204,26 @@ function buildXAxis(
 
 // ── SVG assembly ──────────────────────────────────────────────────────────────
 
-/** Build the gradient-colour legend HTML from GRADE_COLORS so that it always
- *  stays in sync with the actual chart colours without duplicating hex values. */
-function buildLegend(): string {
-  return GRADE_COLORS.map(([threshold, color], i) => {
-    const prev = i > 0 ? (GRADE_COLORS[i - 1][0] as number) : null;
-    const label =
-      threshold === Infinity
-        ? `≥${prev}%`
-        : prev === null
-          ? `<${threshold}%`
-          : `${prev}–${threshold}%`;
-    return `<span><span class="csw" style="background:${color}"></span>${label}</span>`;
-  }).join("\n        ");
+function buildLegend(gradeColors: [number, string][]): string {
+  return gradeColors
+    .map(([threshold, color], i) => {
+      const prev = i > 0 ? (gradeColors[i - 1][0] as number) : null;
+      const label =
+        threshold === Infinity
+          ? `≥${prev}%`
+          : prev === null
+            ? `<${threshold}%`
+            : `${prev}–${threshold}%`;
+      return `<span><span class="csw" style="background:${color}"></span>${label}</span>`;
+    })
+    .join("\n        ");
 }
 
-function renderElevationSVG(profile: ProfilePoint[], totalDistance: number): string {
+function renderElevationSVG(
+  profile: ProfilePoint[],
+  totalDistance: number,
+  gradeColors: [number, string][]
+): string {
   if (profile.length < 2) return "";
 
   const c = buildCoords(profile, totalDistance);
@@ -216,7 +231,7 @@ function renderElevationSVG(profile: ProfilePoint[], totalDistance: number): str
 
   const uid = _chartUid++;
   const { fillPath, strokePath } = buildCurvePaths(profile, c.sx, c.sy, c.base);
-  const stops = buildGradientStops(profile, totalDistance);
+  const stops = buildGradientStops(profile, totalDistance, gradeColors);
   const yAxis = buildYAxis(c.minElev, c.elevRange, c.M, c.W, c.sy);
   const xAxis = buildXAxis(profile, totalDistance, c.sx, c.base, c.H);
 
@@ -253,7 +268,7 @@ function renderElevationSVG(profile: ProfilePoint[], totalDistance: number): str
         ${xAxis}
       </svg>
       <div class="climb-legend">
-        ${buildLegend()}
+        ${buildLegend(gradeColors)}
       </div>
     </div>`;
 }

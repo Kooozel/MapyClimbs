@@ -67,14 +67,14 @@ if (fixtures.length === 0) {
     );
   });
 } else {
-  describe.each(fixtures)('$file', ({ file, climbCount, climbs: expectedClimbs }) => {
+  describe.each(fixtures)('$file', ({ file, climbCount, scoringModel, climbs: expectedClimbs }) => {
     let detectedClimbs;
 
     // Parse + detect once per fixture file
     try {
       const gpxContent = readFileSync(resolve(FIXTURES_DIR, file), 'utf-8');
       const elevationProfile = parseGPX(gpxContent);
-      const { climbs } = detectClimbs(elevationProfile);
+      const { climbs } = detectClimbs(elevationProfile, scoringModel ?? 'aso');
       detectedClimbs = climbs;
       debugLog(file, detectedClimbs);
     } catch (err) {

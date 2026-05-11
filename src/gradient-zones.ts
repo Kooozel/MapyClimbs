@@ -50,17 +50,29 @@ export type ZoneFilterFn = (
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 /**
- * Grade threshold → fill color.
+ * Cycling grade thresholds (3/6/9/12%) → fill color.
  * Each entry covers grades up-to-but-not-including its threshold.
  * Last entry uses Infinity to capture all steeper grades.
  */
-export const GRADE_COLORS: [number, string][] = [
+export const CYCLING_GRADE_COLORS: [number, string][] = [
   [3, "#4CAF50"],
   [6, "#FBC02D"],
   [9, "#F57C00"],
   [12, "#D32F2F"],
   [Infinity, "#800020"],
 ];
+
+/** Hiking grade thresholds (5/10/20/30%) — wider bands reflect walking pace. */
+export const HIKING_GRADE_COLORS: [number, string][] = [
+  [5, "#4CAF50"],
+  [10, "#FBC02D"],
+  [20, "#F57C00"],
+  [30, "#D32F2F"],
+  [Infinity, "#800020"],
+];
+
+/** @deprecated Use CYCLING_GRADE_COLORS. Kept for backward compatibility. */
+export const GRADE_COLORS = CYCLING_GRADE_COLORS;
 
 // ── Private helpers ───────────────────────────────────────────────────────────
 
@@ -71,9 +83,12 @@ function segmentGradient(a: ProfilePoint, b: ProfilePoint): number {
 
 // ── Public functions ──────────────────────────────────────────────────────────
 
-/** Returns the hex color for a given gradient percentage. */
-export function getColorForGrade(g: number): string {
-  return GRADE_COLORS.find(([threshold]) => g < threshold)![1];
+/** Returns the hex color for a given gradient percentage using the supplied color table. */
+export function getColorForGrade(
+  g: number,
+  gradeColors: [number, string][] = CYCLING_GRADE_COLORS
+): string {
+  return gradeColors.find(([threshold]) => g < threshold)![1];
 }
 
 /**
@@ -187,12 +202,15 @@ export function calcMaxGradientFromProfile(profile: ProfilePoint[], minDistance:
  * Converts a profile into contiguous color zones.
  * Adjacent segments with the same color are merged into a single zone.
  */
-export function buildGradientZones(profile: ProfilePoint[]): GradientZone[] {
+export function buildGradientZones(
+  profile: ProfilePoint[],
+  gradeColors: [number, string][] = CYCLING_GRADE_COLORS
+): GradientZone[] {
   const zones: GradientZone[] = [];
   for (let i = 0; i < profile.length - 1; i++) {
     const a = profile[i],
       b = profile[i + 1];
-    const col = getColorForGrade(segmentGradient(a, b));
+    const col = getColorForGrade(segmentGradient(a, b), gradeColors);
     if (zones.length === 0 || zones[zones.length - 1].color !== col) {
       zones.push({ color: col, start: a.distance, end: b.distance });
     } else {
@@ -242,16 +260,17 @@ export function mergeShortZones(zones: GradientZone[], minLen: number): Gradient
 /**
  * Full pipeline: segments → simplified profile → gradient zones → optional filter.
  *
- * `zoneFilter` and `zoom` are both optional; omitting them gives the standard
- * unfiltered zone array (current behaviour).
+ * `zoneFilter`, `zoom`, and `gradeColors` are all optional; omitting them gives the
+ * standard cycling-color unfiltered zone array (current behaviour).
  */
 export function buildClimbZones(
   segments: Segment[],
   totalDistance: number,
   zoneFilter?: ZoneFilterFn,
-  zoom?: number
+  zoom?: number,
+  gradeColors: [number, string][] = CYCLING_GRADE_COLORS
 ): GradientZone[] {
-  const zones = buildGradientZones(simplifyProfile(buildProfilePoints(segments)));
+  const zones = buildGradientZones(simplifyProfile(buildProfilePoints(segments)), gradeColors);
   if (zoneFilter != null && zoom != null) {
     return zoneFilter(zones, totalDistance, zoom);
   }

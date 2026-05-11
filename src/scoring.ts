@@ -28,7 +28,7 @@ export interface ScoringConfig {
  * Single source of truth for every scoring model's formula + category thresholds.
  * Exported so consumers (popup etc.) can derive display tables from it.
  */
-export const SCORING_CONFIGS: Readonly<Record<ScoringModel, ScoringConfig>> = {
+export const SCORING_CONFIGS: Readonly<Record<Exclude<ScoringModel, "hiking">, ScoringConfig>> = {
   aso: {
     // ASO/Tour de France: score = distance (km) × avgGrade²
     score: (distanceM, avgGrade) => (distanceM / 1000) * avgGrade * avgGrade,
@@ -59,6 +59,61 @@ export const SCORING_CONFIGS: Readonly<Record<ScoringModel, ScoringConfig>> = {
   },
 };
 
+// ── Hiking (TRAILS-GPX) scorer ────────────────────────────────────────────────
+
+export interface HikingScoreInput {
+  /** Total elevation gain of the climb (m). */
+  totalElevationM: number;
+  /** Total climb distance (m). */
+  totalDistanceM: number;
+  /** Summit elevation above sea level (m). */
+  summitElevationM: number;
+  /** Maximum sustained gradient over any 200 m window, as a decimal (0.25 = 25%). */
+  maxGradientDecimal: number;
+}
+
+/**
+ * TRAILS-GPX formula (roughness held at 1.0 for V1):
+ *   score = H²/(8L) + max(0, T−1500)×0.15 + H×0.002 + G_max×0.5
+ *
+ * L is in metres (despite the original spec labelling it "km" — using km
+ * produces scores 1 000× the threshold range).
+ */
+export const HIKING_THRESHOLDS: ReadonlyArray<ScoringThreshold> = [
+  { category: ClimbCategory.HC, min: 40 },
+  { category: ClimbCategory.Cat1, min: 25 },
+  { category: ClimbCategory.Cat2, min: 15 },
+  { category: ClimbCategory.Cat3, min: 8 },
+  { category: ClimbCategory.Cat4, min: 4 },
+  { category: ClimbCategory.Uncategorized, min: 0.5 },
+];
+
+export const HIKING_MIN_DISTANCE_M = 200;
+export const HIKING_MIN_AVG_GRADE_PCT = 3;
+
+export function applyHikingScore(
+  input: HikingScoreInput,
+  distanceM: number,
+  avgGrade: number
+): { difficulty: number; category: ClimbCategory } | null {
+  if (distanceM < HIKING_MIN_DISTANCE_M || avgGrade < HIKING_MIN_AVG_GRADE_PCT) return null;
+
+  const {
+    totalElevationM: H,
+    totalDistanceM: L,
+    summitElevationM: T,
+    maxGradientDecimal: gMax,
+  } = input;
+
+  const difficulty = (H * H) / (8 * L) + Math.max(0, T - 1500) * 0.15 + H * 0.002 + gMax * 0.5;
+
+  const match = HIKING_THRESHOLDS.find((t) => difficulty >= t.min);
+  if (!match) return null;
+  return { difficulty, category: match.category };
+}
+
+// ── Cycling scorer ────────────────────────────────────────────────────────────
+
 /**
  * Compute difficulty score and category for a climb.
  * Returns null when the climb doesn't meet the model's geometric minimums
@@ -67,7 +122,7 @@ export const SCORING_CONFIGS: Readonly<Record<ScoringModel, ScoringConfig>> = {
 export function applyScore(
   distanceM: number,
   avgGrade: number,
-  model: ScoringModel
+  model: Exclude<ScoringModel, "hiking">
 ): { difficulty: number; category: ClimbCategory } | null {
   const cfg = SCORING_CONFIGS[model];
   if (distanceM < cfg.minDistanceM || avgGrade < cfg.minAvgGradePct) return null;

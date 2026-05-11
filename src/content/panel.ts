@@ -24,7 +24,9 @@ function buildPanelContent(analysisResult: AnalysisResult): DocumentFragment {
   while (staticWrapper.firstChild) frag.appendChild(staticWrapper.firstChild);
 
   // Each card element carries its own event listeners (no inline handlers).
-  climbs.forEach((climb, i) => frag.appendChild(buildClimbCard(climb, i)));
+  climbs.forEach((climb, i) =>
+    frag.appendChild(buildClimbCard(climb, i, analysisResult.routeMode))
+  );
 
   return frag;
 }
