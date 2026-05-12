@@ -49,7 +49,7 @@ export const SPIKE_MAX_SEGMENT_M = RESAMPLE_MIN_INTERVAL_M * 2;
 // ── Climb identification (Step 4) ─────────────────────────────────────────────
 
 /** Gradient (%) at or above which a new climb candidate begins. */
-export const CLIMB_START_GRADE_PCT = 4;
+export const CLIMB_START_GRADE_PCT = 3.75;
 /** Minimum elevation gain (m) to pass the GPS-noise floor after trimming.
  *  Keeps phantom climbs from sensor jitter off the results; real filtering
  *  is done per scoring model via the Uncategorized threshold. */

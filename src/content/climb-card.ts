@@ -69,7 +69,7 @@ const PEAK_SVG =
 export function buildClimbCard(climb: Climb, index: number, routeMode?: RouteMode): HTMLElement {
   const catClass = getCategoryClass(climb.category);
   const simplifiedProfile = simplifyProfile(buildProfilePoints(climb.segments));
-  const maxGrad = calcMaxGradientFromProfile(simplifiedProfile, 200);
+  const maxGrad = calcMaxGradientFromProfile(simplifiedProfile, 50);
   const summit = findSummit(climb);
   const timeStr = formatMinutes(estimateClimbTime(climb));
   const isHiking = routeMode === "hiking";

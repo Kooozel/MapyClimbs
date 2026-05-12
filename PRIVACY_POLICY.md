@@ -1,6 +1,6 @@
 ```
 PRIVACY POLICY — MapyClimbs Chrome Extension
-Last updated: 2026-04-02
+Last updated: 2026-05-12
 
 1. DATA COLLECTED
    MapyClimbs does not collect, transmit, store remotely, or share any personal data,
@@ -35,6 +35,15 @@ Last updated: 2026-04-02
    If the privacy practices change in a future version, this policy will be updated
    and users will be notified via the extension's changelog.
 
-8. CONTACT
+8. DISCLAIMER OF ACCURACY
+   MapyClimbs is provided "as is" for informational and entertainment purposes only. Climb detection, gradients, categories and other statistics are computed automatically from GPX elevation data, which may contain errors or inaccuracies. Results should not be relied upon for navigation, safety-critical decisions, training plans, race preparation, or any situation where accuracy matters.
+
+9. USER RESPONSIBILITY FOR OUTDOOR ACTIVITY
+   Cycling, hiking and other outdoor activities carry inherent risks. You are solely responsible for your route choice, physical preparation, equipment and conduct. Always verify routes using official sources and assess your own ability before riding or walking.
+
+10. LIMITATION OF LIABILITY
+   To the maximum extent permitted by applicable law, the developer accepts no liability for any direct or indirect damage, injury or loss arising from use of this extension.
+
+11. CONTACT
    For questions, open an issue at: https://github.com/Kooozel/MapyClimbs.git
 ```

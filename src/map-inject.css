@@ -447,6 +447,10 @@
   background: rgba(67, 160, 71, 0.1);
   color: #2e7d32;
 }
+#climb-inject-panel .climb-item.uncat .climb-badge {
+  background: rgba(158, 158, 158, 0.1);
+  color: #9e9e9e;
+}
 
 /* ── Stats 3-column grid ───────────────────────────────────────────────── */
 
