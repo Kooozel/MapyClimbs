@@ -72,7 +72,8 @@ export function buildClimbCard(climb: Climb, index: number, routeMode?: RouteMod
   const maxGrad = calcMaxGradientFromProfile(simplifiedProfile, 200);
   const summit = findSummit(climb);
   const timeStr = formatMinutes(estimateClimbTime(climb));
-  const gradeColors = routeMode === "hiking" ? HIKING_GRADE_COLORS : CYCLING_GRADE_COLORS;
+  const isHiking = routeMode === "hiking";
+  const gradeColors = isHiking ? HIKING_GRADE_COLORS : CYCLING_GRADE_COLORS;
   const chart = generateElevationChart(climb.segments, climb.distance, gradeColors);
   const climbLabel = chrome.i18n.getMessage("panelClimb", [String(index + 1)]);
 
@@ -100,12 +101,17 @@ export function buildClimbCard(climb: Climb, index: number, routeMode?: RouteMod
         <div class="stat"><span class="stat-label">${chrome.i18n.getMessage("panelMaxGradeLabel")}</span><span class="stat-value stat-secondary">${toPercent(maxGrad)}</span></div>
         <div class="stat"><span class="stat-label">${chrome.i18n.getMessage("panelSummit")}</span><span class="stat-value stat-secondary stat-summit">${PEAK_SVG}${Math.round(summit.elev)} m</span></div>
         <div class="stat"><span class="stat-label">${chrome.i18n.getMessage("panelSummitAt")}</span><span class="stat-value stat-secondary">${metersToKm(summit.dist)} km</span></div>
-      </div>
+      </div> 
+      ${
+        !isHiking
+          ? `
       <div class="climb-meta">
         <div class="climb-meta-item"><span class="climb-meta-label">${chrome.i18n.getMessage("panelEstTime")}</span><span class="climb-meta-value">${timeStr}</span></div>
         <div class="climb-meta-item"><span class="climb-meta-label">${chrome.i18n.getMessage("panelVam")}</span><span class="climb-meta-value">${calcVAM(climb)} m/h</span></div>
         <div class="climb-meta-item"><span class="climb-meta-label">${chrome.i18n.getMessage("panelFietsIndex")}</span><span class="climb-meta-value">${calcFiets(climb)}</span></div>
-      </div>
+      </div>`
+          : ""
+      }
       ${chart}`;
 
   el.addEventListener("keydown", (event) => {

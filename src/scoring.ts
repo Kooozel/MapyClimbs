@@ -59,7 +59,7 @@ export const SCORING_CONFIGS: Readonly<Record<Exclude<ScoringModel, "hiking">, S
   },
 };
 
-// ── Hiking (TRAILS-GPX) scorer ────────────────────────────────────────────────
+// ── Hiking scorer ────────────────────────────────────────────────
 
 export interface HikingScoreInput {
   /** Total elevation gain of the climb (m). */
@@ -73,7 +73,7 @@ export interface HikingScoreInput {
 }
 
 /**
- * TRAILS-GPX formula (roughness held at 1.0 for V1):
+ * formula (roughness held at 1.0 for V1):
  *   score = H²/(8L) + max(0, T−1500)×0.15 + H×0.002 + G_max×0.5
  *
  * L is in metres (despite the original spec labelling it "km" — using km
