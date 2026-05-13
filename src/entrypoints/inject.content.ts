@@ -325,7 +325,11 @@ class RoutePlannerController {
     };
 
     chrome.runtime.sendMessage(message, (response: ClimbsResponse | undefined) => {
-      if (chrome.runtime.lastError || !response?.result) return;
+      this.isAnalyzing = false;
+      if (chrome.runtime.lastError || !response?.result) {
+        if (!this.isAutomating) this.hideFullscreenLoader();
+        return;
+      }
       this.analysisResult = response.result;
       this.renderPanel();
       if (!this.isAutomating) renderMapOverlay(this.analysisResult);
