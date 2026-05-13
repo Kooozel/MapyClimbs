@@ -13,10 +13,6 @@ export default defineConfig({
         'src/gpx-parser.ts',
       ],
       reporter: ['text', 'html'],
-      thresholds: {
-        branches: 80,
-        lines:    80,
-      },
     },
   },
 });

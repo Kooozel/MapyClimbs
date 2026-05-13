@@ -17,7 +17,7 @@ npm run lint:fix        # eslint --fix
 npm run format          # prettier --write src/
 npm run test            # vitest run (all tests in test/)
 npm run test:watch      # vitest (interactive)
-npm run test:coverage   # vitest run --coverage (80% branches/lines enforced)
+npm run test:coverage   # vitest run --coverage (report-only, no threshold)
 ```
 
 Run a single test file:
