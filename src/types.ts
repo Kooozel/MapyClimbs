@@ -206,6 +206,84 @@ export interface AnalysisResult {
   error?: string;
 }
 
+/**
+ * Structured pipeline-trace event emitted by detectClimbs when a debug sink is
+ * passed. Production code never passes a sink so the engine stays a no-op.
+ * Each variant corresponds to one decision point in the 5-step pipeline.
+ */
+export type ClimbDebugEvent =
+  | {
+      stage: "pipeline";
+      rawPoints: number;
+      resampled: number;
+      interpolated: number;
+      smoothed: number;
+      segments: number;
+    }
+  | {
+      stage: "identify-candidate";
+      index: number;
+      startKm: number;
+      endKm: number;
+      distanceM: number;
+      elevationM: number;
+      avgGradePct: number;
+      rawGainM: number;
+    }
+  | {
+      stage: "identify-close";
+      reason: "descent" | "flat";
+      atKm: number;
+      tailTrimGradePct: number;
+    }
+  | {
+      stage: "identify-reject";
+      reason: "noise-floor" | "empty";
+      measuredGainM: number;
+      startKm: number;
+      endKm: number;
+    }
+  | {
+      stage: "merge-pair";
+      prevStartKm: number;
+      prevEndKm: number;
+      currStartKm: number;
+      currEndKm: number;
+      gapM: number;
+      valleyDropM: number;
+      effectiveMaxGapM: number;
+      maxAllowedDropM: number;
+      coherentAscent: boolean;
+      combinedRawRiseM: number;
+      decision: "merge" | "skip" | "force-merge";
+      reason: string;
+    }
+  | {
+      stage: "trim";
+      startKm: number;
+      endKm: number;
+      droppedHeadSegs: number;
+      droppedTailSegs: number;
+      remainingDistanceM: number;
+      kept: boolean;
+    }
+  | {
+      stage: "categorize";
+      startKm: number;
+      endKm: number;
+      distanceM: number;
+      avgGradePct: number;
+      difficulty: number | null;
+      category: ClimbCategory | null;
+    };
+
+export type ClimbDebugSink = (event: ClimbDebugEvent) => void;
+
+export interface DetectClimbsOptions {
+  /** Optional structured trace sink. Production callers omit this. */
+  debug?: ClimbDebugSink;
+}
+
 declare global {
   interface XMLHttpRequest {
     _isGPXRequest?: boolean;

@@ -50,6 +50,30 @@ export const SPIKE_MAX_SEGMENT_M = RESAMPLE_MIN_INTERVAL_M * 2;
 
 /** Gradient (%) at or above which a new climb candidate begins. */
 export const CLIMB_START_GRADE_PCT = 3.75;
+/** Lead-in extension threshold: gradient (%) above which a segment that
+ *  *precedes* a climb-opening trigger is treated as part of the climb's
+ *  natural approach. When a new candidate opens, the most recent run of
+ *  segments at or above this grade (capped at CLIMB_LEADIN_MAX_DISTANCE_M)
+ *  is prepended to the candidate. Stops at the first descent / flat segment.
+ *  This grows short candidates past scoring's minDistanceM floor without
+ *  loosening the candidate-opening trigger itself. */
+export const CLIMB_LEADIN_GRADE_PCT = 2.5;
+/** Maximum lead-in distance (m) absorbed by the start-extension step. */
+export const CLIMB_LEADIN_MAX_DISTANCE_M = 500;
+
+/** Gradient (%) above which an already-open candidate stays alive.
+ *  This is the *continue* threshold; it resets the flat-distance close-counter
+ *  but does NOT open a new candidate on its own. Setting it below
+ *  CLIMB_START_GRADE_PCT introduces hysteresis: a steady 3.5 % climb with
+ *  brief 4 % bursts starts on a burst and survives the 3.5 % stretches
+ *  instead of being closed by the 700 m flat rule.
+ *
+ *  Empirical note: the current fixture set tolerates values in [3.5, 3.75]
+ *  without regressions. Lower values (2.5–3.0) over-merge hukvaldy's chain of
+ *  back-to-back sub-km bumps connected by 2.5–3.5 % slopes. A topology-aware
+ *  trigger (net-gain-over-window) would let CONTINUE drop further safely;
+ *  that's Phase 2 work. */
+export const CLIMB_CONTINUE_GRADE_PCT = 3.5;
 /** Minimum elevation gain (m) to pass the GPS-noise floor after trimming.
  *  Keeps phantom climbs from sensor jitter off the results; real filtering
  *  is done per scoring model via the Uncategorized threshold. */
@@ -92,12 +116,30 @@ export const MERGE_DESCENT_SCALE = 4;
 export const MERGE_MAX_VALLEY_DROP_M = 20;
 /** Combined-gain fraction used to compute the relative valley-drop limit. */
 export const MERGE_VALLEY_RATIO = 0.2;
+/** Reference ratio used only by the debug-stage `coherentAscent` signal in
+ *  mergeNearbyClimbs(). Not currently wired into the merge decision — a
+ *  naive force-merge based on this ratio over-merged adjacent-but-distinct
+ *  climbs on rolling routes (bk / grun / hukvaldy) where two ascents share a
+ *  high start-to-end raw rise. Kept here so future tuning / Phase 2 work can
+ *  reuse the constant rather than rediscovering it. */
+export const MERGE_COHERENT_ASCENT_RATIO = 0.85;
 
 // ── Endpoint trimming (Step 5) ────────────────────────────────────────────────
 
-/** Gradient (%) below which leading/trailing segments are trimmed.
- *  Must match CLIMB_START_GRADE_PCT so identification and trimming use the same boundary. */
-export const TRIM_MIN_GRADE_PCT = CLIMB_START_GRADE_PCT;
+/** Lead-in trim threshold: gradient (%) below which *leading* segments are
+ *  stripped. Set to CLIMB_LEADIN_GRADE_PCT so the explicit lead-in extension
+ *  (prepended at identify time) survives trim. Stricter than this and the
+ *  extension is undone immediately. */
+export const TRIM_START_GRADE_PCT = CLIMB_LEADIN_GRADE_PCT;
+/** Tail trim threshold: gradient (%) below which *trailing* segments are
+ *  stripped. Lower than CLIMB_START_GRADE_PCT so the climb extends through
+ *  the natural sub-trigger run-out toward the summit, lifting short
+ *  candidates past scoring's minDistanceM floor without making detection
+ *  more permissive in opening new candidates. */
+export const TRIM_END_GRADE_PCT = 2.5;
+/** Back-compat re-export for any external consumer that still imports the
+ *  combined name. Internally the pipeline reads the two thresholds above. */
+export const TRIM_MIN_GRADE_PCT = TRIM_END_GRADE_PCT;
 /** Backward look-behind window (m) used to judge whether a candidate end-segment lies in a
  *  genuinely steep zone. At each candidate endIndex the algorithm sums the steep and total
  *  distance of the last TRIM_TAIL_WINDOW_M metres. If the steep fraction is below
