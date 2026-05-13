@@ -198,6 +198,10 @@ export interface RawClimb {
 
 export interface AnalysisResult {
   climbs: Climb[];
+  /** All trimmed candidates before scoring — used by recategorizeClimbs to
+   *  recover climbs dropped by a different model. Optional for backward
+   *  compatibility with results stored before this field was added. */
+  candidates?: RawClimb[];
   totalDistance: number;
   totalElevationGain: number;
   totalElevationLoss: number;

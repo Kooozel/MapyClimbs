@@ -42,7 +42,6 @@ import {
   CLIMB_CONTINUE_GRADE_PCT,
   CLIMB_LEADIN_GRADE_PCT,
   CLIMB_LEADIN_MAX_DISTANCE_M,
-  CLIMB_MIN_ELEVATION_NOISE_M,
   DESCENT_END_GRADE_PCT,
   DESCENT_END_DISTANCE_M,
   CLIMB_END_FLAT_M,
@@ -58,7 +57,6 @@ import {
   TRIM_END_GRADE_PCT,
   TRIM_TAIL_WINDOW_M,
   TRIM_STEEP_RATIO,
-  TRIM_MIN_DISTANCE_M,
 } from "./climb-engine.config";
 
 // ─── Pipeline entry point ────────────────────────────────────────────────────
@@ -127,6 +125,7 @@ export function detectClimbs(
   const mergedClimbs = mergeNearbyClimbs(rawClimbs, segments, resampled, emit);
 
   // Step 5: Trim flat lead-in / tail, then score and categorize
+  const rawCandidates: RawClimb[] = [];
   const trimmedClimbs = mergedClimbs
     .map((raw) => {
       const before = raw.segments;
@@ -158,6 +157,7 @@ export function detectClimbs(
         });
       }
       if (!kept) return null;
+      rawCandidates.push(trimmed);
       const scored = categorizeClimb(trimmed, scoringModel);
       const s0 = trimmed.segments[0];
       const sN = trimmed.segments[trimmed.segments.length - 1];
@@ -188,6 +188,7 @@ export function detectClimbs(
   const { gain, descent } = calculateStats(resampled);
   return {
     climbs: trimmedClimbs,
+    candidates: rawCandidates,
     totalDistance: profile[profile.length - 1].distance,
     totalElevationGain: gain,
     totalElevationLoss: descent,
@@ -450,7 +451,7 @@ function identifyClimbs(
     emit({ stage: "identify-close", reason, atKm, tailTrimGradePct: tailTrimGrade });
     // Strip the accumulated flat/descent tail so the candidate ends at the
     // last climbing segment — creating a real gap the merge step can measure.
-    const finalized = finalizeRawClimb(currentClimb, tailTrimGrade, rawProfile, emit);
+    const finalized = finalizeRawClimb(currentClimb, tailTrimGrade, emit);
     if (finalized) {
       const s0 = finalized.segments[0];
       const sN = finalized.segments[finalized.segments.length - 1];
@@ -564,7 +565,6 @@ function rawElevationGain(profile: GpsPoint[], startDist: number, endDist: numbe
 function finalizeRawClimb(
   climb: RawClimb,
   tailTrimGrade: number,
-  rawProfile: GpsPoint[],
   emit: ClimbDebugSink = NOOP_DEBUG
 ): RawClimb | null {
   const candidate: RawClimb = { ...climb, segments: [...climb.segments] };
@@ -593,24 +593,7 @@ function finalizeRawClimb(
     return null;
   }
 
-  // Use raw GPS elevation gain for threshold checks so that a narrow
-  // smoothing window (which bleeds into adjacent terrain) cannot suppress a
-  // real climb that immediately follows a descent.
-  const s0 = candidate.segments[0];
-  const sN = candidate.segments[candidate.segments.length - 1];
-  const measuredGain = rawElevationGain(rawProfile, s0.startDistance, sN.endDistance);
-
-  if (measuredGain >= CLIMB_MIN_ELEVATION_NOISE_M) {
-    return candidate;
-  }
-  emit({
-    stage: "identify-reject",
-    reason: "noise-floor",
-    measuredGainM: measuredGain,
-    startKm: s0.startDistance / 1000,
-    endKm: sN.endDistance / 1000,
-  });
-  return null;
+  return candidate;
 }
 
 /**
@@ -891,11 +874,7 @@ function trimClimbEndpoints(climb: RawClimb): RawClimb {
     newElev += seg.elevation;
   }
 
-  if (newDistance >= TRIM_MIN_DISTANCE_M) {
-    return { segments: climbSegments, totalDistance: newDistance, totalElevation: newElev };
-  }
-
-  return { segments: [], totalDistance: 0, totalElevation: 0 };
+  return { segments: climbSegments, totalDistance: newDistance, totalElevation: newElev };
 }
 
 /**
@@ -972,21 +951,14 @@ export function categorizeClimb(climb: RawClimb, scoringModel: ScoringModel = "a
 }
 
 /**
- * Re-applies scoring/categorisation to an already-detected Climb[] without
- * re-running the detection pipeline. Only `difficulty` and `category` change;
- * all geometric data (segments, coords, distance, elevation) is preserved.
- * Climbs that fall below the model's minimum score are filtered out.
+ * Re-scores a list of pre-trimmed RawClimb candidates under a new scoring
+ * model without re-running the detection pipeline. Candidates that don't
+ * reach the model's lowest threshold are dropped. Accepts all trimmed
+ * candidates (not just those that passed the original model) so switching
+ * from a permissive model to a strict one and back is fully reversible.
  */
-export function recategorizeClimbs(climbs: Climb[], model: ScoringModel): Climb[] {
-  return climbs
-    .map((climb): Climb | null => {
-      const scored =
-        model === "hiking"
-          ? scoreForHiking(climb.elevation, climb.distance, climb.avgGrade, climb.segments)
-          : applyScore(climb.distance, climb.avgGrade, model);
-      return scored ? { ...climb, ...scored } : null;
-    })
-    .filter((c): c is Climb => c !== null);
+export function recategorizeClimbs(candidates: RawClimb[], model: ScoringModel): Climb[] {
+  return candidates.map((c) => categorizeClimb(c, model)).filter((c): c is Climb => c !== null);
 }
 
 function calculateStats(resampled: GpsPoint[]) {

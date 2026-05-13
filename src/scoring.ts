@@ -18,10 +18,6 @@ export interface ScoringConfig {
   score: (distanceM: number, avgGrade: number) => number;
   /** Ordered HC → lowest category; each entry is the minimum score for that category. */
   thresholds: ReadonlyArray<ScoringThreshold>;
-  /** Minimum climb distance (m) for this model — shorter climbs return null. */
-  minDistanceM: number;
-  /** Minimum average grade (%) for this model — gentler climbs return null. */
-  minAvgGradePct: number;
 }
 
 /**
@@ -32,22 +28,18 @@ export const SCORING_CONFIGS: Readonly<Record<Exclude<ScoringModel, "hiking">, S
   aso: {
     // ASO/Tour de France: score = distance (km) × avgGrade²
     score: (distanceM, avgGrade) => (distanceM / 1000) * avgGrade * avgGrade,
-    minDistanceM: 300,
-    minAvgGradePct: 2,
     thresholds: [
       { category: ClimbCategory.HC, min: 600 },
       { category: ClimbCategory.Cat1, min: 300 },
       { category: ClimbCategory.Cat2, min: 150 },
       { category: ClimbCategory.Cat3, min: 75 },
-      { category: ClimbCategory.Cat4, min: 8 },
-      { category: ClimbCategory.Uncategorized, min: 4.5 },
+      { category: ClimbCategory.Cat4, min: 25 },
+      { category: ClimbCategory.Uncategorized, min: 8 },
     ],
   },
   garmin: {
     // Garmin ClimbPro: score = distance (m) × avgGrade (%)
     score: (distanceM, avgGrade) => distanceM * avgGrade,
-    minDistanceM: 300,
-    minAvgGradePct: 2,
     thresholds: [
       { category: ClimbCategory.HC, min: 64000 },
       { category: ClimbCategory.Cat1, min: 48000 },
@@ -88,16 +80,9 @@ export const HIKING_THRESHOLDS: ReadonlyArray<ScoringThreshold> = [
   { category: ClimbCategory.Uncategorized, min: 0.5 },
 ];
 
-export const HIKING_MIN_DISTANCE_M = 200;
-export const HIKING_MIN_AVG_GRADE_PCT = 3;
-
 export function applyHikingScore(
-  input: HikingScoreInput,
-  distanceM: number,
-  avgGrade: number
+  input: HikingScoreInput
 ): { difficulty: number; category: ClimbCategory } | null {
-  if (distanceM < HIKING_MIN_DISTANCE_M || avgGrade < HIKING_MIN_AVG_GRADE_PCT) return null;
-
   const {
     totalElevationM: H,
     totalDistanceM: L,
@@ -125,7 +110,6 @@ export function applyScore(
   model: Exclude<ScoringModel, "hiking">
 ): { difficulty: number; category: ClimbCategory } | null {
   const cfg = SCORING_CONFIGS[model];
-  if (distanceM < cfg.minDistanceM || avgGrade < cfg.minAvgGradePct) return null;
   const difficulty = cfg.score(distanceM, avgGrade);
   const match = cfg.thresholds.find((t) => difficulty >= t.min);
   if (!match) return null;

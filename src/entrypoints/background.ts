@@ -15,6 +15,7 @@ import {
   type ElevationTuple,
   type CategorizationUpdatedMessage,
   type AnalysisResult,
+  type RawClimb,
   type GpxInfo,
   type TabIdResponse,
 } from "../types";
@@ -132,9 +133,16 @@ export default defineBackground(() => {
           if (!storedAnalysisResult || storedAnalysisResult.climbs.length === 0) continue;
           const effectiveModel: ScoringModel =
             storedAnalysisResult.routeMode === "hiking" ? "hiking" : model;
+          const rawCandidates: RawClimb[] =
+            storedAnalysisResult.candidates ??
+            storedAnalysisResult.climbs.map((c) => ({
+              segments: c.segments,
+              totalDistance: c.distance,
+              totalElevation: c.elevation,
+            }));
           storageUpdates[key] = {
             ...storedAnalysisResult,
-            climbs: recategorizeClimbs(storedAnalysisResult.climbs, effectiveModel),
+            climbs: recategorizeClimbs(rawCandidates, effectiveModel),
           };
         }
 

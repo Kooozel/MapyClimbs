@@ -54,9 +54,7 @@ export const CLIMB_START_GRADE_PCT = 3.75;
  *  *precedes* a climb-opening trigger is treated as part of the climb's
  *  natural approach. When a new candidate opens, the most recent run of
  *  segments at or above this grade (capped at CLIMB_LEADIN_MAX_DISTANCE_M)
- *  is prepended to the candidate. Stops at the first descent / flat segment.
- *  This grows short candidates past scoring's minDistanceM floor without
- *  loosening the candidate-opening trigger itself. */
+ *  is prepended to the candidate. Stops at the first descent / flat segment. */
 export const CLIMB_LEADIN_GRADE_PCT = 2.5;
 /** Maximum lead-in distance (m) absorbed by the start-extension step. */
 export const CLIMB_LEADIN_MAX_DISTANCE_M = 500;
@@ -74,10 +72,6 @@ export const CLIMB_LEADIN_MAX_DISTANCE_M = 500;
  *  trigger (net-gain-over-window) would let CONTINUE drop further safely;
  *  that's Phase 2 work. */
 export const CLIMB_CONTINUE_GRADE_PCT = 3.5;
-/** Minimum elevation gain (m) to pass the GPS-noise floor after trimming.
- *  Keeps phantom climbs from sensor jitter off the results; real filtering
- *  is done per scoring model via the Uncategorized threshold. */
-export const CLIMB_MIN_ELEVATION_NOISE_M = 15;
 /** Gradient (%) at or below which a segment counts as a descent. */
 export const DESCENT_END_GRADE_PCT = -1;
 /** Accumulated descent distance (m) that ends the current climb candidate. */
@@ -133,8 +127,7 @@ export const MERGE_COHERENT_ASCENT_RATIO = 0.85;
 export const TRIM_START_GRADE_PCT = CLIMB_LEADIN_GRADE_PCT;
 /** Tail trim threshold: gradient (%) below which *trailing* segments are
  *  stripped. Lower than CLIMB_START_GRADE_PCT so the climb extends through
- *  the natural sub-trigger run-out toward the summit, lifting short
- *  candidates past scoring's minDistanceM floor without making detection
+ *  the natural sub-trigger run-out toward the summit without making detection
  *  more permissive in opening new candidates. */
 export const TRIM_END_GRADE_PCT = 2.5;
 /** Back-compat re-export for any external consumer that still imports the
@@ -149,5 +142,3 @@ export const TRIM_TAIL_WINDOW_M = 200;
  *  the candidate endpoint to be accepted. Lower values tolerate noisy climbs; higher
  *  values enforce a cleaner end. */
 export const TRIM_STEEP_RATIO = 0.2;
-/** Minimum remaining distance (m) after trimming; shorter climbs are discarded. */
-export const TRIM_MIN_DISTANCE_M = 100;

@@ -403,7 +403,7 @@ describe('categorizeClimb', () => {
     expect(categorizeClimb(null)).toBeNull();
   });
 
-  it('assigns category 4 when score ≥ 8 and < 75', () => {
+  it('assigns category 4 when score ≥ 25 and < 75', () => {
     // 5 km × 3 %² = 5 × 9 = 45  →  Cat 4
     const climb = makeClimb(5000, 150);
     const result = categorizeClimb(climb);
@@ -411,20 +411,20 @@ describe('categorizeClimb', () => {
     expect(result.difficulty).toBeCloseTo(45, 0);
   });
 
-  it('[aso] assigns Uncategorized when score < 8', () => {
-    // 0.5 km × 3 %² = 0.5 × 9 = 4.5  →  Uncategorized
-    const climb = makeClimb(500, 15);
+  it('[aso] assigns Uncategorized when score ≥ 8 and < 25', () => {
+    // 0.6 km × 4 %² = 0.6 × 16 = 9.6  →  Uncategorized
+    const climb = makeClimb(600, 24);
     const result = categorizeClimb(climb);
     expect(result.category).toBe('uncategorized');
-    expect(result.difficulty).toBeCloseTo(4.5, 1);
+    expect(result.difficulty).toBeCloseTo(9.6, 1);
   });
 
-  it('[aso] assigns category 4 exactly at the lower boundary (score = 8)', () => {
-    // 0.5 km × 4 %² = 0.5 × 16 = 8  →  Cat 4
-    const climb = makeClimb(500, 20);
+  it('[aso] assigns category 4 exactly at the lower boundary (score = 25)', () => {
+    // 1 km × 5 %² = 1 × 25 = 25  →  Cat 4
+    const climb = makeClimb(1000, 50);
     const result = categorizeClimb(climb);
     expect(result.category).toBe('4');
-    expect(result.difficulty).toBeCloseTo(8, 1);
+    expect(result.difficulty).toBeCloseTo(25, 1);
   });
 
   it('assigns category 3 at the lower boundary (score = 75)', () => {
@@ -525,25 +525,28 @@ describe('categorizeClimb', () => {
     expect(result.difficulty).toBeCloseTo(1500, 0);
   });
 
-  // ── Per-model geometric minimums ─────────────────────────────────────────
+  // ── Score-only filtering (no geometric floor) ────────────────────────────
 
-  it('[aso] returns null when distance < minDistanceM (300 m)', () => {
-    // 299 m @ 4 % → distance below shared minimum
-    expect(categorizeClimb(makeClimb(299, 12))).toBeNull();
+  it('[aso] 400 m @ 5 % is Uncategorized (score 10 is above Uncat floor)', () => {
+    // score = 0.4 × 25 = 10.0 → ≥ 8 (Uncat) and < 25 (Cat4)
+    const result = categorizeClimb(makeClimb(400, 20));
+    expect(result).not.toBeNull();
+    expect(result?.category).toBe('uncategorized');
   });
 
-  it('[aso] returns null when avgGrade < minAvgGradePct (2 %)', () => {
-    // 500 m, elevation 9 m → avgGrade = 1.8 % < 2 %
+  it('[aso] returns null when score is below Uncategorized threshold', () => {
+    // 500 m, elevation 9 m → avgGrade 1.8 % → ASO score 1.62 < 4.5 threshold
     expect(categorizeClimb(makeClimb(500, 9))).toBeNull();
   });
 
-  it('[garmin] returns null when distance < minDistanceM (300 m)', () => {
-    // 299 m @ 5 % → distance below shared minimum
-    expect(categorizeClimb(makeClimb(299, 15), 'garmin')).toBeNull();
+  it('[garmin] 299 m @ 5 % is Uncategorized (score 1500 at threshold)', () => {
+    const result = categorizeClimb(makeClimb(299, 15), 'garmin');
+    expect(result).not.toBeNull();
+    expect(result?.category).toBe('uncategorized');
   });
 
-  it('[garmin] returns null when avgGrade < minAvgGradePct (2 %)', () => {
-    // 500 m, elevation 9 m → avgGrade = 1.8 % < 2 %
+  it('[garmin] returns null when score is below Uncategorized threshold', () => {
+    // 500 m, elevation 9 m → avgGrade 1.8 % → Garmin score 900 < 1500 threshold
     expect(categorizeClimb(makeClimb(500, 9), 'garmin')).toBeNull();
   });
 });
@@ -593,9 +596,9 @@ describe('detectClimbs', () => {
     expect(climb.elevation).toBeLessThan(600 * 1.15);
   });
 
-  it('detects exactly two climbs on a multi-climb route', () => {
+  it('detects exactly three climbs on a multi-climb route', () => {
     const result = detectClimbs(makeMultiClimbRoute());
-    expect(result.climbs).toHaveLength(2);
+    expect(result.climbs).toHaveLength(3);
   });
 
   it('two climbs are ordered by start distance', () => {
@@ -605,9 +608,11 @@ describe('detectClimbs', () => {
     expect(aStart).toBeLessThan(bStart);
   });
 
-  it('second climb has greater elevation gain than first (640 m vs 300 m design)', () => {
-    const [climbA, climbB] = detectClimbs(makeMultiClimbRoute()).climbs;
-    expect(climbB.elevation).toBeGreaterThan(climbA.elevation);
+  it('last climb has greater elevation gain than first (640 m vs 300 m design)', () => {
+    const result = detectClimbs(makeMultiClimbRoute()).climbs;
+    const first = result[0];
+    const last = result[result.length - 1];
+    expect(last.elevation).toBeGreaterThan(first.elevation);
   });
 
   it('markerCoords and endCoords are populated when lat/lon data is present', () => {
@@ -652,10 +657,10 @@ describe('detectClimbs', () => {
     expect(result.climbs).toHaveLength(2);
   });
 
-  it('filters a short steep climb below the shared 500 m minimum distance', () => {
+  it('detects a short steep climb at 40 % grade', () => {
     // 75 m at 40 % grade (+30 m elevation) followed by a 330 m flat tail.
-    // The smoothed candidate is ≈285 m after trimming — below the shared minDistanceM
-    // of 500 m — so it is correctly filtered out by the scoring model.
+    // Without geometric floors, the trimmed ~105 m steep section reaches scoring
+    // and passes as Cat3 (ASO score ≈ 86).
     const points = [];
     // Steep section: 5 intervals × 15 m, each +6 m (40 % grade)
     for (let i = 0; i <= 5; i++) points.push([i * 15, i * 6, 48.0, 16.0]);
@@ -663,6 +668,6 @@ describe('detectClimbs', () => {
     for (let i = 1; i <= 22; i++) points.push([75 + i * 15, 30, 48.0 + i * 0.00013, 16.0]);
 
     const result = detectClimbs(points).climbs;
-    expect(result).toHaveLength(0);
+    expect(result).toHaveLength(1);
   });
 });
