@@ -1,4 +1,3 @@
-```
 PRIVACY POLICY — MapyClimbs Chrome Extension
 Last updated: 2026-05-12
 
@@ -45,5 +44,4 @@ Last updated: 2026-05-12
    To the maximum extent permitted by applicable law, the developer accepts no liability for any direct or indirect damage, injury or loss arising from use of this extension.
 
 11. CONTACT
-   For questions, open an issue at: https://github.com/Kooozel/MapyClimbs.git
-```
+   For questions, open an issue at: https://github.com/Kooozel/MapyClimbs

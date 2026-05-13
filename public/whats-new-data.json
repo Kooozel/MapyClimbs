@@ -6,7 +6,7 @@
       "Alternative routes are analysed in one click — MapyClimbs cycles through every route option, exports each GPX, and caches the results so switching between alternatives is instant.",
       "Six gradient zones on the map and chart — a new 12–15% band sits between the existing red and dark-maroon zones for more precise colour coding on very steep roads.",
       "A loading screen is shown while routes are being analysed so you always know something is happening.",
-      "Climb scoring is now more accurate. The Uncategorised category was instroduced. The end point is now correctly snaped to highest point.",
+      "Climb scoring is now more accurate. The Uncategorised category was introduced. The end point is now correctly snapped to the highest point.",
       "Bug fixes: categorisation now updates correctly after switching the scoring model in settings; overlay no longer redraws twice after each analysis. And more minor fixes and improvements."
     ],
     "cs": [
@@ -14,7 +14,7 @@
       "Alternativní trasy se analyzují jedním kliknutím — MapyClimbs prochází každou variantu trasy, exportuje GPX a výsledky ukládá do mezipaměti, takže přepínání mezi alternativami je okamžité.",
       "Šest barevných pásem sklonu na mapě a grafu — nové pásmo 12–15 % doplňuje přechod mezi červenou a tmavě vínovou pro přesnější zobrazení velmi strmých úseků.",
       "Během analýzy se zobrazí načítací obrazovka, takže vždy víte, že něco probíhá.",
-      "Kategorizace stoupání je upravena. Přidána kategorie 'Nekategorizované'. Koncový bod je nyní správně umístěn. ",
+      "Kategorizace stoupání je upravena. Přidána kategorie 'Nekategorizované'. Koncový bod je nyní správně umístěn.",
       "Opravy chyb: kategorizace se nyní správně aktualizuje po změně modelu bodování; překryv se již po každé analýze nepřekresluje dvakrát. A další drobné opravy a vylepšení."
     ]
   }

@@ -208,5 +208,9 @@
     "placeholders": {
       "version": { "content": "$1", "example": "1.0.4" }
     }
+  },
+  "whatsNewContact": {
+    "message": "Questions or feedback?",
+    "description": "Contact footer label on the What's New page"
   }
 }
