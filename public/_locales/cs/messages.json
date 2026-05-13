@@ -131,8 +131,16 @@
     "description": "Stat label for total distance"
   },
   "panelMClimbing": {
-    "message": "m převýšení",
+    "message": "m nastoupáno",
     "description": "Stat label for total elevation gain"
+  },
+  "panelElevationGainTooltip": {
+    "message": "Vypočteno z GPX dat. Může se lišit od hodnoty Mapy.com.",
+    "description": "Tooltip explaining elevation gain discrepancy with Mapy.cz"
+  },
+  "panelMDescent": {
+    "message": "m sestoupáno",
+    "description": "Stat label for total elevation loss"
   },
   "panelMaxGrade": {
     "message": "max sklon",
@@ -156,6 +164,10 @@
       "cat": { "content": "$1", "example": "HC" }
     }
   },
+  "panelCatUncategorized": {
+    "message": "Neklas.",
+    "description": "Badge label for climbs below the scoring model's minimum category"
+  },
   "panelDistance": { "message": "Vzdálenost", "description": "Climb stat label" },
   "panelElevation": { "message": "Převýšení", "description": "Climb stat label" },
   "panelAvgGrade": { "message": "Průměrný sklon", "description": "Climb stat label" },
@@ -169,16 +181,17 @@
     "message": "Na této trase nebylo zjištěno žádné stoupání.",
     "description": "Message shown when no climbs are found"
   },
+  "panelAnalyzing": {
+    "message": "Analyzuji trasu…",
+    "description": "Loading message shown in sidebar panel while GPX is being processed"
+  },
   "panelClimbsDetectedSingular": {
-    "message": "zjištěno 1 stoupání",
+    "message": "stoupání",
     "description": "Section label when exactly one climb is found"
   },
   "panelClimbsDetectedPlural": {
-    "message": "zjištěno $COUNT$ stoupání",
-    "description": "Section label when multiple climbs are found",
-    "placeholders": {
-      "count": { "content": "$1", "example": "3" }
-    }
+    "message": "stoupání",
+    "description": "Section label when multiple climbs are found"
   },
 
   "whatsNewTitle": {
@@ -195,5 +208,9 @@
     "placeholders": {
       "version": { "content": "$1", "example": "1.0.4" }
     }
+  },
+  "whatsNewContact": {
+    "message": "Dotazy nebo zpětná vazba?",
+    "description": "Contact footer label on the What's New page"
   }
 }

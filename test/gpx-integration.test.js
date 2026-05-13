@@ -49,6 +49,63 @@ function debugLog(file, climbs) {
   console.log('═'.repeat(60));
 }
 
+/**
+ * When DEBUG_PIPELINE=1, attach a sink that prints each ClimbDebugEvent on its
+ * own line. Use this when investigating why a climb was detected, merged,
+ * trimmed, or rejected. Independent of DEBUG_OUTPUT.
+ */
+function makePipelineSink(file) {
+  if (process.env.DEBUG_PIPELINE !== '1') return undefined;
+  let printedHeader = false;
+  return (evt) => {
+    if (!printedHeader) {
+      console.log(`\n${'┄'.repeat(60)}`);
+      console.log(`PIPELINE ${file}`);
+      console.log('┄'.repeat(60));
+      printedHeader = true;
+    }
+    const km = (v) => (v == null ? '—' : v.toFixed(2));
+    const m = (v) => (v == null ? '—' : v.toFixed(0));
+    switch (evt.stage) {
+      case 'pipeline':
+        console.log(
+          `[pipeline] raw=${evt.rawPoints} resampled=${evt.resampled} interp=${evt.interpolated} smoothed=${evt.smoothed} segs=${evt.segments}`
+        );
+        break;
+      case 'identify-candidate':
+        console.log(
+          `[ident-cand #${evt.index}] km${km(evt.startKm)}-${km(evt.endKm)}  dist=${m(evt.distanceM)}m  elev=${m(evt.elevationM)}m  rawGain=${m(evt.rawGainM)}m  avg=${evt.avgGradePct.toFixed(2)}%`
+        );
+        break;
+      case 'identify-close':
+        console.log(
+          `[ident-close] reason=${evt.reason} atKm=${km(evt.atKm)} tailTrim=${evt.tailTrimGradePct}%`
+        );
+        break;
+      case 'identify-reject':
+        console.log(
+          `[ident-reject] reason=${evt.reason} km${km(evt.startKm)}-${km(evt.endKm)} rawGain=${m(evt.measuredGainM)}m`
+        );
+        break;
+      case 'merge-pair':
+        console.log(
+          `[merge ${evt.decision}] km${km(evt.prevStartKm)}-${km(evt.prevEndKm)} → km${km(evt.currStartKm)}-${km(evt.currEndKm)}  gap=${m(evt.gapM)}m (max ${m(evt.effectiveMaxGapM)}m)  valleyDrop=${m(evt.valleyDropM)}m (max ${m(evt.maxAllowedDropM)}m)  rawRise=${m(evt.combinedRawRiseM)}m coherent=${evt.coherentAscent} :: ${evt.reason}`
+        );
+        break;
+      case 'trim':
+        console.log(
+          `[trim] km${km(evt.startKm)}-${km(evt.endKm)}  head-=${evt.droppedHeadSegs} tail-=${evt.droppedTailSegs}  remain=${m(evt.remainingDistanceM)}m  kept=${evt.kept}`
+        );
+        break;
+      case 'categorize':
+        console.log(
+          `[cat] km${km(evt.startKm)}-${km(evt.endKm)}  dist=${m(evt.distanceM)}m  avg=${evt.avgGradePct.toFixed(2)}%  diff=${evt.difficulty == null ? '—' : evt.difficulty.toFixed(0)}  cat=${evt.category ?? '—'}`
+        );
+        break;
+    }
+  };
+}
+
 // ─── Tolerance assertion ─────────────────────────────────────────────────────
 
 function assertNear(actual, expected, tolerance, label) {
@@ -67,14 +124,20 @@ if (fixtures.length === 0) {
     );
   });
 } else {
-  describe.each(fixtures)('$file', ({ file, climbCount, climbs: expectedClimbs }) => {
+  describe.each(fixtures)('$file', ({ file, climbCount, scoringModel, climbs: expectedClimbs }) => {
     let detectedClimbs;
 
     // Parse + detect once per fixture file
     try {
       const gpxContent = readFileSync(resolve(FIXTURES_DIR, file), 'utf-8');
       const elevationProfile = parseGPX(gpxContent);
-      detectedClimbs = detectClimbs(elevationProfile);
+      const debug = makePipelineSink(file);
+      const { climbs } = detectClimbs(
+        elevationProfile,
+        scoringModel ?? 'aso',
+        debug ? { debug } : undefined
+      );
+      detectedClimbs = climbs;
       debugLog(file, detectedClimbs);
     } catch (err) {
       it(`should load and parse ${file}`, () => {

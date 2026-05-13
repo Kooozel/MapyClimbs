@@ -50,30 +50,44 @@ export type ZoneFilterFn = (
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 /**
- * Grade threshold → fill color.
+ * Cycling grade thresholds (3/6/9/12%) → fill color.
  * Each entry covers grades up-to-but-not-including its threshold.
  * Last entry uses Infinity to capture all steeper grades.
  */
-export const GRADE_COLORS: [number, string][] = [
+export const CYCLING_GRADE_COLORS: [number, string][] = [
   [3, "#4CAF50"],
   [6, "#FBC02D"],
   [9, "#F57C00"],
   [12, "#D32F2F"],
-  [Infinity, "#800020"],
+  [15, "#800020"],
+  [Infinity, "#3B0010"],
 ];
 
-// ── Private helpers ───────────────────────────────────────────────────────────
+/** Hiking grade thresholds (5/10/20/30%) — wider bands reflect walking pace. */
+export const HIKING_GRADE_COLORS: [number, string][] = [
+  [5, "#4CAF50"],
+  [10, "#FBC02D"],
+  [20, "#F57C00"],
+  [30, "#D32F2F"],
+  [40, "#800020"],
+  [Infinity, "#3B0010"],
+];
 
-function segmentGradient(a: ProfilePoint, b: ProfilePoint): number {
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+export function segmentGradient(a: ProfilePoint, b: ProfilePoint): number {
   const dD = b.distance - a.distance;
   return dD > 0 ? ((b.elevation - a.elevation) / dD) * 100 : 0;
 }
 
 // ── Public functions ──────────────────────────────────────────────────────────
 
-/** Returns the hex color for a given gradient percentage. */
-export function getColorForGrade(g: number): string {
-  return GRADE_COLORS.find(([threshold]) => g < threshold)![1];
+/** Returns the hex color for a given gradient percentage using the supplied color table. */
+export function getColorForGrade(
+  g: number,
+  gradeColors: [number, string][] = CYCLING_GRADE_COLORS
+): string {
+  return gradeColors.find(([threshold]) => g < threshold)![1];
 }
 
 /**
@@ -98,8 +112,9 @@ export function buildProfilePoints(segments: Segment[]): ProfilePoint[] {
 
 /**
  * Reduces a dense profile to 8–20 key inflection points.
- * Preserves gradient change points; falls back to even-step sampling when
- * too many points exist.
+ * Preserves gradient change points, then fills any large distance gaps so no
+ * portion of the route is skipped in the chart. Falls back to even-step
+ * sampling when too many gradient-change points exist.
  */
 export function simplifyProfile(profile: ProfilePoint[]): ProfilePoint[] {
   if (profile.length <= 3) return profile;
@@ -117,21 +132,84 @@ export function simplifyProfile(profile: ProfilePoint[]): ProfilePoint[] {
     const step = Math.floor(profile.length / maxSegs);
     for (let i = step; i < profile.length - 1; i += step) keys.push(i);
     keys.push(profile.length - 1);
+  } else {
+    // Fill large distance gaps so the chart covers the full route. Without
+    // this, gradient inflections clustered near one end leave a long straight
+    // line across the rest (most visible on short routes where the smoothing
+    // window causes noisy gradients near the start).
+    //
+    // Gap-fill can exceed maxSegs — the limit is the profile itself, since
+    // adding more bisection keys only improves chart accuracy.
+    const totalDist = profile[profile.length - 1].distance;
+    const maxGap = totalDist / (maxSegs - 1);
+    const hardCap = profile.length;
+    let changed = true;
+    while (changed && keys.length < hardCap) {
+      changed = false;
+      for (let i = 0; i < keys.length - 1; i++) {
+        const p0 = profile[keys[i]];
+        const p1 = profile[keys[i + 1]];
+        if (p1.distance - p0.distance <= maxGap) continue;
+        // Find the profile point nearest the midpoint distance
+        const midDist = (p0.distance + p1.distance) / 2;
+        let best = keys[i] + 1;
+        for (let j = best + 1; j < keys[i + 1]; j++) {
+          if (Math.abs(profile[j].distance - midDist) < Math.abs(profile[best].distance - midDist))
+            best = j;
+        }
+        // Only insert if the midpoint deviates from linear interpolation — a
+        // perfectly uniform profile needs no extra points.
+        const pb = profile[best];
+        const linearElev =
+          p0.elevation +
+          ((pb.distance - p0.distance) / (p1.distance - p0.distance)) *
+            (p1.elevation - p0.elevation);
+        if (Math.abs(pb.elevation - linearElev) > 0.5) {
+          keys.splice(i + 1, 0, best);
+          changed = true;
+          break;
+        }
+      }
+    }
   }
 
   return [...new Set(keys)].sort((a, b) => a - b).map((i) => profile[i]);
 }
 
 /**
+ * Returns the maximum gradient over any contiguous span of at least
+ * `minDistance` metres in the profile.
+ * Gradient is computed geometrically (elevation / distance) — the same
+ * formula used by buildGradientZones — so the stat matches the steepest
+ * color band on the chart when called with the simplified profile.
+ */
+export function calcMaxGradientFromProfile(profile: ProfilePoint[], minDistance: number): number {
+  let best = 0;
+  for (let i = 0; i < profile.length - 1; i++) {
+    for (let j = i + 1; j < profile.length; j++) {
+      const dist = profile[j].distance - profile[i].distance;
+      if (dist < minDistance) continue;
+      const grad = ((profile[j].elevation - profile[i].elevation) / dist) * 100;
+      best = Math.max(best, grad);
+      break; // shortest window from i that satisfies minDistance; wider spans only average down
+    }
+  }
+  return best;
+}
+
+/**
  * Converts a profile into contiguous color zones.
  * Adjacent segments with the same color are merged into a single zone.
  */
-export function buildGradientZones(profile: ProfilePoint[]): GradientZone[] {
+export function buildGradientZones(
+  profile: ProfilePoint[],
+  gradeColors: [number, string][] = CYCLING_GRADE_COLORS
+): GradientZone[] {
   const zones: GradientZone[] = [];
   for (let i = 0; i < profile.length - 1; i++) {
     const a = profile[i],
       b = profile[i + 1];
-    const col = getColorForGrade(segmentGradient(a, b));
+    const col = getColorForGrade(segmentGradient(a, b), gradeColors);
     if (zones.length === 0 || zones[zones.length - 1].color !== col) {
       zones.push({ color: col, start: a.distance, end: b.distance });
     } else {
@@ -181,16 +259,17 @@ export function mergeShortZones(zones: GradientZone[], minLen: number): Gradient
 /**
  * Full pipeline: segments → simplified profile → gradient zones → optional filter.
  *
- * `zoneFilter` and `zoom` are both optional; omitting them gives the standard
- * unfiltered zone array (current behaviour).
+ * `zoneFilter`, `zoom`, and `gradeColors` are all optional; omitting them gives the
+ * standard cycling-color unfiltered zone array (current behaviour).
  */
 export function buildClimbZones(
   segments: Segment[],
   totalDistance: number,
   zoneFilter?: ZoneFilterFn,
-  zoom?: number
+  zoom?: number,
+  gradeColors: [number, string][] = CYCLING_GRADE_COLORS
 ): GradientZone[] {
-  const zones = buildGradientZones(simplifyProfile(buildProfilePoints(segments)));
+  const zones = buildGradientZones(simplifyProfile(buildProfilePoints(segments)), gradeColors);
   if (zoneFilter != null && zoom != null) {
     return zoneFilter(zones, totalDistance, zoom);
   }

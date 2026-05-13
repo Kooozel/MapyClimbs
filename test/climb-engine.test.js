@@ -12,6 +12,7 @@ import { describe, it, expect } from 'vitest';
 import {
   detectClimbs,
   resamplePoints,
+  _interpolateProfile as interpolateProfile,
   smoothElevationProfile,
   mergeNearbyClimbs,
   categorizeClimb,
@@ -187,6 +188,67 @@ describe('resamplePoints', () => {
   });
 });
 
+// ─── interpolateProfile ───────────────────────────────────────────────────────
+
+describe('interpolateProfile', () => {
+  it('returns a single point unchanged', () => {
+    const single = [pt(0, 100)];
+    expect(interpolateProfile(single)).toBe(single);
+  });
+
+  it('does not insert points when all gaps are within INTERPOLATE_MAX_GAP_M (25 m)', () => {
+    const profile = [pt(0, 100), pt(20, 110), pt(40, 120)];
+    const result = interpolateProfile(profile);
+    expect(result).toHaveLength(3);
+    expect(result[0]).toEqual(profile[0]);
+    expect(result[1]).toEqual(profile[1]);
+    expect(result[2]).toEqual(profile[2]);
+  });
+
+  it('fills a wide gap so the maximum inter-point distance is approximately RESAMPLE_MIN_INTERVAL_M', () => {
+    const profile = [pt(0, 0), pt(120, 60)]; // 120 m gap → exceeds 25 m threshold, should be filled
+    const result = interpolateProfile(profile);
+    expect(result.length).toBeGreaterThan(2);
+    for (let i = 1; i < result.length; i++) {
+      expect(result[i].distance - result[i - 1].distance).toBeLessThanOrEqual(25);
+    }
+    // Original endpoints preserved
+    expect(result[0].distance).toBe(0);
+    expect(result[result.length - 1].distance).toBe(120);
+  });
+
+  it('interpolates elevation linearly between endpoints', () => {
+    const profile = [pt(0, 0), pt(120, 120)]; // 120 m gap, 120 m elevation (slope = 1)
+    const result = interpolateProfile(profile);
+    for (const p of result) {
+      // On a straight line: elevation == distance (slope = 1)
+      expect(p.elevation).toBeCloseTo(p.distance, 6);
+    }
+  });
+
+  it('interpolates lat/lon linearly between endpoints', () => {
+    const a = { distance: 0, elevation: 0, lat: 48.0, lon: 16.0 };
+    const b = { distance: 120, elevation: 10, lat: 48.12, lon: 16.12 };
+    const result = interpolateProfile([a, b]);
+    expect(result.length).toBeGreaterThan(2);
+    for (const p of result) {
+      const t = p.distance / 120;
+      expect(p.lat).toBeCloseTo(48.0 + t * 0.12, 8);
+      expect(p.lon).toBeCloseTo(16.0 + t * 0.12, 8);
+    }
+  });
+
+  it('sets lat/lon to null for interpolated points when either endpoint has null coords', () => {
+    const a = { distance: 0, elevation: 0, lat: null, lon: null };
+    const b = { distance: 100, elevation: 10, lat: null, lon: null };
+    const result = interpolateProfile([a, b]);
+    for (const p of result) {
+      expect(p.lat).toBeNull();
+      expect(p.lon).toBeNull();
+    }
+  });
+});
+
 // ─── smoothElevationProfile ───────────────────────────────────────────────────
 
 describe('smoothElevationProfile', () => {
@@ -212,17 +274,19 @@ describe('smoothElevationProfile', () => {
   });
 
   it('reduces a prominent one-sided spike', () => {
-    // 50 flat points at 100 m, one spike at index 25 (250 m on each side), then flat again.
-    // Approach to the spike: 100→300 in 1 step (200 % grade) — spike.
-    // Departure from the spike: 300→103 (flat) — one-sided.
+    // 51 points at 12 m spacing (matching post-interpolation point density):
+    // 25 flat at 100 m, one spike at 300 m, 25 flat at 103 m.
+    // With a 50 m triangular-kernel window the spike gains 4 neighbours on each
+    // side (12, 24, 36, 48 m away), all at ~100 m, pulling the weighted average
+    // well below the raw peak.
     const profile = [
-      ...Array.from({ length: 25 }, (_, i) => pt(i * 50, 100)),
-      pt(25 * 50, 300),  // spike ← steep in, flat out
-      ...Array.from({ length: 25 }, (_, i) => pt((26 + i) * 50, 103)),
+      ...Array.from({ length: 25 }, (_, i) => pt(i * 12, 100)),
+      pt(25 * 12, 300),  // spike
+      ...Array.from({ length: 25 }, (_, i) => pt((26 + i) * 12, 103)),
     ];
 
     const result = smoothElevationProfile(profile);
-    // Spike must be substantially reduced (rolling average + filterNoiseSpikes)
+    // Spike must be substantially reduced toward the flat baseline (~100 m)
     expect(result[25].elevation).toBeLessThan(200);
   });
 
@@ -339,12 +403,28 @@ describe('categorizeClimb', () => {
     expect(categorizeClimb(null)).toBeNull();
   });
 
-  it('assigns category 4 when score < 75', () => {
-    // 5 km × 2 %² = 5 × 4 = 20  →  Cat 4
-    const climb = makeClimb(5000, 100);
+  it('assigns category 4 when score ≥ 25 and < 75', () => {
+    // 5 km × 3 %² = 5 × 9 = 45  →  Cat 4
+    const climb = makeClimb(5000, 150);
     const result = categorizeClimb(climb);
     expect(result.category).toBe('4');
-    expect(result.difficulty).toBeCloseTo(20, 0);
+    expect(result.difficulty).toBeCloseTo(45, 0);
+  });
+
+  it('[aso] assigns Uncategorized when score ≥ 8 and < 25', () => {
+    // 0.6 km × 4 %² = 0.6 × 16 = 9.6  →  Uncategorized
+    const climb = makeClimb(600, 24);
+    const result = categorizeClimb(climb);
+    expect(result.category).toBe('uncategorized');
+    expect(result.difficulty).toBeCloseTo(9.6, 1);
+  });
+
+  it('[aso] assigns category 4 exactly at the lower boundary (score = 25)', () => {
+    // 1 km × 5 %² = 1 × 25 = 25  →  Cat 4
+    const climb = makeClimb(1000, 50);
+    const result = categorizeClimb(climb);
+    expect(result.category).toBe('4');
+    expect(result.difficulty).toBeCloseTo(25, 1);
   });
 
   it('assigns category 3 at the lower boundary (score = 75)', () => {
@@ -424,9 +504,50 @@ describe('categorizeClimb', () => {
     expect(result.difficulty).toBeCloseTo(64000, 0);
   });
 
-  it('[garmin] returns null when score < 1 500', () => {
-    // 200 m × 5 % = 1 000 < 1 500 → discard
-    expect(categorizeClimb(makeClimb(200, 10), 'garmin')).toBeNull();
+  it('[garmin] assigns category 4 exactly at the lower boundary (score = 8 000)', () => {
+    // 1 000 m × 8 % = 8 000 → Cat 4
+    const result = categorizeClimb(makeClimb(1000, 80), 'garmin');
+    expect(result.category).toBe('4');
+    expect(result.difficulty).toBeCloseTo(8000, 0);
+  });
+
+  it('[garmin] assigns Uncategorized when score < 8 000', () => {
+    // 500 m × 6 % = 3 000 → Uncategorized
+    const result = categorizeClimb(makeClimb(500, 30), 'garmin');
+    expect(result.category).toBe('uncategorized');
+    expect(result.difficulty).toBeCloseTo(3000, 0);
+  });
+
+  it('[garmin] assigns Uncategorized at exactly min score (1 500)', () => {
+    // 500 m × 3 % = 1 500 → Uncategorized (geometric minimums exactly met)
+    const result = categorizeClimb(makeClimb(500, 15), 'garmin');
+    expect(result.category).toBe('uncategorized');
+    expect(result.difficulty).toBeCloseTo(1500, 0);
+  });
+
+  // ── Score-only filtering (no geometric floor) ────────────────────────────
+
+  it('[aso] 400 m @ 5 % is Uncategorized (score 10 is above Uncat floor)', () => {
+    // score = 0.4 × 25 = 10.0 → ≥ 8 (Uncat) and < 25 (Cat4)
+    const result = categorizeClimb(makeClimb(400, 20));
+    expect(result).not.toBeNull();
+    expect(result?.category).toBe('uncategorized');
+  });
+
+  it('[aso] returns null when score is below Uncategorized threshold', () => {
+    // 500 m, elevation 9 m → avgGrade 1.8 % → ASO score 1.62 < 4.5 threshold
+    expect(categorizeClimb(makeClimb(500, 9))).toBeNull();
+  });
+
+  it('[garmin] 299 m @ 5 % is Uncategorized (score 1500 at threshold)', () => {
+    const result = categorizeClimb(makeClimb(299, 15), 'garmin');
+    expect(result).not.toBeNull();
+    expect(result?.category).toBe('uncategorized');
+  });
+
+  it('[garmin] returns null when score is below Uncategorized threshold', () => {
+    // 500 m, elevation 9 m → avgGrade 1.8 % → Garmin score 900 < 1500 threshold
+    expect(categorizeClimb(makeClimb(500, 9), 'garmin')).toBeNull();
   });
 });
 
@@ -434,29 +555,29 @@ describe('categorizeClimb', () => {
 
 describe('detectClimbs', () => {
   it('returns [] for null input', () => {
-    expect(detectClimbs(null)).toEqual([]);
+    expect(detectClimbs(null).climbs).toEqual([]);
   });
 
   it('returns [] for undefined input', () => {
-    expect(detectClimbs(undefined)).toEqual([]);
+    expect(detectClimbs(undefined).climbs).toEqual([]);
   });
 
   it('returns [] for a single-point array', () => {
-    expect(detectClimbs([[0, 100, 48, 16]])).toEqual([]);
+    expect(detectClimbs([[0, 100, 48, 16]]).climbs).toEqual([]);
   });
 
   it('returns [] for a flat route with no elevation gain', () => {
     const result = detectClimbs(FLAT_ROUTE);
-    expect(result).toEqual([]);
+    expect(result.climbs).toEqual([]);
   });
 
   it('detects exactly one climb on a clean single-climb route', () => {
     const result = detectClimbs(makeSingleClimbRoute());
-    expect(result).toHaveLength(1);
+    expect(result.climbs).toHaveLength(1);
   });
 
   it('single climb has correct structure', () => {
-    const [climb] = detectClimbs(makeSingleClimbRoute());
+    const [climb] = detectClimbs(makeSingleClimbRoute()).climbs;
     expect(climb).toMatchObject({
       distance:   expect.any(Number),
       elevation:  expect.any(Number),
@@ -469,31 +590,33 @@ describe('detectClimbs', () => {
   });
 
   it('single climb elevation gain is within ±15 % of the design value (600 m)', () => {
-    const [climb] = detectClimbs(makeSingleClimbRoute());
+    const [climb] = detectClimbs(makeSingleClimbRoute()).climbs;
     // After trimming and smoothing the 8 km × 7.5 % ramp, gain should be near 600 m
     expect(climb.elevation).toBeGreaterThan(600 * 0.85);
     expect(climb.elevation).toBeLessThan(600 * 1.15);
   });
 
-  it('detects exactly two climbs on a multi-climb route', () => {
+  it('detects exactly three climbs on a multi-climb route', () => {
     const result = detectClimbs(makeMultiClimbRoute());
-    expect(result).toHaveLength(2);
+    expect(result.climbs).toHaveLength(3);
   });
 
   it('two climbs are ordered by start distance', () => {
-    const [a, b] = detectClimbs(makeMultiClimbRoute());
+    const [a, b] = detectClimbs(makeMultiClimbRoute()).climbs;
     const aStart = a.segments[0].startDistance;
     const bStart = b.segments[0].startDistance;
     expect(aStart).toBeLessThan(bStart);
   });
 
-  it('second climb has greater elevation gain than first (640 m vs 300 m design)', () => {
-    const [climbA, climbB] = detectClimbs(makeMultiClimbRoute());
-    expect(climbB.elevation).toBeGreaterThan(climbA.elevation);
+  it('last climb has greater elevation gain than first (640 m vs 300 m design)', () => {
+    const result = detectClimbs(makeMultiClimbRoute()).climbs;
+    const first = result[0];
+    const last = result[result.length - 1];
+    expect(last.elevation).toBeGreaterThan(first.elevation);
   });
 
   it('markerCoords and endCoords are populated when lat/lon data is present', () => {
-    const [climb] = detectClimbs(makeSingleClimbRoute());
+    const [climb] = detectClimbs(makeSingleClimbRoute()).climbs;
     expect(climb.markerCoords).not.toBeNull();
     expect(climb.endCoords).not.toBeNull();
     expect(climb.markerCoords).toHaveProperty('lat');
@@ -531,22 +654,20 @@ describe('detectClimbs', () => {
     }
 
     const result = detectClimbs(points);
-    expect(result).toHaveLength(2);
+    expect(result.climbs).toHaveLength(2);
   });
 
-  it('discards a climb whose steep section is shorter than 100 m after trimming', () => {
-    // 75 m at 40 % grade (+30 m elevation) satisfies identifyClimbs minimums when
-    // followed by a 330 m flat tail (total 405 m, +30 m, 7.4 % avg).
-    // With raw-elevation validation the 30 m gain meets CLIMB_MIN_ELEVATION_M,
-    // so the smoothed candidate (285 m after smoothing extends the climbing zone)
-    // survives as a valid category-4 climb.
+  it('detects a short steep climb at 40 % grade', () => {
+    // 75 m at 40 % grade (+30 m elevation) followed by a 330 m flat tail.
+    // Without geometric floors, the trimmed ~105 m steep section reaches scoring
+    // and passes as Cat3 (ASO score ≈ 86).
     const points = [];
     // Steep section: 5 intervals × 15 m, each +6 m (40 % grade)
     for (let i = 0; i <= 5; i++) points.push([i * 15, i * 6, 48.0, 16.0]);
     // Flat tail: 22 intervals × 15 m at elevation 30 m
     for (let i = 1; i <= 22; i++) points.push([75 + i * 15, 30, 48.0 + i * 0.00013, 16.0]);
 
-    const result = detectClimbs(points);
+    const result = detectClimbs(points).climbs;
     expect(result).toHaveLength(1);
   });
 });

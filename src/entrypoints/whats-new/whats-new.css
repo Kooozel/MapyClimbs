@@ -39,13 +39,13 @@ body {
 .page {
   max-width: 640px;
   margin: 0 auto;
-  padding: 48px 24px 80px;
+  padding: 28px 24px 32px;
 }
 
 /* ── Header ──────────────────────────────────────────────────────────────── */
 
 .page-header {
-  margin-bottom: 40px;
+  margin-bottom: 20px;
 }
 
 .logo {
@@ -90,7 +90,7 @@ body {
 .content {
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: 16px;
 }
 
 .title {
@@ -113,14 +113,14 @@ body {
   background: var(--bg1);
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 20px 24px;
+  padding: 12px 20px;
 }
 
 .changelog-list {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
 }
 
 .changelog-list li {
@@ -147,11 +147,12 @@ body {
 .support-section {
   background: var(--bg1);
   border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
   border-radius: 12px;
-  padding: 24px;
+  padding: 14px 20px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
 }
 
 .support-heading {
@@ -188,4 +189,27 @@ body {
   background: var(--bg3);
   color: var(--text1);
   border-color: var(--accent);
+}
+
+/* ── Contact footer ──────────────────────────────────────────────────────── */
+
+.page-footer {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--text3);
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.contact-link {
+  color: var(--text2);
+  text-decoration: none;
+}
+
+.contact-link:hover {
+  color: var(--text1);
 }

@@ -4,57 +4,32 @@
  * and broadcast them via postMessage to the content script.
  */
 
-function postGpxFetched(gpxContent: string, source: string): void {
+type RouteMode = "cycling" | "hiking" | "other";
+
+function detectRouteMode(): RouteMode {
+  if (document.querySelector("button.active .icon-bike")) return "cycling";
+  if (document.querySelector("button.active .icon-walk")) return "hiking";
+  return "other";
+}
+
+function postGpxFetched(gpxContent: string): void {
   if (!gpxContent.length) return;
+  const activeRouteClass = document
+    .querySelector<HTMLHeadingElement>("#layout-body > div > div.route-summary h3.active")
+    ?.className.split(" ")[0];
+  const routeMode = detectRouteMode();
   window.postMessage(
-    { type: "GPX_FETCHED", gpxContent, source, timestamp: Date.now() },
+    {
+      type: "GPX_FETCHED",
+      gpxInfo: { gpxContent, activeRouteClass, routeMode },
+      timestamp: Date.now(),
+    },
     location.origin
   );
 }
 
 function isGpxExportUrl(url: string): boolean {
   return url.includes("tplannerexport") && url.includes("export=gpx");
-}
-
-export function installFetchInterceptor(): void {
-  const originalFetch = window.fetch;
-
-  window.fetch = (...args: Parameters<typeof fetch>): ReturnType<typeof fetch> => {
-    const [input] = args;
-    const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
-
-    if (!isGpxExportUrl(url)) {
-      return originalFetch(...args);
-    }
-
-    const fetchPromise = originalFetch(...args);
-
-    fetchPromise
-      .then((response) => {
-        const contentType = response.headers.get("content-type") ?? "";
-        const cloned = response.clone();
-
-        if (
-          contentType.includes("application/octet-stream") ||
-          contentType.includes("application/blob")
-        ) {
-          cloned
-            .blob()
-            .then((blob) => blob.text())
-            .then((text) => postGpxFetched(text, "fetch-blob"))
-            .catch(() => {});
-        } else {
-          cloned
-            .text()
-            .then((text) => postGpxFetched(text, "fetch-text"))
-            .catch(() => {});
-        }
-        return response;
-      })
-      .catch(() => {});
-
-    return fetchPromise;
-  };
 }
 
 export function installXhrInterceptor(): void {
@@ -86,12 +61,8 @@ export function installXhrInterceptor(): void {
         if (this.responseType === "blob" && this.response instanceof Blob) {
           (this.response as Blob)
             .text()
-            .then((text) => postGpxFetched(text, "xhr-blob"))
+            .then((text) => postGpxFetched(text))
             .catch(() => {});
-        } else if (this.responseType === "" || this.responseType === "text") {
-          postGpxFetched(this.responseText || (this.response as string), "xhr-text");
-        } else if (typeof this.response === "string") {
-          postGpxFetched(this.response, "xhr-response");
         }
       });
     }

@@ -8,14 +8,9 @@
  */
 
 import { installDownloadSuppressor } from "../injected/download-suppressor";
-import { installFetchInterceptor, installXhrInterceptor } from "../injected/gpx-interceptors";
-import { installSmapCapture } from "../injected/smap-capture";
-import { installMarkerInjectionListener } from "../injected/marker-injection";
+import { installXhrInterceptor } from "../injected/gpx-interceptors";
 
 export default defineUnlistedScript(() => {
   installDownloadSuppressor();
-  installFetchInterceptor();
   installXhrInterceptor();
-  installSmapCapture();
-  installMarkerInjectionListener();
 });

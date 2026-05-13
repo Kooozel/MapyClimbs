@@ -13,8 +13,7 @@ export const StorageKey = {
   StorageVersion: "storageVersion",
   PendingGPX: "pendingGPX",
   GpxCaptureTime: "gpxCaptureTime",
-  LastClimbResult: "lastClimbResult",
-  LastTotalDistance: "lastTotalDistance",
+  LastAnalysisResult: "lastAnalysisResult",
   ScoringModel: "scoringModel",
   MapLayerVisible: "mapLayerVisible",
   LastSeenVersion: "lastSeenVersion",
@@ -28,56 +27,40 @@ export type StorageKey = (typeof StorageKey)[keyof typeof StorageKey];
 export interface ProcessClimbsMessage {
   type: "PROCESS_CLIMBS";
   elevation: ElevationTuple[];
-  tabId?: number;
-}
-
-/**
- * Send raw GPX content to the background worker for one-shot parse + detect.
- * Preferred over PROCESS_CLIMBS for callers that have not yet parsed the GPX.
- */
-export interface AnalyzeGpxMessage {
-  type: "ANALYZE_GPX";
-  gpxContent: string;
-  tabId?: number;
+  activeRouteClass: string;
+  tabId: number;
 }
 
 export interface SaveTabGpxMessage {
   type: "SAVE_TAB_GPX";
-  gpxContent: string;
+  gpxInfo: GpxInfo;
   timestamp: number;
-  tabId?: number;
+  tabId: number;
 }
 
 export interface GetTabStateMessage {
   type: "GET_TAB_STATE";
-  tabId?: number;
+  tabId: number;
+  activeRouteClass: string;
 }
 
 export interface ClearTabStateMessage {
   type: "CLEAR_TAB_STATE";
-  tabId?: number;
+  tabId: number;
 }
 
 export interface TabStateResponse {
   type: "TAB_STATE_RESPONSE";
-  pendingGPX?: string;
+  pendingGPX?: GpxInfo;
   captureTime?: number;
-  lastClimbResult?: Climb[];
-  lastTotalDistance?: number;
+  lastAnalysisResult?: AnalysisResult;
 }
 
-/**
- * Notification sent by the interceptor content script when a GPX export is
- * captured and already written to chrome.storage.local.
- */
-export interface GpxCapturedMessage {
-  type: "GPX_CAPTURED";
-  timestamp: number;
+export interface GetTabIdMessage {
+  type: "GET_TAB_ID";
 }
 
-export interface PortMessage {
-  type: "GPX_CAPTURED";
-  timestamp: number;
+export interface TabIdResponse {
   tabId?: number;
 }
 
@@ -97,13 +80,11 @@ export interface MapLayerVisibilityMessage {
 
 export type ExtensionMessage =
   | ProcessClimbsMessage
-  | AnalyzeGpxMessage
   | SaveTabGpxMessage
   | GetTabStateMessage
   | ClearTabStateMessage
-  | GpxCapturedMessage
   | RecategorizeMessage
-  | MapLayerVisibilityMessage;
+  | GetTabIdMessage;
 
 /**
  * Sent by background → active mapy tab content script after re-categorisation
@@ -115,8 +96,8 @@ export interface CategorizationUpdatedMessage {
 
 /** Response shape for PROCESS_CLIMBS and ANALYZE_GPX messages. */
 export interface ClimbsResponse {
-  climbs: Climb[];
-  totalDistance: number;
+  result: AnalysisResult;
+  activeRouteClass: string;
   error?: string;
 }
 
@@ -126,12 +107,6 @@ export interface GpxStoredResponse {
 }
 
 export type ExtensionResponse = ClimbsResponse | GpxStoredResponse;
-
-/** Message sent over the popup long-lived port by the background worker. */
-export interface PortMessage {
-  type: "GPX_CAPTURED";
-  timestamp: number;
-}
 
 /**
  * Climb difficulty category — enum-like const so callers can reference values
@@ -144,23 +119,31 @@ export const ClimbCategory = {
   Cat2: "2",
   Cat3: "3",
   Cat4: "4",
+  Uncategorized: "uncategorized",
 } as const;
 export type ClimbCategory = (typeof ClimbCategory)[keyof typeof ClimbCategory];
 
 /**
  * Scoring model used to classify climbs.
  * - "aso": ASO/Tour de France formula — score = dist(km) × avgGrade²
- *   Thresholds: HC ≥ 600 | Cat 1 ≥ 300 | Cat 2 ≥ 150 | Cat 3 ≥ 75 | Cat 4 < 75
  * - "garmin": Garmin ClimbPro formula — score = dist(m) × avgGrade(%)
- *   Thresholds: HC ≥ 64 000 | Cat 1 ≥ 48 000 | Cat 2 ≥ 32 000 | Cat 3 ≥ 16 000 | Cat 4 ≥ 8 000
+ * - "hiking": TRAILS-GPX formula — score = H²/(8L) + altitude bonus + G_max term
  */
-export type ScoringModel = "aso" | "garmin";
+export type ScoringModel = "aso" | "garmin" | "hiking";
+
+/**
+ * Transport mode detected from the Mapy.cz route-planner UI at GPX-capture time.
+ * Determines which scoring model is applied automatically.
+ */
+export type RouteMode = "cycling" | "hiking" | "other";
 
 /**
  * Raw elevation tuple as produced by gpx-parser.
  * [distance_m, elevation_m, lat, lon]
  */
 export type ElevationTuple = [number, number, number, number];
+
+export type GpxInfo = { gpxContent: string; activeRouteClass: string; routeMode?: RouteMode };
 
 /** Intermediate GPS point used within the climb-detection pipeline. */
 export interface GpsPoint {
@@ -211,4 +194,102 @@ export interface RawClimb {
   segments: Segment[];
   totalDistance: number;
   totalElevation: number;
+}
+
+export interface AnalysisResult {
+  climbs: Climb[];
+  /** All trimmed candidates before scoring — used by recategorizeClimbs to
+   *  recover climbs dropped by a different model. Optional for backward
+   *  compatibility with results stored before this field was added. */
+  candidates?: RawClimb[];
+  totalDistance: number;
+  totalElevationGain: number;
+  totalElevationLoss: number;
+  timestamp: number;
+  routeMode?: RouteMode;
+  error?: string;
+}
+
+/**
+ * Structured pipeline-trace event emitted by detectClimbs when a debug sink is
+ * passed. Production code never passes a sink so the engine stays a no-op.
+ * Each variant corresponds to one decision point in the 5-step pipeline.
+ */
+export type ClimbDebugEvent =
+  | {
+      stage: "pipeline";
+      rawPoints: number;
+      resampled: number;
+      interpolated: number;
+      smoothed: number;
+      segments: number;
+    }
+  | {
+      stage: "identify-candidate";
+      index: number;
+      startKm: number;
+      endKm: number;
+      distanceM: number;
+      elevationM: number;
+      avgGradePct: number;
+      rawGainM: number;
+    }
+  | {
+      stage: "identify-close";
+      reason: "descent" | "flat";
+      atKm: number;
+      tailTrimGradePct: number;
+    }
+  | {
+      stage: "identify-reject";
+      reason: "noise-floor" | "empty";
+      measuredGainM: number;
+      startKm: number;
+      endKm: number;
+    }
+  | {
+      stage: "merge-pair";
+      prevStartKm: number;
+      prevEndKm: number;
+      currStartKm: number;
+      currEndKm: number;
+      gapM: number;
+      valleyDropM: number;
+      effectiveMaxGapM: number;
+      maxAllowedDropM: number;
+      coherentAscent: boolean;
+      combinedRawRiseM: number;
+      decision: "merge" | "skip" | "force-merge";
+      reason: string;
+    }
+  | {
+      stage: "trim";
+      startKm: number;
+      endKm: number;
+      droppedHeadSegs: number;
+      droppedTailSegs: number;
+      remainingDistanceM: number;
+      kept: boolean;
+    }
+  | {
+      stage: "categorize";
+      startKm: number;
+      endKm: number;
+      distanceM: number;
+      avgGradePct: number;
+      difficulty: number | null;
+      category: ClimbCategory | null;
+    };
+
+export type ClimbDebugSink = (event: ClimbDebugEvent) => void;
+
+export interface DetectClimbsOptions {
+  /** Optional structured trace sink. Production callers omit this. */
+  debug?: ClimbDebugSink;
+}
+
+declare global {
+  interface XMLHttpRequest {
+    _isGPXRequest?: boolean;
+  }
 }

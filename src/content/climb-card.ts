@@ -8,26 +8,16 @@
 import { generateElevationChart } from "./chart";
 import { getCategoryClass } from "./category";
 import { metersToKm, metersToKmNum, toPercent, formatMinutes } from "../format";
-import type { Climb, Segment } from "../types";
+import { ClimbCategory, type Climb, type RouteMode } from "../types";
+import {
+  CYCLING_GRADE_COLORS,
+  HIKING_GRADE_COLORS,
+  buildProfilePoints,
+  simplifyProfile,
+  calcMaxGradientFromProfile,
+} from "../gradient-zones";
 
 // ── Climb metrics ─────────────────────────────────────────────────────────────
-
-export function calcMaxGradientOver(segments: Segment[], minDistance: number): number {
-  let best = 0;
-  for (let i = 0; i < segments.length; i++) {
-    let dist = 0,
-      weightedGrad = 0;
-    for (let j = i; j < segments.length; j++) {
-      dist += segments[j].distance;
-      weightedGrad += segments[j].gradient * segments[j].distance;
-      if (dist >= minDistance) {
-        best = Math.max(best, weightedGrad / dist);
-        break;
-      }
-    }
-  }
-  return best;
-}
 
 function estimatedSpeedKmh(avgGrade: number): number {
   return 12 / (1 + avgGrade / 5);
@@ -76,12 +66,15 @@ const PEAK_SVG =
 
 // ── Climb card ────────────────────────────────────────────────────────────────
 
-export function buildClimbCard(climb: Climb, index: number): HTMLElement {
+export function buildClimbCard(climb: Climb, index: number, routeMode?: RouteMode): HTMLElement {
   const catClass = getCategoryClass(climb.category);
-  const maxGrad = calcMaxGradientOver(climb.segments, 200);
+  const simplifiedProfile = simplifyProfile(buildProfilePoints(climb.segments));
+  const maxGrad = calcMaxGradientFromProfile(simplifiedProfile, 25);
   const summit = findSummit(climb);
   const timeStr = formatMinutes(estimateClimbTime(climb));
-  const chart = generateElevationChart(climb.segments, climb.distance);
+  const isHiking = routeMode === "hiking";
+  const gradeColors = isHiking ? HIKING_GRADE_COLORS : CYCLING_GRADE_COLORS;
+  const chart = generateElevationChart(climb.segments, climb.distance, gradeColors);
   const climbLabel = chrome.i18n.getMessage("panelClimb", [String(index + 1)]);
 
   const el = document.createElement("div");
@@ -96,7 +89,7 @@ export function buildClimbCard(climb: Climb, index: number): HTMLElement {
       <div class="climb-header">
         <div class="climb-title-group">
           <span class="climb-name">${climbLabel}</span>
-          <span class="climb-badge">${chrome.i18n.getMessage("panelCat", [climb.category])}</span>
+          <span class="climb-badge">${climb.category === ClimbCategory.Uncategorized ? chrome.i18n.getMessage("panelCatUncategorized") : chrome.i18n.getMessage("panelCat", [climb.category])}</span>
         </div>
       </div>
       <div class="climb-stats">
@@ -108,12 +101,17 @@ export function buildClimbCard(climb: Climb, index: number): HTMLElement {
         <div class="stat"><span class="stat-label">${chrome.i18n.getMessage("panelMaxGradeLabel")}</span><span class="stat-value stat-secondary">${toPercent(maxGrad)}</span></div>
         <div class="stat"><span class="stat-label">${chrome.i18n.getMessage("panelSummit")}</span><span class="stat-value stat-secondary stat-summit">${PEAK_SVG}${Math.round(summit.elev)} m</span></div>
         <div class="stat"><span class="stat-label">${chrome.i18n.getMessage("panelSummitAt")}</span><span class="stat-value stat-secondary">${metersToKm(summit.dist)} km</span></div>
-      </div>
+      </div> 
+      ${
+        !isHiking
+          ? `
       <div class="climb-meta">
         <div class="climb-meta-item"><span class="climb-meta-label">${chrome.i18n.getMessage("panelEstTime")}</span><span class="climb-meta-value">${timeStr}</span></div>
         <div class="climb-meta-item"><span class="climb-meta-label">${chrome.i18n.getMessage("panelVam")}</span><span class="climb-meta-value">${calcVAM(climb)} m/h</span></div>
         <div class="climb-meta-item"><span class="climb-meta-label">${chrome.i18n.getMessage("panelFietsIndex")}</span><span class="climb-meta-value">${calcFiets(climb)}</span></div>
-      </div>
+      </div>`
+          : ""
+      }
       ${chart}`;
 
   el.addEventListener("keydown", (event) => {

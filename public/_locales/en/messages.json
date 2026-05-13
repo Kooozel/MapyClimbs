@@ -131,8 +131,16 @@
     "description": "Stat label for total distance"
   },
   "panelMClimbing": {
-    "message": "m climbing",
+    "message": "m gained",
     "description": "Stat label for total elevation gain"
+  },
+  "panelElevationGainTooltip": {
+    "message": "Calculated from GPX data. May differ from Mapy.com",
+    "description": "Tooltip explaining elevation gain discrepancy with Mapy.cz"
+  },
+  "panelMDescent": {
+    "message": "m lost",
+    "description": "Stat label for total elevation loss"
   },
   "panelMaxGrade": {
     "message": "max grade",
@@ -156,6 +164,10 @@
       "cat": { "content": "$1", "example": "HC" }
     }
   },
+  "panelCatUncategorized": {
+    "message": "Uncat.",
+    "description": "Badge label for climbs below the scoring model's minimum category"
+  },
   "panelDistance": { "message": "Distance", "description": "Climb stat label" },
   "panelElevation": { "message": "Elevation", "description": "Climb stat label" },
   "panelAvgGrade": { "message": "Avg grade", "description": "Climb stat label" },
@@ -169,16 +181,17 @@
     "message": "No climbs detected on this route.",
     "description": "Message shown when no climbs are found"
   },
+  "panelAnalyzing": {
+    "message": "Analyzing route…",
+    "description": "Loading message shown in sidebar panel while GPX is being processed"
+  },
   "panelClimbsDetectedSingular": {
-    "message": "1 climb detected",
+    "message": "climb",
     "description": "Section label when exactly one climb is found"
   },
   "panelClimbsDetectedPlural": {
-    "message": "$COUNT$ climbs detected",
-    "description": "Section label when multiple climbs are found",
-    "placeholders": {
-      "count": { "content": "$1", "example": "3" }
-    }
+    "message": "climbs",
+    "description": "Section label when multiple climbs are found"
   },
 
   "whatsNewTitle": {
@@ -195,5 +208,9 @@
     "placeholders": {
       "version": { "content": "$1", "example": "1.0.4" }
     }
+  },
+  "whatsNewContact": {
+    "message": "Questions or feedback?",
+    "description": "Contact footer label on the What's New page"
   }
 }

@@ -1,13 +1,19 @@
 import { ElementId } from "../constants";
 
-export function tryInjectButton(): void {
+export function tryInjectButton(
+  onRouteActive: (routeClass: string) => void,
+  onDone: () => void
+): void {
   if (document.getElementById(ElementId.Button)) return;
   const target = document.querySelector(".route-actions");
   if (!target) return;
-  target.appendChild(buildButton());
+  target.appendChild(buildButton(onRouteActive, onDone));
 }
 
-function buildButton(): HTMLDivElement {
+function buildButton(
+  onRouteActive: (routeClass: string) => void,
+  onDone: () => void
+): HTMLDivElement {
   const btn = document.createElement("div");
   btn.id = ElementId.Button;
   btn.className = "icon-action";
@@ -16,36 +22,44 @@ function buildButton(): HTMLDivElement {
       <img src="${chrome.runtime.getURL("images/icon-48.png")}" width="24" height="24" alt="" aria-hidden="true">
       <span>${chrome.i18n.getMessage("panelTitle")}</span>
     </button>`;
-  btn.querySelector("button")!.addEventListener("click", onClimbButtonClick);
+
+  btn
+    .querySelector("button")!
+    .addEventListener("click", () => runAutomatedClimb(onRouteActive, onDone));
   return btn;
 }
 
-function onClimbButtonClick(): void {
-  const exportBtn = findGPXExportButton();
-  if (!exportBtn) return;
+async function runAutomatedClimb(
+  onRouteActive: (routeClass: string) => void,
+  onDone: () => void
+): Promise<void> {
+  const routes = document.querySelectorAll<HTMLHeadingElement>(
+    "#layout-body > div > div.route-summary h3"
+  );
+  if (routes.length === 0) return;
 
-  const observer = new MutationObserver(() => {
-    const saveBtn = document.querySelector<HTMLElement>(".mymaps-dialog__saveBtn");
-    if (!saveBtn) return;
-    observer.disconnect();
+  let originalRoute: HTMLHeadingElement | null = null;
 
-    const dialogRoot = saveBtn.closest<HTMLElement>(".mymaps-dialog__content");
-    if (dialogRoot) {
-      dialogRoot.style.setProperty("opacity", "0", "important");
-      dialogRoot.style.setProperty("pointer-events", "none", "important");
-      if (dialogRoot.parentElement) {
-        dialogRoot.parentElement.style.setProperty("opacity", "0", "important");
-        dialogRoot.parentElement.style.setProperty("pointer-events", "none", "important");
-      }
+  for (const route of routes) {
+    const routeClass = route.className.split(" ").find((c) => c.startsWith("alt-")) ?? "alt-0";
+
+    if (route.classList.contains("active")) {
+      originalRoute = route;
+    } else {
+      route.click();
+      await new Promise((resolve) => setTimeout(resolve, 800));
     }
 
-    window.postMessage({ type: "CLIMB_SUPPRESS_DOWNLOAD" }, location.origin);
-    saveBtn.click();
-  });
+    onRouteActive(routeClass);
+    await triggerExportAndSave();
 
-  observer.observe(document.body, { childList: true, subtree: true });
-  setTimeout(() => observer.disconnect(), 5000);
-  (exportBtn as HTMLElement).click();
+    // Give the interceptor a moment to catch the file before switching tabs
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+
+  // Restore the original route view
+  originalRoute?.click();
+  onDone();
 }
 
 function findGPXExportButton(): Element | null {
@@ -58,4 +72,54 @@ function findGPXExportButton(): Element | null {
     if (t === "Export" || t === "GPX" || t === "Export GPX") return el;
   }
   return null;
+}
+
+/**
+ * Encapsulates the MutationObserver logic into a Promise
+ * so we can "await" the completion of one route before starting the next.
+ */
+function triggerExportAndSave(): Promise<void> {
+  return new Promise((resolve) => {
+    const exportBtn = findGPXExportButton();
+    if (!exportBtn) {
+      resolve();
+      return;
+    }
+
+    // Hide the backdrop before it paints; removed after dialog is fully gone
+    const suppressStyle = document.createElement("style");
+    suppressStyle.textContent = "body>div.mymaps-dialog__cover{opacity:0!important}";
+    document.head.appendChild(suppressStyle);
+
+    const observer = new MutationObserver(() => {
+      const saveBtn = document.querySelector<HTMLElement>(".mymaps-dialog__saveBtn");
+      if (!saveBtn) return;
+
+      observer.disconnect();
+
+      const dialogRoot = saveBtn.closest<HTMLElement>(".mymaps-dialog__content");
+      if (dialogRoot) {
+        dialogRoot.style.setProperty("opacity", "0", "important");
+        if (dialogRoot.parentElement)
+          dialogRoot.parentElement.style.setProperty("opacity", "0", "important");
+      }
+
+      window.postMessage({ type: "CLIMB_SUPPRESS_DOWNLOAD" }, location.origin);
+      saveBtn.click();
+
+      setTimeout(() => {
+        suppressStyle.remove();
+        resolve();
+      }, 1000);
+    });
+
+    observer.observe(document.body, { childList: true, subtree: true });
+    (exportBtn as HTMLElement).click();
+
+    setTimeout(() => {
+      observer.disconnect();
+      suppressStyle.remove();
+      resolve();
+    }, 5000);
+  });
 }

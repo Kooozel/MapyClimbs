@@ -1,13 +1,15 @@
 import { metersToKm } from "../format";
-import { StorageKey, type Climb } from "../types";
+import { StorageKey, ClimbCategory, type AnalysisResult } from "../types";
 import { CATEGORY_COLOR } from "./category";
 import { ElementId, CssClass } from "../constants";
 import { mercatorToPixel } from "../map-geometry";
+import { CYCLING_GRADE_COLORS, HIKING_GRADE_COLORS } from "../gradient-zones";
 import {
   createRouteSvg,
   initRouteDashLengths,
   showClimbRoute,
   hideClimbRoute,
+  clearAllPendingTimers,
 } from "./route-highlight";
 
 // ── Local rendering constants ─────────────────────────────────────────────────
@@ -16,10 +18,16 @@ const PIN_SIZE = 28;
 /** Duration (ms) of the card-flash highlight triggered by clicking a map pin. */
 const CARD_FLASH_MS = 1500;
 
-export function renderMapOverlay(climbs: Climb[]): void {
+export function renderMapOverlay(analysisResult: AnalysisResult): void {
+  const { climbs } = analysisResult;
   if (!climbs?.length) return;
   const vp = viewportFromURL();
   if (!vp) return;
+
+  clearAllPendingTimers();
+
+  const gradeColors =
+    analysisResult.routeMode === "hiking" ? HIKING_GRADE_COLORS : CYCLING_GRADE_COLORS;
 
   const mapContainer = document.querySelector("#map");
   if (!mapContainer) return;
@@ -31,6 +39,10 @@ export function renderMapOverlay(climbs: Climb[]): void {
     overlay.style.cssText =
       "position:fixed;pointer-events:none;z-index:2147483647;overflow:visible;";
     document.body.appendChild(overlay);
+    chrome.storage.local.get(StorageKey.MapLayerVisible, (pref) => {
+      if (overlay && (pref[StorageKey.MapLayerVisible] as boolean | undefined) === false)
+        overlay.style.display = "none";
+    });
   }
   const mb = mapContainer.getBoundingClientRect();
   overlay.style.left = mb.left + "px";
@@ -39,17 +51,14 @@ export function renderMapOverlay(climbs: Climb[]): void {
   overlay.style.height = mb.height + "px";
   overlay.innerHTML = "";
 
-  // Respect map layer visibility setting
-  chrome.storage.local.get(StorageKey.MapLayerVisible, (pref) => {
-    const visible = pref[StorageKey.MapLayerVisible] as boolean | undefined;
-    overlay!.style.display = visible === false ? "none" : "";
-  });
-
   climbs.forEach((climb, i) => {
     const color = CATEGORY_COLOR[climb.category];
-    const label =
-      `Climb ${i + 1} \u00b7 Cat ${climb.category} \u00b7 ` +
-      `${metersToKm(climb.distance)} km +${Math.round(climb.elevation)} m`;
+    const climbLabel = chrome.i18n.getMessage("panelClimb", [String(i + 1)]);
+    const catLabel =
+      climb.category === ClimbCategory.Uncategorized
+        ? chrome.i18n.getMessage("panelCatUncategorized")
+        : chrome.i18n.getMessage("panelCat", [climb.category]);
+    const label = `${climbLabel} \u00b7 ${catLabel} \u00b7 ${metersToKm(climb.distance)} km +${Math.round(climb.elevation)} m`;
 
     if (climb.endCoords) {
       const s = mercatorToPixel(
@@ -112,7 +121,7 @@ export function renderMapOverlay(climbs: Climb[]): void {
   });
 
   // ── Polyline SVG layer ──────────────────────────────────────────────────
-  const svg = createRouteSvg(climbs, vp, mb);
+  const svg = createRouteSvg(climbs, vp, mb, undefined, gradeColors);
   overlay.appendChild(svg);
   initRouteDashLengths(svg);
 }

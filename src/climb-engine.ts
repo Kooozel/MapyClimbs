@@ -12,14 +12,20 @@
 
 import type {
   Climb,
+  ClimbCategory,
+  ClimbDebugSink,
   Coords,
+  DetectClimbsOptions,
   ElevationTuple,
   GpsPoint,
   RawClimb,
   Segment,
   ScoringModel,
+  AnalysisResult,
 } from "./types";
-import { applyScore } from "./scoring";
+
+const NOOP_DEBUG: ClimbDebugSink = () => {};
+import { applyScore, applyHikingScore } from "./scoring";
 import {
   RESAMPLE_MIN_INTERVAL_M,
   SMOOTH_GRAD_WINDOW_M,
@@ -28,12 +34,14 @@ import {
   SMOOTH_WINDOW_MIN_M,
   SMOOTH_WINDOW_MID_M,
   SMOOTH_WINDOW_MAX_M,
+  INTERPOLATE_MAX_GAP_M,
   SPIKE_GRADIENT_THRESHOLD,
   SPIKE_NEIGHBOR_THRESHOLD,
+  SPIKE_MAX_SEGMENT_M,
   CLIMB_START_GRADE_PCT,
-  CLIMB_MIN_DISTANCE_M,
-  CLIMB_MIN_ELEVATION_M,
-  CLIMB_MIN_AVG_GRADE_PCT,
+  CLIMB_CONTINUE_GRADE_PCT,
+  CLIMB_LEADIN_GRADE_PCT,
+  CLIMB_LEADIN_MAX_DISTANCE_M,
   DESCENT_END_GRADE_PCT,
   DESCENT_END_DISTANCE_M,
   CLIMB_END_FLAT_M,
@@ -44,25 +52,36 @@ import {
   MERGE_DESCENT_SCALE,
   MERGE_MAX_VALLEY_DROP_M,
   MERGE_VALLEY_RATIO,
-  TRIM_MIN_GRADE_PCT,
+  MERGE_COHERENT_ASCENT_RATIO,
+  TRIM_START_GRADE_PCT,
+  TRIM_END_GRADE_PCT,
   TRIM_TAIL_WINDOW_M,
   TRIM_STEEP_RATIO,
-  TRIM_MIN_DISTANCE_M,
 } from "./climb-engine.config";
 
 // ─── Pipeline entry point ────────────────────────────────────────────────────
 
 /**
- * Climb Detection Algorithm — 7-step pipeline.
+ * Climb Detection Algorithm — 5-step pipeline.
  * See types.ts for the Climb interface definition.
  *
  * @param elevationData - [[distance_m, elevation_m, lat, lon], ...]
  */
 export function detectClimbs(
   elevationData: ElevationTuple[],
-  scoringModel: ScoringModel = "aso"
-): Climb[] {
-  if (!elevationData || elevationData.length < 2) return [];
+  scoringModel: ScoringModel = "aso",
+  options: DetectClimbsOptions = {}
+): AnalysisResult {
+  const emit: ClimbDebugSink = options.debug ?? NOOP_DEBUG;
+
+  if (!elevationData || elevationData.length < 2)
+    return {
+      climbs: [],
+      totalDistance: 0,
+      totalElevationGain: 0,
+      totalElevationLoss: 0,
+      timestamp: Date.now(),
+    };
 
   // Step 1: Build structured profile from raw elevation tuples
   const profile: GpsPoint[] = elevationData.map((point) => ({
@@ -72,10 +91,24 @@ export function detectClimbs(
     lon: point[3] ?? null,
   }));
 
-  // Step 2: Remove GPS micro-jitter, smooth elevation, compute per-segment gradients
+  // Step 2: Remove GPS micro-jitter, fill wide gaps, smooth elevation, compute gradients
   const resampled = resamplePoints(profile);
-  const smoothed = smoothElevationProfile(resampled);
+  // Step 2b: Fill gaps > INTERPOLATE_MAX_GAP_M so the smoother's window covers a
+  // consistent number of points regardless of local GPS sampling density.
+  // rawProfile stays as `resampled` — rawElevationGain/rawElevationAt already
+  // interpolate the raw profile internally and must not see artificial points.
+  const interpolated = interpolateProfile(resampled);
+  const smoothed = smoothElevationProfile(interpolated);
   const segments = calculateGradients(smoothed);
+
+  emit({
+    stage: "pipeline",
+    rawPoints: profile.length,
+    resampled: resampled.length,
+    interpolated: interpolated.length,
+    smoothed: smoothed.length,
+    segments: segments.length,
+  });
 
   // Step 3: Identify raw climb candidates
   // A candidate ends when it accumulates DESCENT_END_DISTANCE_M of descent
@@ -83,23 +116,84 @@ export function detectClimbs(
   // The flat-end threshold strips the trailing flat tail before closing, so
   // each candidate ends just before the gap — giving the merge step a real
   // distance to evaluate rather than an artificial 0 m gap.
-  const rawClimbs = identifyClimbs(segments, resampled);
+  const rawClimbs = identifyClimbs(segments, resampled, emit);
 
   // Step 4: Merge adjacent climb candidates across short valleys or flat gaps.
   // The permitted gap scales with combined elevation gain so that two large
   // climbs separated by a brief descent always merge, while two small climbs
   // separated by the same distance stay separate.
-  const mergedClimbs = mergeNearbyClimbs(rawClimbs, segments, resampled);
+  const mergedClimbs = mergeNearbyClimbs(rawClimbs, segments, resampled, emit);
 
   // Step 5: Trim flat lead-in / tail, then score and categorize
-  return mergedClimbs
+  const rawCandidates: RawClimb[] = [];
+  const trimmedClimbs = mergedClimbs
     .map((raw) => {
+      const before = raw.segments;
       const trimmed = trimClimbEndpoints(raw);
-      return trimmed.totalDistance > 0 && trimmed.totalElevation > 0
-        ? categorizeClimb(trimmed, scoringModel)
-        : null;
+      const kept = trimmed.totalDistance > 0 && trimmed.totalElevation > 0;
+      if (before.length > 0) {
+        const beforeStart = before[0].startDistance;
+        const beforeEnd = before[before.length - 1].endDistance;
+        let droppedHead = 0;
+        let droppedTail = 0;
+        if (kept && trimmed.segments.length > 0) {
+          const ts = trimmed.segments[0].startDistance;
+          const te = trimmed.segments[trimmed.segments.length - 1].endDistance;
+          for (const s of before) {
+            if (s.endDistance <= ts) droppedHead++;
+            if (s.startDistance >= te) droppedTail++;
+          }
+        } else {
+          droppedHead = before.length;
+        }
+        emit({
+          stage: "trim",
+          startKm: beforeStart / 1000,
+          endKm: beforeEnd / 1000,
+          droppedHeadSegs: droppedHead,
+          droppedTailSegs: droppedTail,
+          remainingDistanceM: trimmed.totalDistance,
+          kept,
+        });
+      }
+      if (!kept) return null;
+      rawCandidates.push(trimmed);
+      const scored = categorizeClimb(trimmed, scoringModel);
+      const s0 = trimmed.segments[0];
+      const sN = trimmed.segments[trimmed.segments.length - 1];
+      emit({
+        stage: "categorize",
+        startKm: s0.startDistance / 1000,
+        endKm: sN.endDistance / 1000,
+        distanceM: trimmed.totalDistance,
+        avgGradePct: (trimmed.totalElevation / trimmed.totalDistance) * 100,
+        difficulty: scored ? scored.difficulty : null,
+        category: scored ? scored.category : null,
+      });
+      return scored;
     })
     .filter((c): c is Climb => c !== null);
+
+  // Snap each climb's endCoords to the raw-profile elevation peak within a
+  // conservative lookahead (≤ 300 m, clamped to half the gap before the next
+  // climb) to correct for smoothing-induced under-extension at the summit.
+  for (let i = 0; i < trimmedClimbs.length; i++) {
+    const nextStart =
+      i + 1 < trimmedClimbs.length ? trimmedClimbs[i + 1].segments[0].startDistance : Infinity;
+    const lastSeg = trimmedClimbs[i].segments[trimmedClimbs[i].segments.length - 1];
+    const lookahead = Math.min(300, (nextStart - lastSeg.endDistance) / 2);
+    trimmedClimbs[i] = snapEndCoordsToRawPeak(trimmedClimbs[i], resampled, lookahead);
+  }
+
+  const { gain, descent } = calculateStats(resampled);
+  return {
+    climbs: trimmedClimbs,
+    candidates: rawCandidates,
+    totalDistance: profile[profile.length - 1].distance,
+    totalElevationGain: gain,
+    totalElevationLoss: descent,
+    timestamp: Date.now(),
+  };
 }
 
 // ─── Step 2: Resampling ───────────────────────────────────────────────────────
@@ -122,6 +216,37 @@ export function resamplePoints(profile: GpsPoint[]): GpsPoint[] {
   }
 
   return resampled;
+}
+
+// ─── Step 2b: Profile interpolation ─────────────────────────────────────────
+
+export function interpolateProfile(profile: GpsPoint[]): GpsPoint[] {
+  if (profile.length <= 1) return profile;
+
+  const result: GpsPoint[] = [profile[0]];
+
+  for (let i = 1; i < profile.length; i++) {
+    const prev = profile[i - 1];
+    const curr = profile[i];
+    const gap = curr.distance - prev.distance;
+
+    if (gap > INTERPOLATE_MAX_GAP_M) {
+      const steps = Math.round(gap / RESAMPLE_MIN_INTERVAL_M);
+      for (let s = 1; s < steps; s++) {
+        const t = s / steps;
+        result.push({
+          distance: prev.distance + t * gap,
+          elevation: prev.elevation + t * (curr.elevation - prev.elevation),
+          lat: prev.lat != null && curr.lat != null ? prev.lat + t * (curr.lat - prev.lat) : null,
+          lon: prev.lon != null && curr.lon != null ? prev.lon + t * (curr.lon - prev.lon) : null,
+        });
+      }
+    }
+
+    result.push(curr);
+  }
+
+  return result;
 }
 
 // ─── Step 3: Smoothing ────────────────────────────────────────────────────────
@@ -207,20 +332,22 @@ export function smoothElevationProfile(profile: GpsPoint[]): GpsPoint[] {
 
     const center = profile[i].distance;
     let sumElev = 0,
-      count = 0;
+      sumWeight = 0;
 
     for (let j = i; j >= 0 && center - profile[j].distance <= windowMeters; j--) {
-      sumElev += profile[j].elevation;
-      count++;
+      const w = 1 - (center - profile[j].distance) / windowMeters;
+      sumElev += profile[j].elevation * w;
+      sumWeight += w;
     }
     for (let j = i + 1; j < profile.length && profile[j].distance - center <= windowMeters; j++) {
-      sumElev += profile[j].elevation;
-      count++;
+      const w = 1 - (profile[j].distance - center) / windowMeters;
+      sumElev += profile[j].elevation * w;
+      sumWeight += w;
     }
 
     smoothed[i] = {
       distance: profile[i].distance,
-      elevation: count > 0 ? sumElev / count : profile[i].elevation,
+      elevation: sumWeight > 0 ? sumElev / sumWeight : profile[i].elevation,
       lat: profile[i].lat,
       lon: profile[i].lon,
     };
@@ -240,8 +367,14 @@ function filterNoiseSpikes(profile: GpsPoint[]): GpsPoint[] {
     const curr = original[i];
     const next = original[i + 1];
 
-    const prevGrad = Math.abs((curr.elevation - prev.elevation) / (curr.distance - prev.distance));
-    const nextGrad = Math.abs((next.elevation - curr.elevation) / (next.distance - curr.distance));
+    const leftDist = curr.distance - prev.distance;
+    const rightDist = next.distance - curr.distance;
+
+    // Long segments represent real terrain, not GPS jitter — skip spike detection.
+    if (leftDist > SPIKE_MAX_SEGMENT_M || rightDist > SPIKE_MAX_SEGMENT_M) continue;
+
+    const prevGrad = Math.abs((curr.elevation - prev.elevation) / leftDist);
+    const nextGrad = Math.abs((next.elevation - curr.elevation) / rightDist);
 
     if (
       (prevGrad > SPIKE_GRADIENT_THRESHOLD && nextGrad < SPIKE_NEIGHBOR_THRESHOLD) ||
@@ -287,19 +420,53 @@ function calculateGradients(profile: GpsPoint[]): Segment[] {
 
 // ─── Step 4: Climb identification ────────────────────────────────────────────
 
-function identifyClimbs(segments: Segment[], rawProfile: GpsPoint[]): RawClimb[] {
+function identifyClimbs(
+  segments: Segment[],
+  rawProfile: GpsPoint[],
+  emit: ClimbDebugSink = NOOP_DEBUG
+): RawClimb[] {
   const climbs: RawClimb[] = [];
   let currentClimb: RawClimb | null = null;
   let descentDistance = 0;
   let flatDistance = 0;
+  // Rolling buffer of recent ≥ CLIMB_LEADIN_GRADE_PCT segments held while
+  // no candidate is open. When the START trigger fires, these get prepended
+  // to the new candidate so its first displayed segment reflects the
+  // natural sub-trigger approach. The buffer is bounded in distance.
+  let leadinBuffer: Segment[] = [];
+  let leadinDistance = 0;
+  const resetLeadin = () => {
+    leadinBuffer = [];
+    leadinDistance = 0;
+  };
+  const trimLeadinTo = (maxM: number) => {
+    while (leadinBuffer.length > 0 && leadinDistance - leadinBuffer[0].distance >= maxM) {
+      leadinDistance -= leadinBuffer[0].distance;
+      leadinBuffer.shift();
+    }
+  };
 
-  const closeCurrentClimb = (tailTrimGrade: number) => {
+  const closeCurrentClimb = (tailTrimGrade: number, reason: "descent" | "flat", atKm: number) => {
     if (!currentClimb) return;
+    emit({ stage: "identify-close", reason, atKm, tailTrimGradePct: tailTrimGrade });
     // Strip the accumulated flat/descent tail so the candidate ends at the
     // last climbing segment — creating a real gap the merge step can measure.
-    if (currentClimb.totalDistance >= CLIMB_MIN_DISTANCE_M) {
-      const finalized = finalizeRawClimb(currentClimb, tailTrimGrade, rawProfile);
-      if (finalized) climbs.push(finalized);
+    const finalized = finalizeRawClimb(currentClimb, tailTrimGrade, emit);
+    if (finalized) {
+      const s0 = finalized.segments[0];
+      const sN = finalized.segments[finalized.segments.length - 1];
+      const rawGain = rawElevationGain(rawProfile, s0.startDistance, sN.endDistance);
+      emit({
+        stage: "identify-candidate",
+        index: climbs.length,
+        startKm: s0.startDistance / 1000,
+        endKm: sN.endDistance / 1000,
+        distanceM: finalized.totalDistance,
+        elevationM: finalized.totalElevation,
+        avgGradePct: (finalized.totalElevation / finalized.totalDistance) * 100,
+        rawGainM: rawGain,
+      });
+      climbs.push(finalized);
     }
     currentClimb = null;
     descentDistance = 0;
@@ -308,17 +475,45 @@ function identifyClimbs(segments: Segment[], rawProfile: GpsPoint[]): RawClimb[]
 
   for (const segment of segments) {
     const isClimbing = segment.gradient >= CLIMB_START_GRADE_PCT;
+    const isContinuing = segment.gradient >= CLIMB_CONTINUE_GRADE_PCT;
+    const isLeadin = segment.gradient >= CLIMB_LEADIN_GRADE_PCT;
     const isDescent = segment.gradient <= DESCENT_END_GRADE_PCT;
 
     descentDistance = isDescent ? descentDistance + segment.distance : 0;
-    flatDistance = isClimbing ? 0 : flatDistance + segment.distance;
+    // Continue-threshold hysteresis: a segment that's still climbing (≥ CONTINUE)
+    // but not steep enough to start a new candidate (< START) keeps an open
+    // climb alive without resetting the open-candidate gate.
+    flatDistance = isContinuing ? 0 : flatDistance + segment.distance;
+
+    // Maintain a bounded buffer of ≥ LEADIN segments while no candidate is open.
+    // Cleared by descents and any sub-LEADIN segment so the lead-in we prepend
+    // only reflects an unbroken approach toward the trigger point.
+    if (currentClimb === null) {
+      if (isLeadin) {
+        leadinBuffer.push(segment);
+        leadinDistance += segment.distance;
+        trimLeadinTo(CLIMB_LEADIN_MAX_DISTANCE_M);
+      } else {
+        resetLeadin();
+      }
+    }
 
     if (isClimbing && currentClimb === null) {
+      // Prepend the accumulated lead-in. The just-pushed `segment` is already in
+      // leadinBuffer (it's ≥ START ⇒ ≥ LEADIN), so use it as-is.
+      const segs = [...leadinBuffer];
+      let totDist = 0;
+      let totElev = 0;
+      for (const s of segs) {
+        totDist += s.distance;
+        totElev += s.elevation;
+      }
       currentClimb = {
-        segments: [segment],
-        totalDistance: segment.distance,
-        totalElevation: segment.elevation,
+        segments: segs,
+        totalDistance: totDist,
+        totalElevation: totElev,
       };
+      resetLeadin();
       descentDistance = 0;
       flatDistance = 0;
     } else if (currentClimb !== null) {
@@ -329,15 +524,15 @@ function identifyClimbs(segments: Segment[], rawProfile: GpsPoint[]): RawClimb[]
       if (descentDistance >= DESCENT_END_DISTANCE_M) {
         // Trim tail to grade ≥ 0: keeps the last climbing/neutral segment,
         // avoids leaving a descent stub that trimClimbEndpoints would strip anyway.
-        closeCurrentClimb(0);
+        closeCurrentClimb(0, "descent", segment.endDistance / 1000);
       } else if (flatDistance >= CLIMB_END_FLAT_M) {
         // Strip the flat tail so the climb ends just before the gap
-        closeCurrentClimb(CLIMB_START_GRADE_PCT);
+        closeCurrentClimb(CLIMB_START_GRADE_PCT, "flat", segment.endDistance / 1000);
       }
     }
   }
 
-  closeCurrentClimb(0);
+  closeCurrentClimb(0, "descent", segments[segments.length - 1]?.endDistance / 1000 || 0);
   return climbs;
 }
 
@@ -370,9 +565,13 @@ function rawElevationGain(profile: GpsPoint[], startDist: number, endDist: numbe
 function finalizeRawClimb(
   climb: RawClimb,
   tailTrimGrade: number,
-  rawProfile: GpsPoint[]
+  emit: ClimbDebugSink = NOOP_DEBUG
 ): RawClimb | null {
   const candidate: RawClimb = { ...climb, segments: [...climb.segments] };
+  const origStartKm = climb.segments[0] ? climb.segments[0].startDistance / 1000 : 0;
+  const origEndKm = climb.segments[climb.segments.length - 1]
+    ? climb.segments[climb.segments.length - 1].endDistance / 1000
+    : 0;
 
   while (
     candidate.segments.length > 0 &&
@@ -383,24 +582,18 @@ function finalizeRawClimb(
     candidate.totalElevation -= removed.elevation;
   }
 
-  if (candidate.segments.length === 0 || candidate.totalDistance <= 0) return null;
-
-  // Use raw GPS elevation gain for threshold checks so that a narrow
-  // smoothing window (which bleeds into adjacent terrain) cannot suppress a
-  // real climb that immediately follows a descent.
-  const s0 = candidate.segments[0];
-  const sN = candidate.segments[candidate.segments.length - 1];
-  const measuredGain = rawElevationGain(rawProfile, s0.startDistance, sN.endDistance);
-  const measuredAvgGrade = (measuredGain / candidate.totalDistance) * 100;
-
-  if (
-    candidate.totalDistance >= CLIMB_MIN_DISTANCE_M &&
-    measuredGain >= CLIMB_MIN_ELEVATION_M &&
-    measuredAvgGrade >= CLIMB_MIN_AVG_GRADE_PCT
-  ) {
-    return candidate;
+  if (candidate.segments.length === 0 || candidate.totalDistance <= 0) {
+    emit({
+      stage: "identify-reject",
+      reason: "empty",
+      measuredGainM: 0,
+      startKm: origStartKm,
+      endKm: origEndKm,
+    });
+    return null;
   }
-  return null;
+
+  return candidate;
 }
 
 /**
@@ -421,7 +614,8 @@ function rawElevationAt(profile: GpsPoint[], distanceM: number): number {
 export function mergeNearbyClimbs(
   climbs: RawClimb[],
   allSegments: Segment[],
-  rawProfile: GpsPoint[] = []
+  rawProfile: GpsPoint[] = [],
+  emit: ClimbDebugSink = NOOP_DEBUG
 ): RawClimb[] {
   if (climbs.length <= 1) return climbs;
 
@@ -431,8 +625,10 @@ export function mergeNearbyClimbs(
     const prev = result[result.length - 1];
     const curr = climbs[i];
 
+    const prevStart = prev.segments[0];
     const prevEnd = prev.segments[prev.segments.length - 1];
     const currStart = curr.segments[0];
+    const currEnd = curr.segments[curr.segments.length - 1];
 
     const gapDistance = currStart.startDistance - prevEnd.endDistance;
     const valleyDrop = prevEnd.endElevation - currStart.startElevation;
@@ -467,6 +663,43 @@ export function mergeNearbyClimbs(
     const shouldMerge =
       gapDistance >= 0 && gapDistance <= effectiveMaxGap && valleyDrop <= maxAllowedDrop;
 
+    // combinedRawRise is computed for debug visibility only — useful when
+    // diagnosing whether a *failed* merge looked like one coherent ascent.
+    // We deliberately do NOT use it as a force-merge signal: experiments
+    // showed it over-merges on rolling cycling routes (bk / grun / hukvaldy)
+    // where adjacent climbs share a high start-to-end rise but are genuinely
+    // distinct ascents. A net-gain-over-window primary trigger would handle
+    // this better — deferred to a Phase 2 refactor.
+    const combinedRawRise =
+      rawProfile.length > 0
+        ? rawElevationAt(rawProfile, currEnd.endDistance) -
+          rawElevationAt(rawProfile, prevStart.startDistance)
+        : 0;
+    const coherentAscent =
+      combinedGain > 0 && combinedRawRise >= MERGE_COHERENT_ASCENT_RATIO * combinedGain;
+
+    emit({
+      stage: "merge-pair",
+      prevStartKm: prevStart.startDistance / 1000,
+      prevEndKm: prevEnd.endDistance / 1000,
+      currStartKm: currStart.startDistance / 1000,
+      currEndKm: currEnd.endDistance / 1000,
+      gapM: gapDistance,
+      valleyDropM: valleyDrop,
+      effectiveMaxGapM: effectiveMaxGap,
+      maxAllowedDropM: maxAllowedDrop,
+      coherentAscent,
+      combinedRawRiseM: combinedRawRise,
+      decision: shouldMerge ? "merge" : "skip",
+      reason: shouldMerge
+        ? "within-gap-and-valley"
+        : gapDistance < 0
+          ? "negative-gap"
+          : gapDistance > effectiveMaxGap
+            ? "gap-too-large"
+            : "valley-too-deep",
+    });
+
     if (shouldMerge) {
       const gapSegs = allSegments.filter(
         (s) =>
@@ -500,6 +733,95 @@ export function mergeNearbyClimbs(
 
 // ─── Step 5: Trim + categorize ────────────────────────────────────────────────
 
+/**
+ * Extends the climb to the highest raw-profile point within
+ * [lastSeg.endDistance, lastSeg.endDistance + lookaheadM].
+ *
+ * Corrects for smoothing-induced under-extension: the flat summit plateau
+ * bleeds into the smoothing window and lowers the apparent gradient at the
+ * peak, causing trimClimbEndpoints to cut off the final metres before the
+ * true summit. A synthetic extension segment is appended so the route
+ * polyline, elevation chart, and end-pin all reach the real top.
+ *
+ * If the raw peak is not actually higher than the current smoothed endpoint
+ * (rare over-smoothing artefact), the climb is returned unchanged.
+ */
+function snapEndCoordsToRawPeak(climb: Climb, rawProfile: GpsPoint[], lookaheadM: number): Climb {
+  if (lookaheadM <= 0) return climb;
+  const lastSeg = climb.segments[climb.segments.length - 1];
+  if (!lastSeg) return climb;
+
+  const endDist = lastSeg.endDistance;
+  const limitDist = endDist + lookaheadM;
+
+  // Use the RAW terrain elevation at endDist as the baseline — not the smoothed
+  // lastSeg.endElevation. The smoother can depress the endpoint by 1–3 m, which
+  // would cause every post-summit raw point to look like an upward extension.
+  const rawEndElev = rawElevationAt(rawProfile, endDist);
+
+  // Walk forward tracking the running maximum. Stop as soon as the elevation
+  // drops more than 2 m below that maximum — that marks the start of a real
+  // descent and prevents snapping past the actual summit into a later hill.
+  const DESCENT_STOP_M = 2;
+  let runningMax = rawEndElev;
+  let peakPoint: GpsPoint | null = null;
+
+  for (const pt of rawProfile) {
+    if (pt.distance < endDist) continue;
+    if (pt.distance > limitDist) break;
+    if (pt.elevation > runningMax) {
+      runningMax = pt.elevation;
+      if (pt.lat != null && pt.lon != null) peakPoint = pt;
+    } else if (pt.elevation < runningMax - DESCENT_STOP_M) {
+      break;
+    }
+  }
+
+  if (!peakPoint || peakPoint.lat == null || peakPoint.lon == null) return climb;
+  if (peakPoint.distance <= endDist) return climb;
+
+  const distToPeak = peakPoint.distance - endDist;
+
+  // Reject GPS-noise micro-highs: the raw peak must be at least 1.5 m above
+  // the raw trim baseline.
+  if (peakPoint.elevation - rawEndElev < 1.5) return climb;
+
+  // Reject long post-summit extensions: the maximum smoothing-induced trim gap
+  // is half the widest smoothing window (250 m / 2 = 125 m). 150 m gives a
+  // safe margin while excluding the 200–300 m false-plateau cases.
+  if (distToPeak > 150) return climb;
+
+  const distExtension = peakPoint.distance - endDist;
+  const elevExtension = peakPoint.elevation - lastSeg.endElevation;
+  if (elevExtension <= 0) return climb;
+
+  const extensionSeg: Segment = {
+    startDistance: endDist,
+    endDistance: peakPoint.distance,
+    distance: distExtension,
+    elevation: elevExtension,
+    gradient: (elevExtension / distExtension) * 100,
+    startElevation: lastSeg.endElevation,
+    endElevation: peakPoint.elevation,
+    startLat: lastSeg.endLat,
+    startLon: lastSeg.endLon,
+    endLat: peakPoint.lat,
+    endLon: peakPoint.lon,
+  };
+
+  const newDistance = climb.distance + distExtension;
+  const newElevation = climb.elevation + elevExtension;
+
+  return {
+    ...climb,
+    segments: [...climb.segments, extensionSeg],
+    distance: newDistance,
+    elevation: newElevation,
+    avgGrade: (newElevation / newDistance) * 100,
+    endCoords: { lat: peakPoint.lat, lon: peakPoint.lon },
+  };
+}
+
 function trimClimbEndpoints(climb: RawClimb): RawClimb {
   const trimmed: RawClimb = { ...climb, segments: [...climb.segments] };
   if (!trimmed.segments || trimmed.segments.length === 0) return trimmed;
@@ -507,13 +829,13 @@ function trimClimbEndpoints(climb: RawClimb): RawClimb {
   let startIndex = 0;
   while (
     startIndex < trimmed.segments.length &&
-    trimmed.segments[startIndex].gradient < TRIM_MIN_GRADE_PCT
+    trimmed.segments[startIndex].gradient < TRIM_START_GRADE_PCT
   ) {
     startIndex++;
   }
 
   let endIndex = trimmed.segments.length - 1;
-  while (endIndex >= 0 && trimmed.segments[endIndex].gradient < TRIM_MIN_GRADE_PCT) {
+  while (endIndex >= 0 && trimmed.segments[endIndex].gradient < TRIM_END_GRADE_PCT) {
     endIndex--;
   }
 
@@ -526,7 +848,7 @@ function trimClimbEndpoints(climb: RawClimb): RawClimb {
       steepDist = 0;
     for (let j = endIndex; j >= 0 && windowDist < TRIM_TAIL_WINDOW_M; j--) {
       windowDist += trimmed.segments[j].distance;
-      if (trimmed.segments[j].gradient >= TRIM_MIN_GRADE_PCT) {
+      if (trimmed.segments[j].gradient >= TRIM_END_GRADE_PCT) {
         steepDist += trimmed.segments[j].distance;
       }
     }
@@ -535,7 +857,7 @@ function trimClimbEndpoints(climb: RawClimb): RawClimb {
     if (windowDist < TRIM_TAIL_WINDOW_M * 0.5 || steepDist / windowDist >= TRIM_STEEP_RATIO) break;
     // Noise spike — scan backward to next steep candidate
     endIndex--;
-    while (endIndex >= 0 && trimmed.segments[endIndex].gradient < TRIM_MIN_GRADE_PCT) {
+    while (endIndex >= 0 && trimmed.segments[endIndex].gradient < TRIM_END_GRADE_PCT) {
       endIndex--;
     }
   }
@@ -552,18 +874,56 @@ function trimClimbEndpoints(climb: RawClimb): RawClimb {
     newElev += seg.elevation;
   }
 
-  if (newDistance >= TRIM_MIN_DISTANCE_M) {
-    return { segments: climbSegments, totalDistance: newDistance, totalElevation: newElev };
-  }
+  return { segments: climbSegments, totalDistance: newDistance, totalElevation: newElev };
+}
 
-  return { segments: [], totalDistance: 0, totalElevation: 0 };
+/**
+ * Returns the maximum sustained gradient (as a decimal, e.g. 0.30 for 30%)
+ * over any contiguous window of at least `windowM` metres within `segments`.
+ * Uses distance-weighted average gradient, matching the approach in climb-card.ts.
+ */
+export function computeMaxSustainedGradient(segments: Segment[], windowM = 200): number {
+  let bestPct = 0;
+  for (let i = 0; i < segments.length; i++) {
+    let dist = 0;
+    let weightedGrad = 0;
+    for (let j = i; j < segments.length; j++) {
+      dist += segments[j].distance;
+      weightedGrad += segments[j].gradient * segments[j].distance;
+      if (dist >= windowM) {
+        bestPct = Math.max(bestPct, weightedGrad / dist);
+        break;
+      }
+    }
+  }
+  return bestPct / 100;
+}
+
+function scoreForHiking(
+  elevation: number,
+  distance: number,
+  segments: Segment[]
+): { difficulty: number; category: ClimbCategory } | null {
+  const summitElevationM = segments.reduce((m, s) => Math.max(m, s.endElevation), -Infinity);
+  const maxGradientDecimal = computeMaxSustainedGradient(segments);
+  return applyHikingScore({
+    totalElevationM: elevation,
+    totalDistanceM: distance,
+    summitElevationM,
+    maxGradientDecimal,
+  });
 }
 
 export function categorizeClimb(climb: RawClimb, scoringModel: ScoringModel = "aso"): Climb | null {
   if (!climb || climb.totalDistance === 0 || climb.totalElevation === 0) return null;
 
   const avgGrade = (climb.totalElevation / climb.totalDistance) * 100;
-  const scored = applyScore(climb.totalDistance, avgGrade, scoringModel);
+
+  const scored =
+    scoringModel === "hiking"
+      ? scoreForHiking(climb.totalElevation, climb.totalDistance, climb.segments)
+      : applyScore(climb.totalDistance, avgGrade, scoringModel);
+
   if (!scored) return null;
 
   const firstSeg = climb.segments[0];
@@ -591,19 +951,37 @@ export function categorizeClimb(climb: RawClimb, scoringModel: ScoringModel = "a
 }
 
 /**
- * Re-applies scoring/categorisation to an already-detected Climb[] without
- * re-running the detection pipeline. Only `difficulty` and `category` change;
- * all geometric data (segments, coords, distance, elevation) is preserved.
- * Climbs that fall below the model's minimum score are filtered out.
+ * Re-scores a list of pre-trimmed RawClimb candidates under a new scoring
+ * model without re-running the detection pipeline. Candidates that don't
+ * reach the model's lowest threshold are dropped. Accepts all trimmed
+ * candidates (not just those that passed the original model) so switching
+ * from a permissive model to a strict one and back is fully reversible.
  */
-export function recategorizeClimbs(climbs: Climb[], model: ScoringModel): Climb[] {
-  return climbs
-    .map((climb): Climb | null => {
-      const scored = applyScore(climb.distance, climb.avgGrade, model);
-      return scored ? { ...climb, ...scored } : null;
-    })
-    .filter((c): c is Climb => c !== null);
+export function recategorizeClimbs(candidates: RawClimb[], model: ScoringModel): Climb[] {
+  return candidates.map((c) => categorizeClimb(c, model)).filter((c): c is Climb => c !== null);
+}
+
+function calculateStats(resampled: GpsPoint[]) {
+  let gain = 0;
+  let descent = 0;
+
+  for (let i = 1; i < resampled.length; i++) {
+    const diff = resampled[i].elevation - resampled[i - 1].elevation;
+
+    if (diff > 0) {
+      gain += diff;
+    } else if (diff < 0) {
+      descent += Math.abs(diff);
+    }
+  }
+
+  return { gain, descent };
 }
 
 // ─── Test exports ─────────────────────────────────────────────────────────────
-export { resamplePoints as _resamplePoints, smoothElevationProfile as _smoothElevationProfile };
+export {
+  resamplePoints as _resamplePoints,
+  smoothElevationProfile as _smoothElevationProfile,
+  interpolateProfile as _interpolateProfile,
+  computeMaxSustainedGradient as _computeMaxSustainedGradient,
+};
