@@ -902,16 +902,16 @@ export function computeMaxSustainedGradient(segments: Segment[], windowM = 200):
 function scoreForHiking(
   elevation: number,
   distance: number,
-  avgGrade: number,
   segments: Segment[]
 ): { difficulty: number; category: ClimbCategory } | null {
   const summitElevationM = segments.reduce((m, s) => Math.max(m, s.endElevation), -Infinity);
   const maxGradientDecimal = computeMaxSustainedGradient(segments);
-  return applyHikingScore(
-    { totalElevationM: elevation, totalDistanceM: distance, summitElevationM, maxGradientDecimal },
-    distance,
-    avgGrade
-  );
+  return applyHikingScore({
+    totalElevationM: elevation,
+    totalDistanceM: distance,
+    summitElevationM,
+    maxGradientDecimal,
+  });
 }
 
 export function categorizeClimb(climb: RawClimb, scoringModel: ScoringModel = "aso"): Climb | null {
@@ -921,7 +921,7 @@ export function categorizeClimb(climb: RawClimb, scoringModel: ScoringModel = "a
 
   const scored =
     scoringModel === "hiking"
-      ? scoreForHiking(climb.totalElevation, climb.totalDistance, avgGrade, climb.segments)
+      ? scoreForHiking(climb.totalElevation, climb.totalDistance, climb.segments)
       : applyScore(climb.totalDistance, avgGrade, scoringModel);
 
   if (!scored) return null;
