@@ -904,12 +904,10 @@ function scoreForHiking(
   distance: number,
   segments: Segment[]
 ): { difficulty: number; category: ClimbCategory } | null {
-  const summitElevationM = segments.reduce((m, s) => Math.max(m, s.endElevation), -Infinity);
   const maxGradientDecimal = computeMaxSustainedGradient(segments);
   return applyHikingScore({
     totalElevationM: elevation,
     totalDistanceM: distance,
-    summitElevationM,
     maxGradientDecimal,
   });
 }
