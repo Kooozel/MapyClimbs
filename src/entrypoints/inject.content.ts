@@ -19,7 +19,7 @@ import {
   type TabStateResponse,
   type AnalysisResult,
 } from "../types";
-import { MAPY_MATCHES, ElementId } from "../constants";
+import { MAPY_MATCHES, ElementId, MAP_CONTAINER_SELECTORS } from "../constants";
 import { getTabId, getTabStorageKeys } from "../storage";
 
 // ── Timing constants ───────────────────────────────────────────────────────────
@@ -75,24 +75,54 @@ class RoutePlannerController {
       if (this.analysisResult && this.isRoutePlannerActive()) renderMapOverlay(this.analysisResult);
     });
 
-    const mapContainer = document.querySelector("#map");
+    this.watchMapInteraction();
+  }
 
-    if (mapContainer) {
-      mapContainer.addEventListener("wheel", () => this.handleMapInteraction(), { passive: true });
+  // ── Map pan/zoom watcher ─────────────────────────────────────────────────────
 
-      // Listen for dragging
-      mapContainer.addEventListener("mousedown", () => {
-        const onMouseMove = () => this.handleMapInteraction();
+  /**
+   * Wires pan/zoom detection so the overlay can be re-projected once the map
+   * settles.
+   *
+   * Bound on `document` rather than on the map container: the vector build
+   * creates its canvas after `document_idle`, so resolving the container once
+   * here would miss it. Each listener re-checks that the event actually came
+   * from inside the map.
+   */
+  private watchMapInteraction(): void {
+    const selector = MAP_CONTAINER_SELECTORS.join(", ");
+    const overMap = (event: Event): boolean =>
+      event.target instanceof Element && !!event.target.closest(selector);
 
-        const onMouseUp = () => {
-          mapContainer.removeEventListener("mousemove", onMouseMove);
-          window.removeEventListener("mouseup", onMouseUp);
+    document.addEventListener(
+      "wheel",
+      (event) => {
+        if (overMap(event)) this.handleMapInteraction();
+      },
+      { passive: true, capture: true }
+    );
+
+    // Pointer events, not mouse events: the vector build's canvas calls
+    // preventDefault() on pointerdown, which suppresses the compatibility
+    // mousedown/mouseup pair entirely, so drags would go undetected.
+    document.addEventListener(
+      "pointerdown",
+      (event) => {
+        if (!overMap(event)) return;
+
+        const onPointerMove = () => this.handleMapInteraction();
+        const onPointerEnd = () => {
+          document.removeEventListener("pointermove", onPointerMove);
+          document.removeEventListener("pointerup", onPointerEnd);
+          document.removeEventListener("pointercancel", onPointerEnd);
         };
 
-        mapContainer.addEventListener("mousemove", onMouseMove);
-        window.addEventListener("mouseup", onMouseUp);
-      });
-    }
+        document.addEventListener("pointermove", onPointerMove, { passive: true });
+        document.addEventListener("pointerup", onPointerEnd);
+        document.addEventListener("pointercancel", onPointerEnd);
+      },
+      { passive: true, capture: true }
+    );
   }
 
   // ── Route-planner guard ──────────────────────────────────────────────────────

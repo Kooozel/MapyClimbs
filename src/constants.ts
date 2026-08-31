@@ -15,6 +15,20 @@ export const MAPY_MATCHES = [
   "https://*.mapy.com/*",
 ] as const;
 
+// ── Map container ─────────────────────────────────────────────────────────────
+
+/**
+ * Candidate selectors for the element that holds the visible map, in priority
+ * order.
+ *
+ * The raster build draws into `#map`. The WASM/vector build leaves `#map` in the
+ * DOM but hides it (`display:none`, 0x0) and renders into `#scene` instead, so a
+ * plain `#map` lookup silently yields a zero-sized box there. `getMapContainer`
+ * walks this list and takes the first candidate that actually has a size, which
+ * keeps one build working on both variants.
+ */
+export const MAP_CONTAINER_SELECTORS = ["#map", "#scene"] as const;
+
 // ── DOM element IDs ───────────────────────────────────────────────────────────
 
 /** Stable DOM element IDs used across multiple content scripts. */

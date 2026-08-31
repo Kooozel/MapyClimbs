@@ -2,9 +2,11 @@
  * map-geometry.ts — Pure geometric helpers for projecting geo-coordinates
  * onto the visible map canvas.
  *
- * Exported for testability. `getMapBounds` is the only function with a DOM
+ * Exported for testability. `getMapContainer` is the only function with a DOM
  * dependency; all others are pure.
  */
+
+import { MAP_CONTAINER_SELECTORS } from "./constants";
 
 export interface MapBounds {
   left: number;
@@ -33,4 +35,22 @@ export function mercatorToPixel(
     return (0.5 - Math.log((1 + s) / (1 - s)) / (4 * Math.PI)) * S;
   };
   return { x: W / 2 + mx(lon) - mx(cLon), y: H / 2 + my(lat) - my(cLat) };
+}
+
+/**
+ * Resolves the element that holds the visible map.
+ *
+ * Returns the first `MAP_CONTAINER_SELECTORS` candidate with a non-zero box:
+ * `#map` on the raster build, `#scene` on the vector build where `#map` is
+ * hidden. Returns null while the map is still being created and every candidate
+ * is still zero-sized.
+ */
+export function getMapContainer(): HTMLElement | null {
+  for (const selector of MAP_CONTAINER_SELECTORS) {
+    const el = document.querySelector<HTMLElement>(selector);
+    if (!el) continue;
+    const rect = el.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) return el;
+  }
+  return null;
 }

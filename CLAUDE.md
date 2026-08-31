@@ -75,6 +75,23 @@ Hiking mode is auto-detected: `injected/gpx-interceptors.ts` reads the active tr
 
 A single SVG overlay (`content/map-overlay.ts`) projects colour-coded polylines onto the map using Web Mercator math (`src/map-geometry.ts`). It re-projects on pan, zoom, and window resize with a 350 ms debounce. The overlay is hidden while a Mapy.cz popup/dialog is open and restored when it closes.
 
+Mapy.com ships two map builds behind an A/B test, and the overlay supports both:
+
+- **Raster (original)** renders into `div#map`.
+- **Vector (WASM/WebGL)** leaves `div#map` in the DOM but hides it (`display:none`, 0x0)
+  and renders into `div#scene` > `div#wasm` > `canvas#wasm-canvas`.
+
+`getMapContainer()` picks the first `MAP_CONTAINER_SELECTORS` entry with a non-zero box, so
+one build works on both. Two vector-only behaviours the overlay has to respect:
+
+- **Zoom is continuous** (`z=13.248` in the URL), so `viewportFromURL` must `parseFloat` the
+  zoom — truncating it misplaces the overlay by ~60-110 px. The projection itself is unchanged:
+  the vector renderer uses the same Web Mercator / 256 px-tile math, verified against its own
+  `Scene.coordsToPixel` to sub-pixel agreement.
+- **The canvas `preventDefault()`s `pointerdown`**, which suppresses the compatibility
+  `mousedown`/`mouseup` pair entirely. Pan detection therefore listens for pointer events, on
+  `document` rather than the container (the canvas is created after `document_idle`).
+
 ### Storage
 
 All state lives in `chrome.storage.local` using typed keys from `StorageKey` in `src/types.ts`. Tab-scoped helpers (`getTabStorageKeys`, `getTabState`, `saveTabGpx`, `clearTabState`, `getTabId`) are in `src/storage.ts`.
