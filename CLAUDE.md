@@ -123,6 +123,31 @@ Two consequences drive the rest of the design:
 - **Neither API may be reachable** (a page mid-load, a future mapy.com refactor). The whole
   chain degrades to a silent no-op and the click still highlights the climb where it is.
 
+### Measuring a section of a climb
+
+The elevation chart on each climb card is drag-selectable: press and drag horizontally to mark a
+section, and the colour legend below the chart is replaced by that section's distance and average
+gradient until it is cleared (the × button, Escape, or a plain click on the chart). Only one
+selection exists at a time across all cards.
+
+`content/chart.ts` stays a pure string renderer; `content/chart-selection.ts` holds the range maths
+(`summarizeRange`, `elevationAtDistance`) plus the pointer wiring, which `buildClimbCard` attaches
+after `innerHTML`. Three constraints shape it:
+
+- **The chart's margins must not be duplicated.** Pointer x → distance goes through
+  `chartXToDistance` / `distanceToChartX` in `chart.ts`, the exact inverse pair of the `sx` the
+  curve is drawn with. The SVG is `preserveAspectRatio="none"`, so viewBox units scale linearly
+  onto the rendered box and a proportional scale off `getBoundingClientRect` is exact.
+- **The readout cannot be SVG text.** That same `preserveAspectRatio="none"` stretches glyphs
+  horizontally, so the readout is an HTML row (`.climb-selection`) swapped with `.climb-legend`.
+- **A drag must not centre the map.** The card's click handler jumps the map to the climb's summit,
+  and a drag ends with a synthetic `click`. After a real drag (≥ 4 px) the module installs a
+  one-shot capture-phase `click` listener on the card that swallows it; a press below that
+  threshold is left alone, so a plain click still clears the selection and centres the map.
+
+`generateElevationChart` takes an already-simplified `ProfilePoint[]` rather than raw segments, so
+the drawn curve and the measured numbers come from the same points.
+
 ### Storage
 
 All state lives in `chrome.storage.local` using typed keys from `StorageKey` in `src/types.ts`. Tab-scoped helpers (`getTabStorageKeys`, `getTabState`, `saveTabGpx`, `clearTabState`, `getTabId`) are in `src/storage.ts`.
@@ -169,7 +194,7 @@ When absent, `pct_z4z5` is null but HR avg/max are still emitted.
 ### Tests
 
 Tests are plain JS in `test/` using Vitest + happy-dom. Covered modules: `climb-engine.ts`,
-`chart.ts` / `gradient-zones.ts`, `map-geometry.ts`, `climb-card.ts`, `gpx-parser.ts`,
+`chart.ts` / `gradient-zones.ts`, `chart-selection.ts`, `map-geometry.ts`, `climb-card.ts`, `gpx-parser.ts`,
 `gpx-integration` (full GPX fixture round-trip including hiking), plus the CLI layer:
 `garmin-gpx`, `ride-metrics`, `ride-analysis`.
 

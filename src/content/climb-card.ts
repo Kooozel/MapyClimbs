@@ -1,11 +1,12 @@
 /**
  * content/climb-card.ts — Individual climb card DOM builder.
- * Depends on: chart.ts (generateElevationChart)
+ * Depends on: chart.ts (generateElevationChart), chart-selection.ts (drag-to-select)
  *
  * Exports: buildClimbCard, calcMaxGradientOver
  */
 
 import { generateElevationChart } from "./chart";
+import { attachChartSelection } from "./chart-selection";
 import { getCategoryClass } from "./category";
 import { metersToKm, metersToKmNum, toPercent, formatMinutes } from "../format";
 import { ClimbCategory, type Climb, type RouteMode } from "../types";
@@ -74,7 +75,7 @@ export function buildClimbCard(climb: Climb, index: number, routeMode?: RouteMod
   const timeStr = formatMinutes(estimateClimbTime(climb));
   const isHiking = routeMode === "hiking";
   const gradeColors = isHiking ? HIKING_GRADE_COLORS : CYCLING_GRADE_COLORS;
-  const chart = generateElevationChart(climb.segments, climb.distance, gradeColors);
+  const chart = generateElevationChart(simplifiedProfile, climb.distance, gradeColors);
   const climbLabel = chrome.i18n.getMessage("panelClimb", [String(index + 1)]);
 
   const el = document.createElement("div");
@@ -120,6 +121,10 @@ export function buildClimbCard(climb: Climb, index: number, routeMode?: RouteMod
       el.click();
     }
   });
+
+  // Drag across the chart to measure a section of the climb. Wired after
+  // innerHTML so the listeners land on the nodes that actually ship.
+  attachChartSelection(el, simplifiedProfile, climb.distance);
 
   return el;
 }
