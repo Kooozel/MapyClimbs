@@ -33,3 +33,6 @@ yarn-error.log*
 
 .github/prompts/
 dist-cli/
+
+# Local, uncommitted working context
+.context

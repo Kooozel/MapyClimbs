@@ -29,6 +29,26 @@ export const MAPY_MATCHES = [
  */
 export const MAP_CONTAINER_SELECTORS = ["#map", "#scene"] as const;
 
+/**
+ * The mapy.com sidebar that holds the route planner (and our panel).
+ * Used only to work out how much of the map it covers — see `visibleCenterOffset`.
+ */
+export const SIDEBAR_SELECTOR = "#layout-body";
+
+// ── Page-context messages ─────────────────────────────────────────────────────
+
+/**
+ * `postMessage` types exchanged between the content scripts and the script
+ * injected into page context (`gpx-interceptor-injected.ts`). Declared here
+ * because both sides of each hop live in different bundles.
+ */
+export const PageMessage = {
+  /** Content → page: centre the map on `{ lat, lon }` for `climbIndex`. */
+  CenterMap: "CLIMB_CENTER_MAP",
+  /** Page → content: the map has been centred and the URL is up to date. */
+  CenterMapDone: "CLIMB_CENTER_MAP_DONE",
+} as const;
+
 // ── DOM element IDs ───────────────────────────────────────────────────────────
 
 /** Stable DOM element IDs used across multiple content scripts. */
