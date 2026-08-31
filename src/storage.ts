@@ -1,14 +1,39 @@
 import { AnalysisResult, GpxInfo, StorageKey, TabStateResponse } from "./types";
 
-export function getTabStorageKeys(tabId: number, active?: string) {
+interface TabStorageKeys {
+  pendingGPX: string;
+  gpxCaptureTime: string;
+  /**
+   * Matches every route-class result stored for this tab. Always ends in ":",
+   * so tab 1's prefix cannot match tab 12's keys — see issue #38.
+   */
+  lastAnalysisResultPrefix: string;
+}
+
+interface TabStorageKeysForRoute extends TabStorageKeys {
+  /** The exact result key for one alternative route (e.g. `…:12:alt-0`). */
+  lastAnalysisResult: string;
+}
+
+/**
+ * Storage keys scoped to one tab. Pass a route class to address a single
+ * alternative's result; omit it for tab-wide work, which must use
+ * `lastAnalysisResultPrefix` rather than building a prefix by hand.
+ */
+export function getTabStorageKeys(tabId: number, active: string): TabStorageKeysForRoute;
+export function getTabStorageKeys(tabId: number): TabStorageKeys;
+export function getTabStorageKeys(
+  tabId: number,
+  active?: string
+): TabStorageKeys | TabStorageKeysForRoute {
+  const prefix = `${StorageKey.LastAnalysisResult}:${tabId}:`;
   const baseKeys = {
     pendingGPX: `${StorageKey.PendingGPX}:${tabId}`,
     gpxCaptureTime: `${StorageKey.GpxCaptureTime}:${tabId}`,
+    lastAnalysisResultPrefix: prefix,
   };
 
-  return active
-    ? { ...baseKeys, lastAnalysisResult: `${StorageKey.LastAnalysisResult}:${tabId}:${active}` }
-    : { ...baseKeys, lastAnalysisResult: `${StorageKey.LastAnalysisResult}:${tabId}` };
+  return active ? { ...baseKeys, lastAnalysisResult: `${prefix}${active}` } : baseKeys;
 }
 
 let cachedTabId: number | null = null;
@@ -42,7 +67,7 @@ export function getTabState(
 }
 
 export function saveTabGpx(tabId: number, gpxInfo: GpxInfo, timestamp: number): void {
-  const keys = getTabStorageKeys(tabId, gpxInfo.activeRouteClass);
+  const keys = getTabStorageKeys(tabId);
   chrome.storage.local.set({ [keys.pendingGPX]: gpxInfo, [keys.gpxCaptureTime]: timestamp }, () => {
     if (chrome.runtime.lastError) return;
   });
@@ -58,7 +83,7 @@ export function clearTabState(tabId: number): void {
       (key) =>
         key === keys.pendingGPX ||
         key === keys.gpxCaptureTime ||
-        key.startsWith(keys.lastAnalysisResult)
+        key.startsWith(keys.lastAnalysisResultPrefix)
     );
 
     if (keysToRemove.length > 0) {

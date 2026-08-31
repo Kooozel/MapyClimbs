@@ -158,6 +158,12 @@ Key layout:
 - `scoringModel` — global scoring preference (`"aso"` | `"garmin"`)
 - `mapLayerVisible` — overlay toggle state
 
+A result key always carries a route class, so anything working across a whole tab (clearing
+its state, re-categorising after a scoring-model switch) must match on
+`getTabStorageKeys(tabId).lastAnalysisResultPrefix` — the `:`-terminated prefix — and never
+build one from the exact-key field. Without the trailing colon, tab `1`'s prefix matches
+tab `12`'s keys.
+
 ### i18n
 
 UI strings use `__MSG_*__` manifest keys. Locale files: `public/_locales/en/messages.json` and `public/_locales/cs/messages.json`.
@@ -194,9 +200,9 @@ When absent, `pct_z4z5` is null but HR avg/max are still emitted.
 ### Tests
 
 Tests are plain JS in `test/` using Vitest + happy-dom. Covered modules: `climb-engine.ts`,
-`chart.ts` / `gradient-zones.ts`, `chart-selection.ts`, `map-geometry.ts`, `climb-card.ts`, `gpx-parser.ts`,
-`gpx-integration` (full GPX fixture round-trip including hiking), plus the CLI layer:
-`garmin-gpx`, `ride-metrics`, `ride-analysis`.
+`chart.ts` / `gradient-zones.ts`, `chart-selection.ts`, `map-geometry.ts`, `climb-card.ts`,
+`gpx-parser.ts`, `storage.ts`, `gpx-integration` (full GPX fixture round-trip including hiking),
+plus the CLI layer: `garmin-gpx`, `ride-metrics`, `ride-analysis`.
 
 Fixtures in `test/fixtures/` are real Mapy.cz route exports, except
 `ride-synthetic.gpx` — a generated ride-shaped track (1 Hz noise, stops, recording gaps,
