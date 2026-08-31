@@ -12,6 +12,8 @@ import type { AnalysisResult } from "../types";
 import { StorageKey } from "../types";
 import { ElementId, CssClass } from "../constants";
 import { showClimbRoute, hideClimbRoute } from "./route-highlight";
+import { flashPin } from "./map-overlay";
+import { requestMapCenter } from "./map-center";
 
 function buildPanelContent(analysisResult: AnalysisResult): DocumentFragment {
   const { climbs } = analysisResult;
@@ -72,19 +74,17 @@ function wireLayerToggle(panel: HTMLElement): void {
   });
 }
 
-function wireCardClickHandlers(panel: HTMLElement): void {
+function wireCardClickHandlers(panel: HTMLElement, analysisResult: AnalysisResult): void {
   panel.querySelectorAll<HTMLElement>(".climb-item[data-climb-index]").forEach((card) => {
     const idx = card.dataset.climbIndex;
     card.addEventListener("click", () => {
-      const pin = document.querySelector<HTMLElement>(
-        `.${CssClass.Pin}[data-climb-index="${idx}"]`
-      );
-      if (pin) {
-        pin.classList.remove("pin-active");
-        void pin.offsetWidth;
-        pin.classList.add("pin-active");
-        setTimeout(() => pin.classList.remove("pin-active"), 600);
-      }
+      const index = Number(idx);
+      // Centre the map on the climb's summit — the point its pin marks. The
+      // overlay is re-rendered once that lands, so the pin is flashed again from
+      // the CenterMapDone handler in inject.content.ts; this call covers the
+      // case where nothing moves (no coords, or neither map API is reachable).
+      requestMapCenter(analysisResult.climbs[index]?.endCoords ?? null, index);
+      flashPin(index);
     });
     card.addEventListener("mouseenter", () => {
       const pin = document.querySelector<HTMLElement>(
@@ -118,7 +118,7 @@ export function buildPanel(analysisResult: AnalysisResult | null): HTMLElement {
 
   wireCollapseToggle(panel);
   wireLayerToggle(panel);
-  wireCardClickHandlers(panel);
+  wireCardClickHandlers(panel, analysisResult);
 
   return panel;
 }

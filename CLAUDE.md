@@ -92,6 +92,37 @@ one build works on both. Two vector-only behaviours the overlay has to respect:
   `mousedown`/`mouseup` pair entirely. Pan detection therefore listens for pointer events, on
   `document` rather than the container (the canvas is created after `document_idle`).
 
+### Centering the map on a climb
+
+Clicking a climb card centres the map on that climb's summit (`endCoords`), keeping the current
+zoom. Moving the map needs the page's own globals, so the work is split: `content/map-center.ts`
+computes the target coordinate and posts it, `injected/map-center.ts` performs the call in page
+context, and `RoutePlannerController` re-projects the overlay when it answers.
+
+There is no cross-build API — `Scene.setCenter` looks like one but is a no-op stub on vector:
+
+- **Vector:** `Mapy.getComponent("wasm").wasm.setCenterZoom(lon, lat)` — note lon first.
+- **Raster:** `Mapy.debugGlobals().Scene._mapProvider.setCenter(SMap.Coords.fromWGS84(lon, lat))`.
+  `fromWGS84` does `new this(...)` — call it on `SMap.Coords`, never through a detached reference.
+
+Both are exact and instant, and both leave mapy.com's own route geometry and markers aligned.
+Two consequences drive the rest of the design:
+
+- **Only vector rewrites `x`/`y` in the URL.** Since the overlay projects from the URL
+  (`viewportFromURL`), the injected script writes those two params itself on both builds, by
+  patching the raw search string rather than round-tripping `URLSearchParams` — which would
+  re-encode mapy.com's other params (`rc`, `mrp`, `rwp`). The controller then assigns that URL
+  to `lastURL`, or the SPA watcher would read its own extension's write as a navigation.
+- **Only vector redraws the planned route.** The raster build culls the route's SVG geometry
+  once it scrolls out of view and rebuilds it only from the interactive pan pipeline, so jumping
+  back from far away leaves the map right but the route invisible. `nudgeMap` therefore drags the
+  raster map 12 px and straight back — net travel zero, but far enough past the click threshold
+  that it is read as a drag, not as a click on the route under the summit. `redraw()`,
+  a `resize` event, `setCenterZoom` and hand-fired `map-redraw` / `map-pan` signals were all
+  measured as no-ops. The controller mutes its own pan handling (`isCentering`) while this runs.
+- **Neither API may be reachable** (a page mid-load, a future mapy.com refactor). The whole
+  chain degrades to a silent no-op and the click still highlights the climb where it is.
+
 ### Storage
 
 All state lives in `chrome.storage.local` using typed keys from `StorageKey` in `src/types.ts`. Tab-scoped helpers (`getTabStorageKeys`, `getTabState`, `saveTabGpx`, `clearTabState`, `getTabId`) are in `src/storage.ts`.
