@@ -11,6 +11,7 @@ npm run build           # validate whats-new-data.json, then WXT build → dist/
 npm run build:firefox   # same for Firefox (MV3)
 npm run zip             # package for Chrome Web Store
 npm run zip:firefox     # package for Firefox Add-ons
+npm run build:cli       # esbuild-bundle the climb engine + CLI → dist-cli/
 npm run typecheck       # tsc --noEmit
 npm run lint            # eslint src/ wxt.config.ts eslint.config.js
 npm run lint:fix        # eslint --fix
@@ -23,6 +24,11 @@ npm run test:coverage   # vitest run --coverage (report-only, no threshold)
 Run a single test file:
 ```sh
 npx vitest run test/climb-engine.test.js
+```
+
+Regenerate the synthetic ride fixture (only when its shape must change):
+```sh
+node scripts/generate-ride-fixture.mjs   # → test/fixtures/ride-synthetic.gpx
 ```
 
 The pre-commit hook runs `lint-staged`: Prettier on `*.{ts,css}` then ESLint `--fix` on `*.ts`.
@@ -41,6 +47,9 @@ Mapy.cz website
   → Popup (popup/)                    — model toggle, layer visibility
   → What's New page (whats-new/)      — opened on install/update
 ```
+
+A sixth, non-browser consumer sits outside this stack: the Node CLI in `src/cli/`
+(see [Climb-engine CLI](#climb-engine-cli)) reuses `climb-engine.ts` directly.
 
 Because content scripts cannot access page JS directly, `interceptor.content.ts` injects `gpx-interceptor-injected.ts` into page context at `document_start`. GPX data travels back via `postMessage` → `interceptor.content.ts` → `chrome.storage.local` → background service worker.
 
@@ -84,6 +93,48 @@ UI strings use `__MSG_*__` manifest keys. Locale files: `public/_locales/en/mess
 
 `public/whats-new-data.json` is **hand-authored** user-facing bullets — it is not derived from `CHANGELOG.md`. Update it before each release. `scripts/generate-whats-new.mjs` validates and bundles it at build time (runs automatically as part of `npm run build`). The `version` field must match `package.json`.
 
+### Climb-engine CLI
+
+`src/cli/` is a second consumer of the same pure engine — a Node CLI that takes a
+**Garmin Connect ride GPX** and prints enriched climb JSON on stdout, for a downstream
+`sync.py --insert-climbs` importer. It ships from `npm run build:cli`
+(`scripts/build-cli.mjs`, esbuild) as two dependency-free ESM files in `dist-cli/`:
+`climb-engine.mjs` (library) and `climb-cli.mjs` (executable). `dist-cli/` is kept
+separate from `dist/` so `wxt build` never touches it, and CI builds it in its own step
+so a broken CLI bundle cannot block an extension release.
+
+- `cli/garmin-gpx.ts` — Node-side GPX reader. It exists *alongside* `src/gpx-parser.ts`
+  (which needs `DOMParser` and discards `<time>` / heart rate) because ride analysis needs
+  both. Same haversine formula, pinned together over a shared fixture by
+  `test/garmin-gpx.test.js`.
+- `cli/ride-metrics.ts` — pure moving-time and HR-zone aggregation. VAM must be computed
+  on moving time, not elapsed.
+- `cli/analyze-ride.ts` — the output contract: every `climbs[]` key maps 1:1 onto a column
+  of the consumer's `climbs` table, so keys are **snake_case** here and camelCase↔snake_case
+  conversion happens in this file and nowhere else.
+- `cli/index.ts` — the only impure file: arg parsing, file reads, printing. Stdout is JSON
+  and nothing else; diagnostics go to stderr.
+
+HR zone boundaries are personal data and are never committed — they come in via `--zones`.
+When absent, `pct_z4z5` is null but HR avg/max are still emitted.
+
 ### Tests
 
-Tests are plain JS in `test/` using Vitest + happy-dom. Covered modules: `climb-engine.ts`, `chart.ts` / `gradient-zones.ts`, `map-geometry.ts`, `climb-card.ts`, `gpx-parser.ts`, `gpx-integration` (full GPX fixture round-trip including hiking).
+Tests are plain JS in `test/` using Vitest + happy-dom. Covered modules: `climb-engine.ts`,
+`chart.ts` / `gradient-zones.ts`, `map-geometry.ts`, `climb-card.ts`, `gpx-parser.ts`,
+`gpx-integration` (full GPX fixture round-trip including hiking), plus the CLI layer:
+`garmin-gpx`, `ride-metrics`, `ride-analysis`.
+
+Fixtures in `test/fixtures/` are real Mapy.cz route exports, except
+`ride-synthetic.gpx` — a generated ride-shaped track (1 Hz noise, stops, recording gaps,
+heart rate) so CLI behaviour can be tested without committing a real ride.
+
+### Branching and release
+
+`develop` is the integration branch; `main` is the release branch. CI runs on PRs into
+either. Pushing to `main` triggers `.github/workflows/release.yml`: build zip → manual
+approval (`production` environment) → Chrome Web Store publish → version bump + tag →
+GitHub Release → merge `main` back into `develop`. The workflow's own commits carry
+`[skip ci]`, and it bumps `package.json` itself — don't hand-bump the version for a release.
+CI also enforces CWS limits: locale `extDescription` ≤ 132 chars, manifest `name` ≤ 45 chars,
+manifest version matching `package.json`.
