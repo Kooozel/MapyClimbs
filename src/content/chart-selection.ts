@@ -189,7 +189,11 @@ export function attachChartSelection(
 
   let anchorClientX = 0;
   let anchorDistance = 0;
+  /** A pointer is down on the chart. */
   let dragging = false;
+  /** The pointer has travelled far enough this gesture to count as a drag. */
+  let dragMoved = false;
+  /** A selection is currently on screen. Outlives the gesture that made it. */
   let hasSelection = false;
 
   const clear = (): void => {
@@ -198,6 +202,7 @@ export function attachChartSelection(
     parts.readout.replaceChildren();
     parts.legend.hidden = false;
     hasSelection = false;
+    dragMoved = false;
     document.removeEventListener("keydown", onKeyDown);
     if (clearActiveSelection === clear) clearActiveSelection = null;
   };
@@ -231,15 +236,22 @@ export function attachChartSelection(
     anchorClientX = event.clientX;
     anchorDistance = chartXToDistance(pointerToChartX(parts.svg, event.clientX), totalDistance);
     dragging = true;
+    // Each gesture re-earns its drag status. Reusing `hasSelection` here would
+    // let a plain click on a chart that already has a selection be read as a
+    // drag, replacing it with a zero-length range and swallowing the click.
+    dragMoved = false;
     parts.svg.setPointerCapture(event.pointerId);
   });
 
   parts.svg.addEventListener("pointermove", (event) => {
     if (!dragging) return;
-    if (!hasSelection && Math.abs(event.clientX - anchorClientX) < MIN_DRAG_PX) return;
-    hasSelection = true;
-    clearActiveSelection = clear;
-    document.addEventListener("keydown", onKeyDown);
+    if (!dragMoved) {
+      if (Math.abs(event.clientX - anchorClientX) < MIN_DRAG_PX) return;
+      dragMoved = true;
+      hasSelection = true;
+      clearActiveSelection = clear;
+      document.addEventListener("keydown", onKeyDown);
+    }
     update(event.clientX);
   });
 
@@ -249,7 +261,7 @@ export function attachChartSelection(
     if (parts.svg.hasPointerCapture(event.pointerId))
       parts.svg.releasePointerCapture(event.pointerId);
 
-    if (!hasSelection) {
+    if (!dragMoved) {
       // A plain click: drop any selection and let it reach the card, which
       // centres the map on this climb.
       clear();
