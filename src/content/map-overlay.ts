@@ -2,7 +2,7 @@ import { metersToKm } from "../format";
 import { StorageKey, ClimbCategory, type AnalysisResult } from "../types";
 import { CATEGORY_COLOR } from "./category";
 import { ElementId, CssClass } from "../constants";
-import { mercatorToPixel } from "../map-geometry";
+import { getMapContainer, mercatorToPixel } from "../map-geometry";
 import { CYCLING_GRADE_COLORS, HIKING_GRADE_COLORS } from "../gradient-zones";
 import {
   createRouteSvg,
@@ -29,7 +29,7 @@ export function renderMapOverlay(analysisResult: AnalysisResult): void {
   const gradeColors =
     analysisResult.routeMode === "hiking" ? HIKING_GRADE_COLORS : CYCLING_GRADE_COLORS;
 
-  const mapContainer = document.querySelector("#map");
+  const mapContainer = getMapContainer();
   if (!mapContainer) return;
 
   let overlay = document.getElementById(ElementId.MarkerOverlay);
@@ -139,7 +139,10 @@ function viewportFromURL(): { lat: number; lon: number; zoom: number } | null {
   const p = new URLSearchParams(location.search);
   const lon = parseFloat(p.get("x") ?? "");
   const lat = parseFloat(p.get("y") ?? "");
-  const zoom = parseInt(p.get("z") ?? "", 10);
+  // parseFloat, not parseInt: the vector build zooms continuously and writes
+  // fractional levels (e.g. `z=13.248`). Truncating one misplaces the overlay by
+  // up to ~110 px at the edges of the viewport.
+  const zoom = parseFloat(p.get("z") ?? "");
   if (isNaN(lat) || isNaN(lon) || isNaN(zoom)) return null;
   return { lat, lon, zoom };
 }

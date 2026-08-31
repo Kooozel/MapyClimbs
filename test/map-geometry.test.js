@@ -1,14 +1,16 @@
+// @vitest-environment happy-dom
 /**
  * test/map-geometry.test.js
  *
  * Unit tests for `src/map-geometry.ts`.
- * `mercatorToPixel` is a pure function with no DOM dependency.
+ * `mercatorToPixel` is a pure function with no DOM dependency;
+ * `getMapContainer` reads the DOM, hence the @vitest-environment annotation above.
  *
  * Run: npm test
  */
 
-import { describe, it, expect } from 'vitest';
-import { mercatorToPixel } from '../src/map-geometry.ts';
+import { describe, it, expect, afterEach } from 'vitest';
+import { mercatorToPixel, getMapContainer } from '../src/map-geometry.ts';
 
 describe('mercatorToPixel', () => {
   it('projects the map centre to the exact pixel centre of the viewport', () => {
@@ -61,5 +63,66 @@ describe('mercatorToPixel', () => {
     const { x: xE } = mercatorToPixel(cLat, 14.2, cLat, cLon, zoom, W, H);
     const { x: xW } = mercatorToPixel(cLat, 13.8, cLat, cLon, zoom, W, H);
     expect(xE + xW).toBeCloseTo(W, 4);
+  });
+});
+
+describe('mercatorToPixel with fractional zoom', () => {
+  it('accepts a fractional zoom level and scales between the integer levels', () => {
+    const W = 800, H = 600;
+    const cLat = 49.5828352, cLon = 18.3129080;
+    const at = (zoom) => mercatorToPixel(49.6, 18.35, cLat, cLon, zoom, W, H).x - W / 2;
+
+    const x13 = at(13), x13_248 = at(13.248), x14 = at(14);
+    expect(x13_248).toBeGreaterThan(x13);
+    expect(x13_248).toBeLessThan(x14);
+    // Offsets scale as 2^zoom, so the fractional level is an exact power-of-two step.
+    expect(x13_248).toBeCloseTo(x13 * Math.pow(2, 0.248), 6);
+  });
+
+  it('truncating a fractional zoom would misplace points by tens of pixels', () => {
+    const W = 1520, H = 865;
+    const cLat = 49.5828352, cLon = 18.3129080;
+    const exact = mercatorToPixel(49.6, 18.35, cLat, cLon, 13.248, W, H);
+    const truncated = mercatorToPixel(49.6, 18.35, cLat, cLon, 13, W, H);
+    expect(Math.hypot(exact.x - truncated.x, exact.y - truncated.y)).toBeGreaterThan(40);
+  });
+});
+
+describe('getMapContainer', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  /** happy-dom reports 0x0 for every element, so stub the box explicitly. */
+  function addContainer(id, { width, height }) {
+    const el = document.createElement('div');
+    el.id = id;
+    el.getBoundingClientRect = () => ({
+      width, height, left: 0, top: 0, right: width, bottom: height, x: 0, y: 0,
+    });
+    document.body.appendChild(el);
+    return el;
+  }
+
+  it('returns null when no candidate is present', () => {
+    expect(getMapContainer()).toBeNull();
+  });
+
+  it('picks #map on the raster build', () => {
+    const map = addContainer('map', { width: 1240, height: 865 });
+    addContainer('scene', { width: 1520, height: 865 });
+    expect(getMapContainer()).toBe(map);
+  });
+
+  it('falls through to #scene when #map is hidden, as on the vector build', () => {
+    addContainer('map', { width: 0, height: 0 });
+    const scene = addContainer('scene', { width: 1520, height: 865 });
+    expect(getMapContainer()).toBe(scene);
+  });
+
+  it('returns null while every candidate is still zero-sized', () => {
+    addContainer('map', { width: 0, height: 0 });
+    addContainer('scene', { width: 0, height: 0 });
+    expect(getMapContainer()).toBeNull();
   });
 });
