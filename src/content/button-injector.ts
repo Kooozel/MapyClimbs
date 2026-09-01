@@ -1,4 +1,4 @@
-import { ElementId } from "../constants";
+import { ElementId, routeClassOrDefault } from "../constants";
 
 export function tryInjectButton(
   onRouteActive: (routeClass: string) => void,
@@ -41,7 +41,7 @@ async function runAutomatedClimb(
   let originalRoute: HTMLHeadingElement | null = null;
 
   for (const route of routes) {
-    const routeClass = route.className.split(" ").find((c) => c.startsWith("alt-")) ?? "alt-0";
+    const routeClass = routeClassOrDefault(route);
 
     if (route.classList.contains("active")) {
       originalRoute = route;

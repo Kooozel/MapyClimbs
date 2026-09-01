@@ -51,7 +51,10 @@ function isGpxFetchedEvent(data: unknown): data is PageGpxFetchedEvent {
   if (maybe.type !== "GPX_FETCHED") return false;
   const gpxInfo = maybe.gpxInfo;
   if (typeof gpxInfo !== "object" || gpxInfo === null) return false;
-  return typeof (gpxInfo as { gpxContent?: unknown }).gpxContent === "string";
+  const maybeGpx = gpxInfo as { gpxContent?: unknown; activeRouteClass?: unknown };
+  // activeRouteClass is non-optional on GpxInfo and every producer now supplies a
+  // real string, so anything else here is a foreign postMessage, not our own.
+  return typeof maybeGpx.gpxContent === "string" && typeof maybeGpx.activeRouteClass === "string";
 }
 
 // ── Storage write + background notification ───────────────────────────────────

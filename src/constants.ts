@@ -76,3 +76,35 @@ export const CssClass = {
   /** Sharp foreground polyline representing the climb route. */
   RouteLine: "climb-route-line",
 } as const;
+
+// ── Alternative routes ────────────────────────────────────────────────────────
+
+/**
+ * Route class used when mapy.com shows a single route, whose heading carries no
+ * `alt-N` class at all. Every storage key is scoped by route class, so producers
+ * need a real string rather than an absent one.
+ */
+export const DEFAULT_ROUTE_CLASS = "alt-0";
+
+/**
+ * The `alt-N` class of a route-summary heading, or null when the element is
+ * missing or carries no such class.
+ *
+ * mapy.com writes `class="alt-1 active"`, but nothing guarantees that order, so
+ * the class is matched by prefix and never by position — reading index `0` files
+ * the analysis under `"active"` the day the order flips.
+ */
+export function routeClassOf(el: Element | null | undefined): string | null {
+  return el?.className.split(" ").find((c) => c.startsWith("alt-")) ?? null;
+}
+
+/**
+ * `routeClassOf` with the fallback applied — always a real string.
+ *
+ * Kept separate because the null is load-bearing at two call sites, which use it
+ * to mean "not a route heading"; defaulting there would announce a route change
+ * that never happened.
+ */
+export function routeClassOrDefault(el: Element | null | undefined): string {
+  return routeClassOf(el) ?? DEFAULT_ROUTE_CLASS;
+}

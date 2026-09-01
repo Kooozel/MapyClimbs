@@ -36,3 +36,6 @@ dist-cli/
 
 # Local, uncommitted working context
 .context
+
+# Claude Code workspace (local, per-developer)
+.claude/
