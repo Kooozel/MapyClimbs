@@ -567,6 +567,12 @@
   shape-rendering: geometricPrecision;
   text-rendering: optimizeSpeed;
   vector-effect: non-scaling-stroke;
+  cursor: crosshair;
+  /* Horizontal drags select a section; vertical ones still scroll the sidebar. */
+  touch-action: pan-y;
+  /* A selection drag must not turn into a text/image drag. */
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 #climb-inject-panel .profile-svg * {
@@ -601,6 +607,72 @@
   height: 10px;
   border-radius: 2px;
   flex-shrink: 0;
+}
+
+/* The legend and the selection readout share one row — one is always hidden. */
+#climb-inject-panel .climb-legend[hidden] {
+  display: none;
+}
+
+/* ── Chart section selection ───────────────────────────────────────────── */
+
+#climb-inject-panel .chart-sel-dim {
+  fill: #f7f8f9;
+  fill-opacity: 0.68;
+}
+
+#climb-inject-panel .chart-sel-edge {
+  stroke: rgba(0, 0, 0, 0.45);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+#climb-inject-panel .climb-selection {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 2px 2px;
+  font-size: 10px;
+  line-height: 1;
+  color: var(--text2);
+}
+
+#climb-inject-panel .climb-selection[hidden] {
+  display: none;
+}
+
+#climb-inject-panel .csel-stat {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+#climb-inject-panel .csel-label {
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  opacity: 0.75;
+}
+
+#climb-inject-panel .csel-value {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--text1, inherit);
+}
+
+#climb-inject-panel .csel-clear {
+  margin-left: auto;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.55;
+}
+
+#climb-inject-panel .csel-clear:hover {
+  opacity: 1;
 }
 
 /* ── Analyze button (injected next to Exportovat) ──────────────────────── */

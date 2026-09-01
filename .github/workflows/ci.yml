@@ -38,6 +38,11 @@ jobs:
       - name: Build
         run: npm run build
 
+      # Separate from the extension build on purpose: a broken CLI bundle must
+      # never be able to block an extension release.
+      - name: Build CLI
+        run: npm run build:cli
+
       - name: Validate CWS description length
         run: |
           for locale in public/_locales/*/messages.json; do

@@ -4,6 +4,8 @@
  * and broadcast them via postMessage to the content script.
  */
 
+import { routeClassOrDefault } from "../constants";
+
 type RouteMode = "cycling" | "hiking" | "other";
 
 function detectRouteMode(): RouteMode {
@@ -14,9 +16,9 @@ function detectRouteMode(): RouteMode {
 
 function postGpxFetched(gpxContent: string): void {
   if (!gpxContent.length) return;
-  const activeRouteClass = document
-    .querySelector<HTMLHeadingElement>("#layout-body > div > div.route-summary h3.active")
-    ?.className.split(" ")[0];
+  const activeRouteClass = routeClassOrDefault(
+    document.querySelector<HTMLHeadingElement>("#layout-body > div > div.route-summary h3.active")
+  );
   const routeMode = detectRouteMode();
   window.postMessage(
     {

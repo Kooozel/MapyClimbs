@@ -1,21 +1,19 @@
 {
-  "version": "1.1.0",
+  "version": "1.2.0",
   "entries": {
     "en": [
-      "Hiking routes are now analysed automatically — switch to a walking transport mode and MapyClimbs applies a hiking-specific scoring formula with wider grade bands (5 / 10 / 20 / 30 %).",
-      "Alternative routes are analysed in one click — MapyClimbs cycles through every route option, exports each GPX, and caches the results so switching between alternatives is instant.",
-      "Six gradient zones on the map and chart — a new 12–15% band sits between the existing red and dark-maroon zones for more precise colour coding on very steep roads.",
-      "A loading screen is shown while routes are being analysed so you always know something is happening.",
-      "Climb scoring is now more accurate. The Uncategorised category was introduced. The end point is now correctly snapped to the highest point.",
-      "Bug fixes: categorisation now updates correctly after switching the scoring model in settings; overlay no longer redraws twice after each analysis. And more minor fixes and improvements."
+      "Click a climb card and the map centres on that climb's summit — a quick way to see exactly where a hill sits without panning there yourself.",
+      "Drag across a climb's elevation chart to measure any section — its distance and average gradient appear below the chart. Clear the selection with the ×, the Escape key, or a plain click on the chart.",
+      "The colour-coded route overlay now works on Mapy.com's new vector map — if your map runs the new renderer, the gradient colours draw correctly again.",
+      "More accurate scoring for hiking climbs.",
+      "Bug fixes: analysis results no longer interfere between open tabs, and alternative routes are cached under the right variant. Plus more minor fixes and improvements."
     ],
     "cs": [
-      "Turistické trasy jsou nyní analyzovány automaticky — přepněte na pěší režim a MapyClimbs použije vzorec pro turistiku se širšími pásmy sklonu (5 / 10 / 20 / 30 %).",
-      "Alternativní trasy se analyzují jedním kliknutím — MapyClimbs prochází každou variantu trasy, exportuje GPX a výsledky ukládá do mezipaměti, takže přepínání mezi alternativami je okamžité.",
-      "Šest barevných pásem sklonu na mapě a grafu — nové pásmo 12–15 % doplňuje přechod mezi červenou a tmavě vínovou pro přesnější zobrazení velmi strmých úseků.",
-      "Během analýzy se zobrazí načítací obrazovka, takže vždy víte, že něco probíhá.",
-      "Kategorizace stoupání je upravena. Přidána kategorie 'Nekategorizované'. Koncový bod je nyní správně umístěn.",
-      "Opravy chyb: kategorizace se nyní správně aktualizuje po změně modelu bodování; překryv se již po každé analýze nepřekresluje dvakrát. A další drobné opravy a vylepšení."
+      "Kliknutím na kartu stoupání se mapa vycentruje na jeho vrchol — rychlý způsob, jak si prohlédnout konkrétní kopec bez ručního posouvání mapy.",
+      "Tažením přes výškový graf změříte libovolný úsek stoupání — pod grafem se zobrazí jeho délka a průměrný sklon. Výběr zrušíte křížkem, klávesou Escape nebo kliknutím do grafu.",
+      "Barevný překryv trasy nyní funguje i na nové vektorové mapě Mapy.com — pokud se vám mapa vykresluje novým způsobem, barevná pásma sklonu se opět zobrazují správně.",
+      "Přesnější hodnocení turistických stoupání.",
+      "Opravy chyb: výsledky analýzy se už neovlivňují mezi otevřenými panely a alternativní trasy se ukládají pod správnou variantu. A další drobné opravy a vylepšení."
     ]
   }
 }

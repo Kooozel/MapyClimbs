@@ -15,6 +15,40 @@ export const MAPY_MATCHES = [
   "https://*.mapy.com/*",
 ] as const;
 
+// ── Map container ─────────────────────────────────────────────────────────────
+
+/**
+ * Candidate selectors for the element that holds the visible map, in priority
+ * order.
+ *
+ * The raster build draws into `#map`. The WASM/vector build leaves `#map` in the
+ * DOM but hides it (`display:none`, 0x0) and renders into `#scene` instead, so a
+ * plain `#map` lookup silently yields a zero-sized box there. `getMapContainer`
+ * walks this list and takes the first candidate that actually has a size, which
+ * keeps one build working on both variants.
+ */
+export const MAP_CONTAINER_SELECTORS = ["#map", "#scene"] as const;
+
+/**
+ * The mapy.com sidebar that holds the route planner (and our panel).
+ * Used only to work out how much of the map it covers — see `visibleCenterOffset`.
+ */
+export const SIDEBAR_SELECTOR = "#layout-body";
+
+// ── Page-context messages ─────────────────────────────────────────────────────
+
+/**
+ * `postMessage` types exchanged between the content scripts and the script
+ * injected into page context (`gpx-interceptor-injected.ts`). Declared here
+ * because both sides of each hop live in different bundles.
+ */
+export const PageMessage = {
+  /** Content → page: centre the map on `{ lat, lon }` for `climbIndex`. */
+  CenterMap: "CLIMB_CENTER_MAP",
+  /** Page → content: the map has been centred and the URL is up to date. */
+  CenterMapDone: "CLIMB_CENTER_MAP_DONE",
+} as const;
+
 // ── DOM element IDs ───────────────────────────────────────────────────────────
 
 /** Stable DOM element IDs used across multiple content scripts. */
@@ -42,3 +76,35 @@ export const CssClass = {
   /** Sharp foreground polyline representing the climb route. */
   RouteLine: "climb-route-line",
 } as const;
+
+// ── Alternative routes ────────────────────────────────────────────────────────
+
+/**
+ * Route class used when mapy.com shows a single route, whose heading carries no
+ * `alt-N` class at all. Every storage key is scoped by route class, so producers
+ * need a real string rather than an absent one.
+ */
+export const DEFAULT_ROUTE_CLASS = "alt-0";
+
+/**
+ * The `alt-N` class of a route-summary heading, or null when the element is
+ * missing or carries no such class.
+ *
+ * mapy.com writes `class="alt-1 active"`, but nothing guarantees that order, so
+ * the class is matched by prefix and never by position — reading index `0` files
+ * the analysis under `"active"` the day the order flips.
+ */
+export function routeClassOf(el: Element | null | undefined): string | null {
+  return el?.className.split(" ").find((c) => c.startsWith("alt-")) ?? null;
+}
+
+/**
+ * `routeClassOf` with the fallback applied — always a real string.
+ *
+ * Kept separate because the null is load-bearing at two call sites, which use it
+ * to mean "not a route heading"; defaulting there would announce a route change
+ * that never happened.
+ */
+export function routeClassOrDefault(el: Element | null | undefined): string {
+  return routeClassOf(el) ?? DEFAULT_ROUTE_CLASS;
+}

@@ -2,14 +2,11 @@
  * content/chart.ts — Elevation profile SVG chart renderer.
  */
 
-import type { Segment } from "../types";
 import { ratioToPercent } from "../format";
 import {
   type ProfilePoint,
   CYCLING_GRADE_COLORS,
   getColorForGrade,
-  buildProfilePoints,
-  simplifyProfile,
   buildGradientZones,
   mergeShortZones,
   segmentGradient,
@@ -40,20 +37,55 @@ const CHART_M = { left: 42, right: 12, top: 10, bottom: 28 };
 /** Minimum pixel gap between adjacent x-axis ticks. */
 const MIN_TICK_PX = 38;
 
+/**
+ * The chart's plot area in viewBox units — the box the curve is drawn into.
+ *
+ * Exported because the drag-to-select overlay has to convert pointer positions
+ * into distances along the climb, and that conversion must use exactly the same
+ * margins the curve was drawn with. The SVG is rendered with
+ * `preserveAspectRatio="none"`, so viewBox units map linearly onto the rendered
+ * box on both axes and a pointer offset can be scaled straight into this space.
+ */
+export const CHART_PLOT = {
+  viewBoxW: CHART_W,
+  viewBoxH: CHART_H,
+  left: CHART_M.left,
+  right: CHART_W - CHART_M.right,
+  top: CHART_M.top,
+  bottom: CHART_H - CHART_M.bottom,
+  width: CHART_W - CHART_M.left - CHART_M.right,
+  height: CHART_H - CHART_M.top - CHART_M.bottom,
+} as const;
+
+/** Distance along the climb (m) → x in viewBox units. Inverse of `chartXToDistance`. */
+export function distanceToChartX(distance: number, totalDistance: number): number {
+  return CHART_PLOT.left + (distance / (totalDistance || 1)) * CHART_PLOT.width;
+}
+
+/** x in viewBox units → distance along the climb (m), clamped to the climb. */
+export function chartXToDistance(x: number, totalDistance: number): number {
+  const d = ((x - CHART_PLOT.left) / CHART_PLOT.width) * (totalDistance || 1);
+  return Math.min(totalDistance, Math.max(0, d));
+}
+
 // ── Public entry point ────────────────────────────────────────────────────────
 
-/** Returns an HTML string with the SVG elevation chart, or '' when data is insufficient. */
+/**
+ * Returns an HTML string with the SVG elevation chart, or '' when data is
+ * insufficient.
+ *
+ * Takes an already-simplified profile rather than raw segments so that the
+ * caller and the drag-to-select overlay read the climb off the very same
+ * points the curve is drawn from — see `content/chart-selection.ts`.
+ */
 export function generateElevationChart(
-  segments: Segment[],
+  profile: ProfilePoint[],
   totalDistanceMeters: number,
   gradeColors: [number, string][] = CYCLING_GRADE_COLORS
 ): string {
-  if (!segments || segments.length === 0) return "";
+  if (!profile || profile.length < 2) return "";
 
-  const profile = buildProfilePoints(segments);
-  if (profile.length < 2) return "";
-
-  return renderElevationSVG(simplifyProfile(profile), totalDistanceMeters, gradeColors);
+  return renderElevationSVG(profile, totalDistanceMeters, gradeColors);
 }
 
 // ── Profile building ──────────────────────────────────────────────────────────
@@ -247,9 +279,17 @@ function renderElevationSVG(
               stroke-linecap="round" stroke-linejoin="round" opacity="0.95"/>
 
         ${xAxis}
+
+        <g class="chart-sel" style="display:none" pointer-events="none">
+          <rect class="chart-sel-dim" data-side="before" x="${c.M.left}" y="${c.M.top}" width="0" height="${c.cH}"/>
+          <rect class="chart-sel-dim" data-side="after"  x="${c.W - c.M.right}" y="${c.M.top}" width="0" height="${c.cH}"/>
+          <line class="chart-sel-edge" data-side="before" x1="${c.M.left}" y1="${c.M.top}" x2="${c.M.left}" y2="${c.base}"/>
+          <line class="chart-sel-edge" data-side="after"  x1="${c.M.left}" y1="${c.M.top}" x2="${c.M.left}" y2="${c.base}"/>
+        </g>
       </svg>
       <div class="climb-legend">
         ${buildLegend(gradeColors)}
       </div>
+      <div class="climb-selection" hidden></div>
     </div>`;
 }

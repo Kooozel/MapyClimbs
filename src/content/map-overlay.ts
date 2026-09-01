@@ -2,7 +2,7 @@ import { metersToKm } from "../format";
 import { StorageKey, ClimbCategory, type AnalysisResult } from "../types";
 import { CATEGORY_COLOR } from "./category";
 import { ElementId, CssClass } from "../constants";
-import { mercatorToPixel } from "../map-geometry";
+import { getMapContainer, mercatorToPixel, viewportFromURL } from "../map-geometry";
 import { CYCLING_GRADE_COLORS, HIKING_GRADE_COLORS } from "../gradient-zones";
 import {
   createRouteSvg,
@@ -17,6 +17,8 @@ import {
 const PIN_SIZE = 28;
 /** Duration (ms) of the card-flash highlight triggered by clicking a map pin. */
 const CARD_FLASH_MS = 1500;
+/** Duration (ms) of the pin pulse triggered by clicking a climb card. */
+const PIN_FLASH_MS = 600;
 
 export function renderMapOverlay(analysisResult: AnalysisResult): void {
   const { climbs } = analysisResult;
@@ -29,7 +31,7 @@ export function renderMapOverlay(analysisResult: AnalysisResult): void {
   const gradeColors =
     analysisResult.routeMode === "hiking" ? HIKING_GRADE_COLORS : CYCLING_GRADE_COLORS;
 
-  const mapContainer = document.querySelector("#map");
+  const mapContainer = getMapContainer();
   if (!mapContainer) return;
 
   let overlay = document.getElementById(ElementId.MarkerOverlay);
@@ -135,11 +137,18 @@ export function setOverlayVisible(visible: boolean): void {
   if (overlay) overlay.style.visibility = visible ? "" : "hidden";
 }
 
-function viewportFromURL(): { lat: number; lon: number; zoom: number } | null {
-  const p = new URLSearchParams(location.search);
-  const lon = parseFloat(p.get("x") ?? "");
-  const lat = parseFloat(p.get("y") ?? "");
-  const zoom = parseInt(p.get("z") ?? "", 10);
-  if (isNaN(lat) || isNaN(lon) || isNaN(zoom)) return null;
-  return { lat, lon, zoom };
+/**
+ * Pulse the pin belonging to `climbIndex`, restarting the animation if it is
+ * already running. Called both straight from the card click and again after a
+ * re-center, because re-rendering the overlay replaces the pin element.
+ */
+export function flashPin(climbIndex: number): void {
+  const pin = document.querySelector<HTMLElement>(
+    `.${CssClass.Pin}[data-climb-index="${climbIndex}"]`
+  );
+  if (!pin) return;
+  pin.classList.remove("pin-active");
+  void pin.offsetWidth;
+  pin.classList.add("pin-active");
+  setTimeout(() => pin.classList.remove("pin-active"), PIN_FLASH_MS);
 }

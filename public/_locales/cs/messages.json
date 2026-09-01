@@ -177,6 +177,7 @@
   "panelEstTime": { "message": "Odh. čas", "description": "Climb meta label for estimated time" },
   "panelVam": { "message": "VAM", "description": "Climb meta label" },
   "panelFietsIndex": { "message": "Fiets index", "description": "Climb meta label" },
+  "panelClearSelection": { "message": "Zrušit výběr", "description": "Aria-label for the button that clears a chart section selection" },
   "panelNoClimbs": {
     "message": "Na této trase nebylo zjištěno žádné stoupání.",
     "description": "Message shown when no climbs are found"

@@ -6,7 +6,7 @@
 import "../map-inject.css";
 import { parseGPX } from "../gpx-parser";
 import { buildPanel } from "../content/panel";
-import { renderMapOverlay, setOverlayVisible } from "../content/map-overlay";
+import { renderMapOverlay, setOverlayVisible, flashPin } from "../content/map-overlay";
 import { tryInjectButton } from "../content/button-injector";
 import {
   type ElevationTuple,
@@ -19,7 +19,14 @@ import {
   type TabStateResponse,
   type AnalysisResult,
 } from "../types";
-import { MAPY_MATCHES, ElementId } from "../constants";
+import {
+  MAPY_MATCHES,
+  ElementId,
+  MAP_CONTAINER_SELECTORS,
+  PageMessage,
+  routeClassOf,
+  routeClassOrDefault,
+} from "../constants";
 import { getTabId, getTabStorageKeys } from "../storage";
 
 // ── Timing constants ───────────────────────────────────────────────────────────
@@ -27,6 +34,16 @@ import { getTabId, getTabStorageKeys } from "../storage";
 const GPX_POLL_MS = 2000;
 /** How often (ms) the SPA-watcher interval checks for URL/planner-state changes. */
 const SPA_WATCH_MS = 150;
+/**
+ * How long (ms) to keep muting pan handling if a centring request goes unanswered.
+ *
+ * Only a request the page half ignores outright — neither map API reachable — ever
+ * reaches this, and then no pan events are in flight either, so erring long is cheap.
+ * Erring short is not: it un-mutes mid-nudge and blanks the overlay. The raster nudge
+ * takes ~0.5 s in a foreground tab, but a backgrounded tab clamps its timers to ~1 s a
+ * step and stretches it to ~10 s, so this sits well clear of the visible case.
+ */
+const CENTERING_TIMEOUT_MS = 5000;
 
 export default defineContentScript({
   matches: [...MAPY_MATCHES],
@@ -56,6 +73,8 @@ class RoutePlannerController {
   private routesWired = false;
   private isAnalyzing = false;
   private isAutomating = false;
+  private isCentering = false;
+  private centeringTimer: number | null = null;
 
   // ── Entry point ─────────────────────────────────────────────────────────────
 
@@ -75,24 +94,99 @@ class RoutePlannerController {
       if (this.analysisResult && this.isRoutePlannerActive()) renderMapOverlay(this.analysisResult);
     });
 
-    const mapContainer = document.querySelector("#map");
+    this.watchMapInteraction();
+    this.watchMapCentering();
+  }
 
-    if (mapContainer) {
-      mapContainer.addEventListener("wheel", () => this.handleMapInteraction(), { passive: true });
+  // ── Map pan/zoom watcher ─────────────────────────────────────────────────────
 
-      // Listen for dragging
-      mapContainer.addEventListener("mousedown", () => {
-        const onMouseMove = () => this.handleMapInteraction();
+  /**
+   * Wires pan/zoom detection so the overlay can be re-projected once the map
+   * settles.
+   *
+   * Bound on `document` rather than on the map container: the vector build
+   * creates its canvas after `document_idle`, so resolving the container once
+   * here would miss it. Each listener re-checks that the event actually came
+   * from inside the map.
+   */
+  private watchMapInteraction(): void {
+    const selector = MAP_CONTAINER_SELECTORS.join(", ");
+    const overMap = (event: Event): boolean =>
+      event.target instanceof Element && !!event.target.closest(selector);
 
-        const onMouseUp = () => {
-          mapContainer.removeEventListener("mousemove", onMouseMove);
-          window.removeEventListener("mouseup", onMouseUp);
+    document.addEventListener(
+      "wheel",
+      (event) => {
+        if (overMap(event)) this.handleMapInteraction();
+      },
+      { passive: true, capture: true }
+    );
+
+    // Pointer events, not mouse events: the vector build's canvas calls
+    // preventDefault() on pointerdown, which suppresses the compatibility
+    // mousedown/mouseup pair entirely, so drags would go undetected.
+    document.addEventListener(
+      "pointerdown",
+      (event) => {
+        if (!overMap(event)) return;
+
+        const onPointerMove = () => this.handleMapInteraction();
+        const onPointerEnd = () => {
+          document.removeEventListener("pointermove", onPointerMove);
+          document.removeEventListener("pointerup", onPointerEnd);
+          document.removeEventListener("pointercancel", onPointerEnd);
         };
 
-        mapContainer.addEventListener("mousemove", onMouseMove);
-        window.addEventListener("mouseup", onMouseUp);
-      });
-    }
+        document.addEventListener("pointermove", onPointerMove, { passive: true });
+        document.addEventListener("pointerup", onPointerEnd);
+        document.addEventListener("pointercancel", onPointerEnd);
+      },
+      { passive: true, capture: true }
+    );
+  }
+
+  // ── Programmatic centering ───────────────────────────────────────────────────
+
+  /**
+   * Re-projects the overlay after a click-to-center jump.
+   *
+   * The map cuts straight to the new centre, so there is nothing to settle and
+   * nothing to hide. What does need handling is the raster build's nudge (see
+   * `injected/map-center.ts`): it is a real pointer gesture on the map, so
+   * `watchMapInteraction` would treat it as a user pan, blank the overlay for
+   * 350 ms and then re-render over the pin highlight. `isCentering` mutes that
+   * for the duration of the jump.
+   */
+  private watchMapCentering(): void {
+    window.addEventListener("message", (event: MessageEvent) => {
+      if (event.source !== window || event.origin !== location.origin) return;
+      const data = event.data as { type?: string; climbIndex?: number } | null;
+
+      if (data?.type === PageMessage.CenterMap) {
+        this.isCentering = true;
+        if (this.debounceTimer) window.clearTimeout(this.debounceTimer);
+        // Safety net: the page half answers nothing at all when neither map API
+        // is reachable, and pans must not stay muted for the rest of the session.
+        if (this.centeringTimer) window.clearTimeout(this.centeringTimer);
+        this.centeringTimer = window.setTimeout(() => {
+          this.isCentering = false;
+        }, CENTERING_TIMEOUT_MS);
+        return;
+      }
+
+      if (data?.type !== PageMessage.CenterMapDone) return;
+      if (this.centeringTimer) window.clearTimeout(this.centeringTimer);
+      this.isCentering = false;
+      if (!this.analysisResult || !this.isRoutePlannerActive()) return;
+
+      renderMapOverlay(this.analysisResult);
+      if (!this.popupOpen) setOverlayVisible(true);
+      // Claim the URL we just wrote ourselves. Left unclaimed, the SPA watcher
+      // reads it as a navigation and re-renders, throwing away the pin below.
+      this.lastURL = location.href;
+      // Re-rendering replaced the pin element, so the card click's flash is gone.
+      if (typeof data.climbIndex === "number") flashPin(data.climbIndex);
+    });
   }
 
   // ── Route-planner guard ──────────────────────────────────────────────────────
@@ -131,11 +225,7 @@ class RoutePlannerController {
     const tabId = await getTabId();
     const activeRouteClass =
       this.lastActiveRoute ??
-      document
-        .querySelector(".route-summary h3.active")
-        ?.className.split(" ")
-        .find((c) => c.startsWith("alt-")) ??
-      "alt-0";
+      routeClassOrDefault(document.querySelector(".route-summary h3.active"));
 
     const message: GetTabStateMessage = { type: "GET_TAB_STATE", activeRouteClass, tabId };
     chrome.runtime.sendMessage(message, callback);
@@ -144,6 +234,9 @@ class RoutePlannerController {
 
   // ── Mouse events watcher ─────────────────────────────────────────────────────
   private handleMapInteraction(): void {
+    // The raster nudge is a genuine pointer drag on the map; treating it as a
+    // user pan would blank the overlay mid-jump. See watchMapCentering.
+    if (this.isCentering) return;
     const overlay = document.getElementById(ElementId.MarkerOverlay);
     if (!overlay) return;
 
@@ -168,11 +261,7 @@ class RoutePlannerController {
 
     container.addEventListener("click", (event) => {
       const target = event.target as HTMLElement;
-      const routeClass =
-        target
-          .closest("h3")
-          ?.className.split(" ")
-          .find((c) => c.startsWith("alt-")) ?? null;
+      const routeClass = routeClassOf(target.closest("h3"));
       if (routeClass && routeClass !== this.lastActiveRoute) {
         this.lastActiveRoute = routeClass;
         // Delay to allow the active class to update in the DOM
@@ -235,7 +324,7 @@ class RoutePlannerController {
       // (e.g. clicking the route path on the map, keyboard navigation).
       if (visible && this.lastActiveRoute !== undefined) {
         const activeH3 = document.querySelector(".route-summary h3.active");
-        const domRoute = activeH3?.className.split(" ").find((c) => c.startsWith("alt-"));
+        const domRoute = routeClassOf(activeH3);
         if (domRoute && domRoute !== this.lastActiveRoute) {
           this.lastActiveRoute = domRoute;
           void this.handleAlternativeRouteChange();
@@ -446,8 +535,7 @@ class RoutePlannerController {
 
     if (this.lastActiveRoute === undefined) {
       const activeH3 = document.querySelector(".route-summary h3.active");
-      this.lastActiveRoute =
-        activeH3?.className.split(" ").find((c) => c.startsWith("alt-")) ?? "alt-0";
+      this.lastActiveRoute = routeClassOrDefault(activeH3);
 
       // Trigger an immediate poll now that we have a route ID
       this.pollForGPX();

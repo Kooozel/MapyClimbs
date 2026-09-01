@@ -117,7 +117,7 @@ export default defineBackground(() => {
       // Read all storage to find every matching key for the open tabs.
       chrome.storage.local.get(null, (allItems) => {
         const resultKeys = tabIds.flatMap((tabId) => {
-          const prefix = getTabStorageKeys(tabId).lastAnalysisResult;
+          const prefix = getTabStorageKeys(tabId).lastAnalysisResultPrefix;
           return Object.keys(allItems).filter((k) => k.startsWith(prefix));
         });
 

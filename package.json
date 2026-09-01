@@ -1,6 +1,6 @@
 {
   "name": "climb",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "MapyClimbs Chrome extension",
   "private": true,
   "type": "module",
@@ -20,7 +20,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "prepare": "husky"
+    "prepare": "husky",
+    "build:cli": "node scripts/build-cli.mjs"
   },
   "lint-staged": {
     "src/**/*.{ts,css}": "prettier --write",
@@ -32,7 +33,9 @@
   "devDependencies": {
     "@eslint/js": "^9.0.0",
     "@types/chrome": "^0.1.38",
+    "@types/node": "^25.5.0",
     "@vitest/coverage-v8": "^4.1.2",
+    "esbuild": "^0.27.7",
     "eslint": "^9.0.0",
     "globals": "^15.0.0",
     "happy-dom": "^20.9.0",

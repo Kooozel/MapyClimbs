@@ -58,15 +58,12 @@ export interface HikingScoreInput {
   totalElevationM: number;
   /** Total climb distance (m). */
   totalDistanceM: number;
-  /** Summit elevation above sea level (m). */
-  summitElevationM: number;
   /** Maximum sustained gradient over any 200 m window, as a decimal (0.25 = 25%). */
   maxGradientDecimal: number;
 }
 
 /**
- * formula (roughness held at 1.0 for V1):
- *   score = H²/(8L) + max(0, T−1500)×0.15 + H×0.002 + G_max×0.5
+ * formula: score = H²/(8L) + H×0.002 + G_max×0.5
  *
  * L is in metres (despite the original spec labelling it "km" — using km
  * produces scores 1 000× the threshold range).
@@ -83,14 +80,9 @@ export const HIKING_THRESHOLDS: ReadonlyArray<ScoringThreshold> = [
 export function applyHikingScore(
   input: HikingScoreInput
 ): { difficulty: number; category: ClimbCategory } | null {
-  const {
-    totalElevationM: H,
-    totalDistanceM: L,
-    summitElevationM: T,
-    maxGradientDecimal: gMax,
-  } = input;
+  const { totalElevationM: H, totalDistanceM: L, maxGradientDecimal: gMax } = input;
 
-  const difficulty = (H * H) / (8 * L) + Math.max(0, T - 1500) * 0.15 + H * 0.002 + gMax * 0.5;
+  const difficulty = (H * H) / (8 * L) + H * 0.002 + gMax * 0.5;
 
   const match = HIKING_THRESHOLDS.find((t) => difficulty >= t.min);
   if (!match) return null;

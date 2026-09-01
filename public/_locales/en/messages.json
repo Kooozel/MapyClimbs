@@ -177,6 +177,7 @@
   "panelEstTime": { "message": "Est. time", "description": "Climb meta label for estimated time" },
   "panelVam": { "message": "VAM", "description": "Climb meta label" },
   "panelFietsIndex": { "message": "Fiets index", "description": "Climb meta label" },
+  "panelClearSelection": { "message": "Clear selection", "description": "Aria-label for the button that clears a chart section selection" },
   "panelNoClimbs": {
     "message": "No climbs detected on this route.",
     "description": "Message shown when no climbs are found"
