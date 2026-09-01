@@ -19,7 +19,14 @@ import {
   type TabStateResponse,
   type AnalysisResult,
 } from "../types";
-import { MAPY_MATCHES, ElementId, MAP_CONTAINER_SELECTORS, PageMessage } from "../constants";
+import {
+  MAPY_MATCHES,
+  ElementId,
+  MAP_CONTAINER_SELECTORS,
+  PageMessage,
+  routeClassOf,
+  routeClassOrDefault,
+} from "../constants";
 import { getTabId, getTabStorageKeys } from "../storage";
 
 // ── Timing constants ───────────────────────────────────────────────────────────
@@ -218,11 +225,7 @@ class RoutePlannerController {
     const tabId = await getTabId();
     const activeRouteClass =
       this.lastActiveRoute ??
-      document
-        .querySelector(".route-summary h3.active")
-        ?.className.split(" ")
-        .find((c) => c.startsWith("alt-")) ??
-      "alt-0";
+      routeClassOrDefault(document.querySelector(".route-summary h3.active"));
 
     const message: GetTabStateMessage = { type: "GET_TAB_STATE", activeRouteClass, tabId };
     chrome.runtime.sendMessage(message, callback);
@@ -258,11 +261,7 @@ class RoutePlannerController {
 
     container.addEventListener("click", (event) => {
       const target = event.target as HTMLElement;
-      const routeClass =
-        target
-          .closest("h3")
-          ?.className.split(" ")
-          .find((c) => c.startsWith("alt-")) ?? null;
+      const routeClass = routeClassOf(target.closest("h3"));
       if (routeClass && routeClass !== this.lastActiveRoute) {
         this.lastActiveRoute = routeClass;
         // Delay to allow the active class to update in the DOM
@@ -325,7 +324,7 @@ class RoutePlannerController {
       // (e.g. clicking the route path on the map, keyboard navigation).
       if (visible && this.lastActiveRoute !== undefined) {
         const activeH3 = document.querySelector(".route-summary h3.active");
-        const domRoute = activeH3?.className.split(" ").find((c) => c.startsWith("alt-"));
+        const domRoute = routeClassOf(activeH3);
         if (domRoute && domRoute !== this.lastActiveRoute) {
           this.lastActiveRoute = domRoute;
           void this.handleAlternativeRouteChange();
@@ -536,8 +535,7 @@ class RoutePlannerController {
 
     if (this.lastActiveRoute === undefined) {
       const activeH3 = document.querySelector(".route-summary h3.active");
-      this.lastActiveRoute =
-        activeH3?.className.split(" ").find((c) => c.startsWith("alt-")) ?? "alt-0";
+      this.lastActiveRoute = routeClassOrDefault(activeH3);
 
       // Trigger an immediate poll now that we have a route ID
       this.pollForGPX();
