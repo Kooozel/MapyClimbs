@@ -242,9 +242,11 @@ export type ClimbDebugEvent =
       tailTrimGradePct: number;
     }
   | {
+      /** Emitted when tail-trimming leaves a candidate with no segments. No
+       *  route fixture currently triggers it; it stays because the path is
+       *  reachable and silence there would be the confusing outcome. */
       stage: "identify-reject";
       reason: "empty";
-      measuredGainM: number;
       startKm: number;
       endKm: number;
     }
@@ -260,8 +262,11 @@ export type ClimbDebugEvent =
       maxAllowedDropM: number;
       coherentAscent: boolean;
       combinedRawRiseM: number;
-      decision: "merge" | "skip" | "force-merge";
-      reason: string;
+      decision: "merge" | "skip";
+      /** Which arm of the decision fired. Typed rather than free-form so a
+       *  `jq 'select(.reason=="…")'` filter over the CLI's NDJSON is
+       *  checkable against this union. */
+      reason: "within-gap-and-valley" | "negative-gap" | "gap-too-large" | "valley-too-deep";
     }
   | {
       stage: "trim";

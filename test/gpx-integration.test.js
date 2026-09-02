@@ -97,7 +97,7 @@ function makePipelineSink(file) {
         break;
       case 'identify-reject':
         console.log(
-          `[ident-reject] reason=${evt.reason} km${km(evt.startKm)}-${km(evt.endKm)} rawGain=${m(evt.measuredGainM)}m`
+          `[ident-reject] reason=${evt.reason} km${km(evt.startKm)}-${km(evt.endKm)}`
         );
         break;
       case 'merge-pair':
