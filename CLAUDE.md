@@ -19,6 +19,7 @@ npm run format          # prettier --write src/
 npm run test            # vitest run (all tests in test/)
 npm run test:watch      # vitest (interactive)
 npm run test:coverage   # vitest run --coverage (report-only, no threshold)
+npm run test:trace      # DEBUG_PIPELINE=1 + --reporter=verbose on the GPX fixtures
 ```
 
 Run a single test file:
@@ -207,6 +208,13 @@ plus the CLI layer: `garmin-gpx`, `ride-metrics`, `ride-analysis`.
 Fixtures in `test/fixtures/` are real Mapy.cz route exports, except
 `ride-synthetic.gpx` — a generated ride-shaped track (1 Hz noise, stops, recording gaps,
 heart rate) so CLI behaviour can be tested without committing a real ride.
+
+**Tracing the detection pipeline.** `detectClimbs` takes an optional `ClimbDebugSink`
+(`src/types.ts`) that emits one structured event per decision point. Two consumers render it:
+`npm run test:trace` (`DEBUG_PIPELINE=1` in `test/gpx-integration.test.js`) prints human-readable
+lines for the route fixtures, and `climb-cli --debug` writes NDJSON to stderr for a ride GPX.
+Both need their flag — vitest's default reporter hides `console.log` from passing tests, so a
+plain `npm test` makes `DEBUG_PIPELINE` / `DEBUG_OUTPUT` look broken when they are not.
 
 ### Branching and release
 

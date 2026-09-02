@@ -8,7 +8,15 @@
  *   1. npm install -D happy-dom  (already done)
  *   2. Drop .gpx files into test/fixtures/
  *   3. Fill expected values into test/fixtures/expected.js
- *      (Discovery run: DEBUG_OUTPUT=1 npx vitest run test/gpx-integration.test.js)
+ *      (Discovery run: see DEBUG_OUTPUT below)
+ *
+ * Both debug helpers below print through console.log, and vitest's default
+ * reporter hides that for *passing* tests — so they need --reporter=verbose
+ * or they look silently broken. `npm run test:trace` is DEBUG_PIPELINE with
+ * the flag already set:
+ *
+ *   DEBUG_OUTPUT=1   npx vitest run --reporter=verbose test/gpx-integration.test.js
+ *   DEBUG_PIPELINE=1 npx vitest run --reporter=verbose test/gpx-integration.test.js
  *
  * The @vitest-environment happy-dom annotation above provides DOMParser,
  * required by parseGPX, without affecting other test files.
@@ -30,7 +38,8 @@ const FIXTURES_DIR = resolve(__dirname, 'fixtures');
 
 /**
  * When DEBUG_OUTPUT=1, dump the raw detectClimbs result so you can
- * capture real values to fill into expected.js.
+ * capture real values to fill into expected.js. Needs --reporter=verbose;
+ * see the file header.
  */
 function debugLog(file, climbs) {
   if (process.env.DEBUG_OUTPUT !== '1') return;
@@ -52,7 +61,11 @@ function debugLog(file, climbs) {
 /**
  * When DEBUG_PIPELINE=1, attach a sink that prints each ClimbDebugEvent on its
  * own line. Use this when investigating why a climb was detected, merged,
- * trimmed, or rejected. Independent of DEBUG_OUTPUT.
+ * trimmed, or rejected. Independent of DEBUG_OUTPUT; needs --reporter=verbose,
+ * so prefer `npm run test:trace`.
+ *
+ * This is the route-fixture renderer of the same event stream `climb-cli
+ * --debug` emits as NDJSON — human-readable here, machine-readable there.
  */
 function makePipelineSink(file) {
   if (process.env.DEBUG_PIPELINE !== '1') return undefined;
@@ -84,7 +97,7 @@ function makePipelineSink(file) {
         break;
       case 'identify-reject':
         console.log(
-          `[ident-reject] reason=${evt.reason} km${km(evt.startKm)}-${km(evt.endKm)} rawGain=${m(evt.measuredGainM)}m`
+          `[ident-reject] reason=${evt.reason} km${km(evt.startKm)}-${km(evt.endKm)}`
         );
         break;
       case 'merge-pair':
@@ -131,12 +144,9 @@ if (fixtures.length === 0) {
     try {
       const gpxContent = readFileSync(resolve(FIXTURES_DIR, file), 'utf-8');
       const elevationProfile = parseGPX(gpxContent);
-      const debug = makePipelineSink(file);
-      const { climbs } = detectClimbs(
-        elevationProfile,
-        scoringModel ?? 'aso',
-        debug ? { debug } : undefined
-      );
+      const { climbs } = detectClimbs(elevationProfile, scoringModel ?? 'aso', {
+        debug: makePipelineSink(file),
+      });
       detectedClimbs = climbs;
       debugLog(file, detectedClimbs);
     } catch (err) {

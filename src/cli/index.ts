@@ -31,6 +31,8 @@ Options:
   --min-speed <m/s>            Moving-time speed floor  (default: ${DEFAULT_MOVING.minSpeedMps})
   --max-gap <s>                Sample gaps at or above this are not moving time
                                (default: ${DEFAULT_MOVING.maxGapSec})
+  --debug                      Write the climb-detection pipeline trace to
+                               stderr as NDJSON (one JSON event per line)
   --pretty                     Indent the JSON
   -h, --help                   Show this help
 
@@ -45,6 +47,7 @@ function main(argv: string[]): number {
       zones: { type: "string" },
       "min-speed": { type: "string" },
       "max-gap": { type: "string" },
+      debug: { type: "boolean", default: false },
       pretty: { type: "boolean", default: false },
       help: { type: "boolean", short: "h", default: false },
     },
@@ -77,6 +80,9 @@ function main(argv: string[]): number {
       minSpeedMps: positiveNumber(values["min-speed"], DEFAULT_MOVING.minSpeedMps, "--min-speed"),
       maxGapSec: positiveNumber(values["max-gap"], DEFAULT_MOVING.maxGapSec, "--max-gap"),
     },
+    // Stdout is a strict JSON contract for sync.py, so the trace goes to
+    // stderr — the same channel the top-level error handler already uses.
+    debug: values.debug ? (event) => process.stderr.write(`${JSON.stringify(event)}\n`) : undefined,
   });
 
   process.stdout.write(`${JSON.stringify(analysis, null, values.pretty ? 2 : 0)}\n`);

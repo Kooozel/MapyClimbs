@@ -23,8 +23,6 @@ import type {
   ScoringModel,
   AnalysisResult,
 } from "./types";
-
-const NOOP_DEBUG: ClimbDebugSink = () => {};
 import { applyScore, applyHikingScore } from "./scoring";
 import {
   RESAMPLE_MIN_INTERVAL_M,
@@ -58,6 +56,10 @@ import {
   TRIM_TAIL_WINDOW_M,
   TRIM_STEEP_RATIO,
 } from "./climb-engine.config";
+
+/** Stand-in sink for callers that pass none, so every emit site can call
+ *  `emit(...)` unconditionally instead of guarding on an optional. */
+const NOOP_DEBUG: ClimbDebugSink = () => {};
 
 // ─── Pipeline entry point ────────────────────────────────────────────────────
 
@@ -423,7 +425,7 @@ function calculateGradients(profile: GpsPoint[]): Segment[] {
 function identifyClimbs(
   segments: Segment[],
   rawProfile: GpsPoint[],
-  emit: ClimbDebugSink = NOOP_DEBUG
+  emit: ClimbDebugSink
 ): RawClimb[] {
   const climbs: RawClimb[] = [];
   let currentClimb: RawClimb | null = null;
@@ -565,7 +567,7 @@ function rawElevationGain(profile: GpsPoint[], startDist: number, endDist: numbe
 function finalizeRawClimb(
   climb: RawClimb,
   tailTrimGrade: number,
-  emit: ClimbDebugSink = NOOP_DEBUG
+  emit: ClimbDebugSink
 ): RawClimb | null {
   const candidate: RawClimb = { ...climb, segments: [...climb.segments] };
   const origStartKm = climb.segments[0] ? climb.segments[0].startDistance / 1000 : 0;
@@ -586,7 +588,6 @@ function finalizeRawClimb(
     emit({
       stage: "identify-reject",
       reason: "empty",
-      measuredGainM: 0,
       startKm: origStartKm,
       endKm: origEndKm,
     });

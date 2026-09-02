@@ -20,6 +20,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
+    "test:trace": "DEBUG_PIPELINE=1 vitest run --reporter=verbose test/gpx-integration.test.js",
     "prepare": "husky",
     "build:cli": "node scripts/build-cli.mjs"
   },
