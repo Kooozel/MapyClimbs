@@ -139,13 +139,13 @@ export function detectClimbs(
 
   // Step 5: Trim flat lead-in / tail, score and categorize, then snap each
   // climb's end to the raw-profile summit.
-  const { climbs, candidates } = trimAndScore(mergedClimbs, scoringModel, emit);
+  const { climbs, droppedCandidates } = trimAndScore(mergedClimbs, scoringModel, emit);
   const trimmedClimbs = snapAllEndCoords(climbs, resampled);
 
   const { gain, descent } = calculateStats(resampled);
   return {
     climbs: trimmedClimbs,
-    candidates,
+    droppedCandidates,
     totalDistance: profile[profile.length - 1].distance,
     totalElevationGain: gain,
     totalElevationLoss: descent,
@@ -851,18 +851,19 @@ function trimClimbEndpoints(climb: RawClimb): RawClimb {
 /**
  * Step 5a: trim each merged candidate's flat lead-in and tail, then score it.
  *
- * Returns both halves of the step. `candidates` holds every candidate that
- * survived trimming — including ones this model scored as null — because that
- * is what AnalysisResult.candidates feeds to recategorizeClimbs, which replays
- * them when the user switches scoring model. Returning only the scored climbs
- * would make a model switch lossy.
+ * Returns both halves of the step, and they are disjoint: a candidate this model
+ * scored rides along inside `climbs` carrying its own segments, so only the ones
+ * scored as null need `droppedCandidates`. The rejects have to be kept — that is
+ * what recategorizeResult replays when the user switches scoring model, and
+ * returning the scored climbs alone would make a switch lossy. Returning *every*
+ * candidate, as this once did, stored each climb's geometry twice (issue #49).
  */
 function trimAndScore(
   mergedClimbs: RawClimb[],
   scoringModel: ScoringModel,
   emit: ClimbDebugSink
-): { climbs: Climb[]; candidates: RawClimb[] } {
-  const candidates: RawClimb[] = [];
+): { climbs: Climb[]; droppedCandidates: RawClimb[] } {
+  const droppedCandidates: RawClimb[] = [];
   const climbs = mergedClimbs
     .map((raw) => {
       const before = raw.segments;
@@ -894,8 +895,8 @@ function trimAndScore(
         });
       }
       if (!kept) return null;
-      candidates.push(trimmed);
       const scored = categorizeClimb(trimmed, scoringModel);
+      if (!scored) droppedCandidates.push(trimmed);
       const s0 = trimmed.segments[0];
       const sN = trimmed.segments[trimmed.segments.length - 1];
       emit({
@@ -911,7 +912,7 @@ function trimAndScore(
     })
     .filter((c): c is Climb => c !== null);
 
-  return { climbs, candidates };
+  return { climbs, droppedCandidates };
 }
 
 /**
@@ -995,14 +996,63 @@ export function categorizeClimb(climb: RawClimb, scoringModel: ScoringModel = "a
 }
 
 /**
- * Re-scores a list of pre-trimmed RawClimb candidates under a new scoring
- * model without re-running the detection pipeline. Candidates that don't
- * reach the model's lowest threshold are dropped. Accepts all trimmed
- * candidates (not just those that passed the original model) so switching
- * from a permissive model to a strict one and back is fully reversible.
+ * The full trimmed-candidate set a scoring-model switch has to replay.
+ *
+ * detectClimbs stores it split in two so no geometry is serialised twice: the
+ * candidates this model scored sit in `climbs` carrying their own segments, and
+ * only the rejected ones in `droppedCandidates`. Re-joining them by start distance
+ * recovers the route-ordered set trimAndScore produced.
+ *
+ * A scored climb may carry one extra synthetic segment appended by snapAllEndCoords,
+ * so the replayed candidate reaches the true summit. The pre-split encoding stored
+ * the un-snapped candidate and silently lost that extension on every model switch;
+ * carrying it is stable — the segment rides along, it is never re-appended.
+ *
+ * One consequence: snapAllEndCoords runs *after* trimAndScore has scored, and it
+ * updates distance/elevation/avgGrade but not difficulty/category. A replayed
+ * candidate therefore scores on the geometry the card actually displays, which for
+ * a snapped climb can land in a different band than the category stored at
+ * detection time (hukvaldy.gpx climb 4: 25.19 → 23.69, Cat 4 → uncategorized).
+ * Switching is still reversible — every switch re-partitions the same set — but
+ * it is not the identity against the first detection. The pre-split encoding was
+ * not either; it dropped the summit extension instead.
  */
-export function recategorizeClimbs(candidates: RawClimb[], model: ScoringModel): Climb[] {
-  return candidates.map((c) => categorizeClimb(c, model)).filter((c): c is Climb => c !== null);
+function allCandidates(result: AnalysisResult): RawClimb[] {
+  if (result.candidates) return result.candidates; // pre-split result: already the whole set
+
+  const fromClimbs: RawClimb[] = result.climbs.map((c) => ({
+    segments: c.segments,
+    totalDistance: c.distance,
+    totalElevation: c.elevation,
+  }));
+  return [...fromClimbs, ...(result.droppedCandidates ?? [])].sort(
+    (a, b) => (a.segments[0]?.startDistance ?? 0) - (b.segments[0]?.startDistance ?? 0)
+  );
+}
+
+/**
+ * Re-scores a stored result under a new scoring model without re-running the
+ * detection pipeline, returning a result in the same split encoding.
+ *
+ * Both halves are recomputed together: a candidate this model keeps moves into
+ * `climbs`, one it rejects into `droppedCandidates`. Recomputing only `climbs`
+ * would leave a promoted candidate in both halves and duplicate it on the next
+ * switch. Because every switch only re-partitions the same candidate set, going
+ * from a permissive model to a strict one and back returns the original climbs.
+ */
+export function recategorizeResult(result: AnalysisResult, model: ScoringModel): AnalysisResult {
+  const climbs: Climb[] = [];
+  const droppedCandidates: RawClimb[] = [];
+
+  for (const candidate of allCandidates(result)) {
+    const scored = categorizeClimb(candidate, model);
+    if (scored) climbs.push(scored);
+    else droppedCandidates.push(candidate);
+  }
+
+  const next: AnalysisResult = { ...result, climbs, droppedCandidates };
+  delete next.candidates; // read once, then gone — the split encoding replaces it
+  return next;
 }
 
 function calculateStats(resampled: GpsPoint[]) {

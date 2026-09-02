@@ -28,7 +28,7 @@ import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 import { parseGPX } from '../src/gpx-parser.ts';
-import { detectClimbs } from '../src/climb-engine.ts';
+import { detectClimbs, recategorizeResult } from '../src/climb-engine.ts';
 import { fixtures } from './fixtures/expected.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -139,15 +139,16 @@ if (fixtures.length === 0) {
 } else {
   describe.each(fixtures)('$file', ({ file, climbCount, scoringModel, climbs: expectedClimbs }) => {
     let detectedClimbs;
+    let detectionResult;
 
     // Parse + detect once per fixture file
     try {
       const gpxContent = readFileSync(resolve(FIXTURES_DIR, file), 'utf-8');
       const elevationProfile = parseGPX(gpxContent);
-      const { climbs } = detectClimbs(elevationProfile, scoringModel ?? 'aso', {
+      detectionResult = detectClimbs(elevationProfile, scoringModel ?? 'aso', {
         debug: makePipelineSink(file),
       });
-      detectedClimbs = climbs;
+      detectedClimbs = detectionResult.climbs;
       debugLog(file, detectedClimbs);
     } catch (err) {
       it(`should load and parse ${file}`, () => {
@@ -157,6 +158,22 @@ if (fixtures.length === 0) {
 
     it(`detects ${climbCount} climb(s)`, () => {
       expect(detectedClimbs).toHaveLength(climbCount);
+    });
+
+    it('re-partitions the same candidate set on a scoring-model switch', () => {
+      // The invariant droppedCandidates exists for, on real data: a switch only
+      // moves candidates between the two halves, so switching away and back is
+      // the identity, and no candidate is lost or duplicated on the way.
+      const model = scoringModel ?? 'aso';
+      const other = model === 'garmin' ? 'aso' : 'garmin';
+
+      const direct = recategorizeResult(detectionResult, model);
+      const roundTrip = recategorizeResult(recategorizeResult(direct, other), model);
+
+      expect(roundTrip).toEqual(direct);
+
+      const total = (r) => r.climbs.length + r.droppedCandidates.length;
+      expect(total(roundTrip)).toBe(total(detectionResult));
     });
 
     if (expectedClimbs) {

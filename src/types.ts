@@ -196,9 +196,14 @@ export interface RawClimb {
 
 export interface AnalysisResult {
   climbs: Climb[];
-  /** All trimmed candidates before scoring — used by recategorizeClimbs to
-   *  recover climbs dropped by a different model. Optional for backward
-   *  compatibility with results stored before this field was added. */
+  /** Candidates this model scored as null. Together with `climbs` — each of which
+   *  carries its own segments — these partition the full trimmed-candidate set that
+   *  recategorizeResult replays on a model switch, so no climb's geometry is stored
+   *  twice. Absent when nothing was rejected. */
+  droppedCandidates?: RawClimb[];
+  /** @deprecated Pre-split encoding: the *whole* candidate set, including a copy of
+   *  every scored climb's segments. Read-only, for results stored before the split;
+   *  never written again, so a stored result self-heals on its next re-analysis. */
   candidates?: RawClimb[];
   totalDistance: number;
   totalElevationGain: number;

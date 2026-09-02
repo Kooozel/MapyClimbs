@@ -172,6 +172,19 @@ its state, re-categorising after a scoring-model switch) must match on
 build one from the exact-key field. Without the trailing colon, tab `1`'s prefix matches
 tab `12`'s keys.
 
+A stored result is large — one `Segment` per ~12 m, so a 100 km route is ~1.3 MB of JSON,
+almost all of it `climbs[].segments` — and the manifest asks for `storage` without
+`unlimitedStorage`, so the default 10 MB quota applies across every tab and alternative.
+The result is therefore stored **split**: `climbs[]` carries the geometry of the candidates
+the current model scored, and `droppedCandidates[]` carries only the ones it rejected
+(101 of `b7.gpx`'s 3904 segments). Together they are the full candidate set
+`recategorizeResult` re-partitions on a scoring-model switch, which is why the rejects have
+to be kept at all — a strict model must be able to give them back. Storing the whole set
+separately, as the pre-split `candidates` field did, wrote every scored climb's segments
+twice: 2.55 MB for `b7.gpx` against 1.29 MB now, and over quota at four alternatives
+(issue #49). `candidates` is still read once for results written before the split, and
+never written again.
+
 ### i18n
 
 UI strings use `__MSG_*__` manifest keys. Locale files: `public/_locales/en/messages.json` and `public/_locales/cs/messages.json`.
