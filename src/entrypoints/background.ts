@@ -3,7 +3,7 @@
  * Chrome messaging + storage glue only. All detection logic lives in climb-engine.ts.
  */
 
-import { detectClimbs, recategorizeClimbs } from "../climb-engine";
+import { detectClimbs, emptyAnalysisResult, recategorizeClimbs } from "../climb-engine";
 import {
   StorageKey,
   type ExtensionMessage,
@@ -79,13 +79,7 @@ export default defineBackground(() => {
       sendResponse({ result: analysisResult, activeRouteClass });
     } catch (error) {
       sendResponse({
-        result: {
-          climbs: [],
-          totalDistance: 0,
-          totalElevationGain: 0,
-          totalElevationLoss: 0,
-          timestamp: Date.now(),
-        },
+        result: emptyAnalysisResult(),
         error: error instanceof Error ? error.message : String(error),
         activeRouteClass: "",
       });
@@ -96,16 +90,7 @@ export default defineBackground(() => {
     sendResponse: (response: ClimbsResponse) => void,
     model: ScoringModel
   ): void {
-    const EMPTY_RESULT = {
-      result: {
-        climbs: [],
-        totalDistance: 0,
-        totalElevationGain: 0,
-        totalElevationLoss: 0,
-        timestamp: Date.now(),
-      },
-      activeRouteClass: "",
-    };
+    const EMPTY_RESULT = { result: emptyAnalysisResult(), activeRouteClass: "" };
     chrome.tabs.query({ url: [...MAPY_MATCHES] }, (tabs) => {
       const tabIds = tabs.map((tab) => tab.id).filter((id): id is number => id != null);
       if (tabIds.length === 0) {

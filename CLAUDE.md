@@ -192,8 +192,8 @@ so a broken CLI bundle cannot block an extension release.
 
 - `cli/garmin-gpx.ts` — Node-side GPX reader. It exists *alongside* `src/gpx-parser.ts`
   (which needs `DOMParser` and discards `<time>` / heart rate) because ride analysis needs
-  both. Same haversine formula, pinned together over a shared fixture by
-  `test/garmin-gpx.test.js`.
+  both. Both call the one haversine in `src/geo.ts`, so they agree on the distance axis by
+  construction; `test/garmin-gpx.test.js` still pins them together over a shared fixture.
 - `cli/ride-metrics.ts` — pure moving-time and HR-zone aggregation. VAM must be computed
   on moving time, not elapsed.
 - `cli/analyze-ride.ts` — the output contract: every `climbs[]` key maps 1:1 onto a column
@@ -209,8 +209,8 @@ When absent, `pct_z4z5` is null but HR avg/max are still emitted.
 
 Tests are plain JS in `test/` using Vitest + happy-dom. Covered modules: `climb-engine.ts`,
 `chart.ts` / `gradient-zones.ts`, `chart-selection.ts`, `map-geometry.ts`, `max-gradient.ts`,
-`gpx-parser.ts`, `storage.ts`, `gpx-integration` (full GPX fixture round-trip including hiking),
-plus the CLI layer: `garmin-gpx`, `ride-metrics`, `ride-analysis`.
+`gpx-parser.ts`, `geo.ts`, `storage.ts`, `gpx-integration` (full GPX fixture round-trip
+including hiking), plus the CLI layer: `garmin-gpx`, `ride-metrics`, `ride-analysis`.
 
 Fixtures in `test/fixtures/` are real Mapy.cz route exports, except
 `ride-synthetic.gpx` — a generated ride-shaped track (1 Hz noise, stops, recording gaps,

@@ -5,9 +5,10 @@
  * and returns only ElevationTuple[], discarding <time> and heart rate. Ride
  * analysis needs both, so this reader scans the XML directly and keeps them.
  *
- * Distance is accumulated with the same haversine formula as gpx-parser.ts, so
- * both readers agree on the distance axis; test/garmin-gpx.test.js pins them
- * together over a shared fixture.
+ * Distance is accumulated with the shared haversine in ../geo.ts — the same
+ * function gpx-parser.ts calls — so the two readers agree on the distance axis
+ * by construction; test/garmin-gpx.test.js pins them together over a shared
+ * fixture.
  *
  * Verified against Garmin Connect exports: heart rate lives at
  * <extensions>/<ns3:TrackPointExtension>/<ns3:hr>. The namespace prefix is
@@ -15,6 +16,7 @@
  */
 
 import type { ElevationTuple } from "../types";
+import { haversineDistance } from "../geo";
 
 /** One trackpoint, with everything the ride metrics need. */
 export interface RidePoint {
@@ -129,18 +131,4 @@ function numberFrom(text: string | undefined): number | null {
   if (text === undefined) return null;
   const value = Number.parseFloat(text);
   return Number.isFinite(value) ? value : null;
-}
-
-function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
-  const R = 6371000;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-function toRad(degrees: number): number {
-  return (degrees * Math.PI) / 180;
 }

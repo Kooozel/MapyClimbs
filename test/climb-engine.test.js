@@ -715,6 +715,19 @@ describe('detectClimbs', () => {
     expect(detectClimbs([[0, 100, 48, 16]]).climbs).toEqual([]);
   });
 
+  it('zeroes every route-level field when there is nothing to detect', () => {
+    // The empty result comes from one factory (emptyAnalysisResult). This pins
+    // its shape so a field added to AnalysisResult but forgotten in the factory
+    // fails here rather than only in review.
+    expect(detectClimbs([])).toEqual({
+      climbs: [],
+      totalDistance: 0,
+      totalElevationGain: 0,
+      totalElevationLoss: 0,
+      timestamp: expect.any(Number),
+    });
+  });
+
   it('returns [] for a flat route with no elevation gain', () => {
     const result = detectClimbs(FLAT_ROUTE);
     expect(result.climbs).toEqual([]);
