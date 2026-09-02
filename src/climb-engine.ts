@@ -55,7 +55,10 @@ import {
   TRIM_END_GRADE_PCT,
   TRIM_TAIL_WINDOW_M,
   TRIM_STEEP_RATIO,
+  MAX_SUSTAINED_GRADIENT_WINDOW_M,
 } from "./climb-engine.config";
+import { maxGradientOverWindow } from "./max-gradient";
+import type { GradientPoint } from "./max-gradient";
 
 /** Stand-in sink for callers that pass none, so every emit site can call
  *  `emit(...)` unconditionally instead of guarding on an optional. */
@@ -879,25 +882,34 @@ function trimClimbEndpoints(climb: RawClimb): RawClimb {
 }
 
 /**
- * Returns the maximum sustained gradient (as a decimal, e.g. 0.30 for 30%)
+ * Returns the maximum *sustained* gradient (as a decimal, e.g. 0.30 for 30%)
  * over any contiguous window of at least `windowM` metres within `segments`.
- * Uses distance-weighted average gradient, matching the approach in climb-card.ts.
+ *
+ * "Sustained" is the distinguishing word: this reads the dense smoothed profile
+ * over a wide window, so it is what a rider feels for a couple of hundred
+ * metres — deliberately *not* the steepest short pitch the card's chart shows.
+ * That figure is maxPitchGradient (gradient-zones.ts); both are one scan
+ * (max-gradient.ts) under two configurations.
+ *
+ * The former body took a distance-weighted mean of the per-segment gradients,
+ * which is the same number: each term is (Δe/d · 100) · d = 100 · Δe, so the
+ * weighted mean divided by the span *is* geometric rise/run over the span.
  */
-export function computeMaxSustainedGradient(segments: Segment[], windowM = 200): number {
-  let bestPct = 0;
-  for (let i = 0; i < segments.length; i++) {
-    let dist = 0;
-    let weightedGrad = 0;
-    for (let j = i; j < segments.length; j++) {
-      dist += segments[j].distance;
-      weightedGrad += segments[j].gradient * segments[j].distance;
-      if (dist >= windowM) {
-        bestPct = Math.max(bestPct, weightedGrad / dist);
-        break;
-      }
-    }
-  }
-  return bestPct / 100;
+export function computeMaxSustainedGradient(
+  segments: Segment[],
+  windowM = MAX_SUSTAINED_GRADIENT_WINDOW_M
+): number {
+  if (segments.length === 0) return 0;
+  const last = segments[segments.length - 1];
+  // Absolute startDistance, not re-based to 0 the way buildProfilePoints does:
+  // only differences are read, and reusing that helper would make the engine
+  // depend on gradient-zones.ts, which must not travel with it.
+  const points: GradientPoint[] = segments.map((s) => ({
+    distance: s.startDistance,
+    elevation: s.startElevation,
+  }));
+  points.push({ distance: last.endDistance, elevation: last.endElevation });
+  return maxGradientOverWindow(points, windowM) / 100;
 }
 
 function scoreForHiking(
@@ -982,5 +994,4 @@ export {
   resamplePoints as _resamplePoints,
   smoothElevationProfile as _smoothElevationProfile,
   interpolateProfile as _interpolateProfile,
-  computeMaxSustainedGradient as _computeMaxSustainedGradient,
 };

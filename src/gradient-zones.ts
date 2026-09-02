@@ -9,6 +9,7 @@
  */
 
 import type { Segment } from "./types";
+import { maxGradientOverWindow } from "./max-gradient";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -72,6 +73,12 @@ export const HIKING_GRADE_COLORS: [number, string][] = [
   [40, "#800020"],
   [Infinity, "#3B0010"],
 ];
+
+/** Minimum span (m) a chart pitch must cover to be reported as the max grade.
+ *  Simplified-profile points normally sit far further apart than this, so the
+ *  floor only rejects sub-25 m simplification artefacts rather than acting as a
+ *  real averaging window. */
+export const CHART_PITCH_MIN_SPAN_M = 25;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -177,24 +184,21 @@ export function simplifyProfile(profile: ProfilePoint[]): ProfilePoint[] {
 }
 
 /**
- * Returns the maximum gradient over any contiguous span of at least
- * `minDistance` metres in the profile.
- * Gradient is computed geometrically (elevation / distance) — the same
- * formula used by buildGradientZones — so the stat matches the steepest
- * color band on the chart when called with the simplified profile.
+ * Returns the maximum *pitch* gradient (%) — the steepest span in the profile,
+ * measured with the same geometric formula buildGradientZones colours with, so
+ * the card's stat can never contradict the steepest colour band above it.
+ *
+ * Pass the *simplified* profile: its points sit far further apart than the
+ * default floor, so at chart resolution this reports the steepest segment the
+ * chart actually draws. For the wide-window "what you feel for 200 m" figure,
+ * use computeMaxSustainedGradient (climb-engine.ts) — both are one scan
+ * (max-gradient.ts) under two configurations.
  */
-export function calcMaxGradientFromProfile(profile: ProfilePoint[], minDistance: number): number {
-  let best = 0;
-  for (let i = 0; i < profile.length - 1; i++) {
-    for (let j = i + 1; j < profile.length; j++) {
-      const dist = profile[j].distance - profile[i].distance;
-      if (dist < minDistance) continue;
-      const grad = ((profile[j].elevation - profile[i].elevation) / dist) * 100;
-      best = Math.max(best, grad);
-      break; // shortest window from i that satisfies minDistance; wider spans only average down
-    }
-  }
-  return best;
+export function maxPitchGradient(
+  profile: ProfilePoint[],
+  minSpanM = CHART_PITCH_MIN_SPAN_M
+): number {
+  return maxGradientOverWindow(profile, minSpanM);
 }
 
 /**

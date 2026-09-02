@@ -68,6 +68,13 @@ Because content scripts cannot access page JS directly, `interceptor.content.ts`
 
 All numeric pipeline constants (resample interval, interpolation gap, smoothing window, spike thresholds, merge gaps, trim thresholds) live in `src/climb-engine.config.ts`. The climb-detection logic itself is in `src/climb-engine.ts` (pure module, no Chrome APIs). Scoring models (ASO, Garmin, hiking) and category thresholds are in `src/scoring.ts`. Gradient zone colours and the full profile → zone pipeline live in `src/gradient-zones.ts`.
 
+Two different figures are called a "max gradient", and both come from the single scan in
+`src/max-gradient.ts` so they cannot drift apart again: `computeMaxSustainedGradient`
+(`climb-engine.ts`) reads the dense smoothed segments over a 200 m window and feeds the hiking
+score and the CLI's `max_grade` column, while `maxPitchGradient` (`gradient-zones.ts`) reads the
+simplified chart profile and is the card's "Max grade" stat, which must never contradict the
+steepest colour band drawn above it.
+
 ### Hiking mode
 
 Hiking mode is auto-detected: `injected/gpx-interceptors.ts` reads the active transport-icon class from the Mapy.cz DOM and sets `routeMode = "hiking"` in the stored `GpxInfo`. The background then applies the TRAILS-GPX hiking formula (summit elevation + max gradient + distance) instead of the ASO/Garmin cycling formula. Grade colour bands are wider (5 / 10 / 20 / 30 / 40 %) to match walking pace. Hiking routes always keep the hiking model regardless of the user's scoring preference.
@@ -201,7 +208,7 @@ When absent, `pct_z4z5` is null but HR avg/max are still emitted.
 ### Tests
 
 Tests are plain JS in `test/` using Vitest + happy-dom. Covered modules: `climb-engine.ts`,
-`chart.ts` / `gradient-zones.ts`, `chart-selection.ts`, `map-geometry.ts`, `climb-card.ts`,
+`chart.ts` / `gradient-zones.ts`, `chart-selection.ts`, `map-geometry.ts`, `max-gradient.ts`,
 `gpx-parser.ts`, `storage.ts`, `gpx-integration` (full GPX fixture round-trip including hiking),
 plus the CLI layer: `garmin-gpx`, `ride-metrics`, `ride-analysis`.
 

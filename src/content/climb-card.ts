@@ -2,7 +2,7 @@
  * content/climb-card.ts — Individual climb card DOM builder.
  * Depends on: chart.ts (generateElevationChart), chart-selection.ts (drag-to-select)
  *
- * Exports: buildClimbCard, calcMaxGradientOver
+ * Exports: buildClimbCard
  */
 
 import { generateElevationChart } from "./chart";
@@ -15,7 +15,7 @@ import {
   HIKING_GRADE_COLORS,
   buildProfilePoints,
   simplifyProfile,
-  calcMaxGradientFromProfile,
+  maxPitchGradient,
 } from "../gradient-zones";
 
 // ── Climb metrics ─────────────────────────────────────────────────────────────
@@ -70,7 +70,7 @@ const PEAK_SVG =
 export function buildClimbCard(climb: Climb, index: number, routeMode?: RouteMode): HTMLElement {
   const catClass = getCategoryClass(climb.category);
   const simplifiedProfile = simplifyProfile(buildProfilePoints(climb.segments));
-  const maxGrad = calcMaxGradientFromProfile(simplifiedProfile, 25);
+  const maxGrad = maxPitchGradient(simplifiedProfile);
   const summit = findSummit(climb);
   const timeStr = formatMinutes(estimateClimbTime(climb));
   const isHiking = routeMode === "hiking";

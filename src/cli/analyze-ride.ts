@@ -137,7 +137,9 @@ function toClimbRow(climb: Climb, index: number, window: WindowMetrics): ClimbRo
     distance_m: round(climb.distance, 1),
     elevation_m: round(climb.elevation, 1),
     avg_grade: round(climb.avgGrade, 2),
-    // computeMaxSustainedGradient returns a decimal fraction over a 200 m window.
+    // The *sustained* figure: a decimal fraction over MAX_SUSTAINED_GRADIENT_WINDOW_M.
+    // The card's maxPitchGradient is a different, deliberately steeper stat — this
+    // column must stay sustained, since rows are already imported under that meaning.
     max_grade: round(computeMaxSustainedGradient(climb.segments) * 100, 2),
     category: climb.category,
     difficulty: round(climb.difficulty, 1),
