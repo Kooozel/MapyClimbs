@@ -67,6 +67,21 @@ const NOOP_DEBUG: ClimbDebugSink = () => {};
 // ─── Pipeline entry point ────────────────────────────────────────────────────
 
 /**
+ * A result with nothing in it — the shape every caller returns when there is
+ * nothing to detect or detection failed. One factory so a new required field on
+ * AnalysisResult is added in one place rather than three.
+ */
+export function emptyAnalysisResult(): AnalysisResult {
+  return {
+    climbs: [],
+    totalDistance: 0,
+    totalElevationGain: 0,
+    totalElevationLoss: 0,
+    timestamp: Date.now(),
+  };
+}
+
+/**
  * Climb Detection Algorithm — 5-step pipeline.
  * See types.ts for the Climb interface definition.
  *
@@ -79,14 +94,7 @@ export function detectClimbs(
 ): AnalysisResult {
   const emit: ClimbDebugSink = options.debug ?? NOOP_DEBUG;
 
-  if (!elevationData || elevationData.length < 2)
-    return {
-      climbs: [],
-      totalDistance: 0,
-      totalElevationGain: 0,
-      totalElevationLoss: 0,
-      timestamp: Date.now(),
-    };
+  if (!elevationData || elevationData.length < 2) return emptyAnalysisResult();
 
   // Step 1: Build structured profile from raw elevation tuples
   const profile: GpsPoint[] = elevationData.map((point) => ({
