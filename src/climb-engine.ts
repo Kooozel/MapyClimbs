@@ -126,71 +126,15 @@ export function detectClimbs(
   // separated by the same distance stay separate.
   const mergedClimbs = mergeNearbyClimbs(rawClimbs, segments, resampled, emit);
 
-  // Step 5: Trim flat lead-in / tail, then score and categorize
-  const rawCandidates: RawClimb[] = [];
-  const trimmedClimbs = mergedClimbs
-    .map((raw) => {
-      const before = raw.segments;
-      const trimmed = trimClimbEndpoints(raw);
-      const kept = trimmed.totalDistance > 0 && trimmed.totalElevation > 0;
-      if (before.length > 0) {
-        const beforeStart = before[0].startDistance;
-        const beforeEnd = before[before.length - 1].endDistance;
-        let droppedHead = 0;
-        let droppedTail = 0;
-        if (kept && trimmed.segments.length > 0) {
-          const ts = trimmed.segments[0].startDistance;
-          const te = trimmed.segments[trimmed.segments.length - 1].endDistance;
-          for (const s of before) {
-            if (s.endDistance <= ts) droppedHead++;
-            if (s.startDistance >= te) droppedTail++;
-          }
-        } else {
-          droppedHead = before.length;
-        }
-        emit({
-          stage: "trim",
-          startKm: beforeStart / 1000,
-          endKm: beforeEnd / 1000,
-          droppedHeadSegs: droppedHead,
-          droppedTailSegs: droppedTail,
-          remainingDistanceM: trimmed.totalDistance,
-          kept,
-        });
-      }
-      if (!kept) return null;
-      rawCandidates.push(trimmed);
-      const scored = categorizeClimb(trimmed, scoringModel);
-      const s0 = trimmed.segments[0];
-      const sN = trimmed.segments[trimmed.segments.length - 1];
-      emit({
-        stage: "categorize",
-        startKm: s0.startDistance / 1000,
-        endKm: sN.endDistance / 1000,
-        distanceM: trimmed.totalDistance,
-        avgGradePct: (trimmed.totalElevation / trimmed.totalDistance) * 100,
-        difficulty: scored ? scored.difficulty : null,
-        category: scored ? scored.category : null,
-      });
-      return scored;
-    })
-    .filter((c): c is Climb => c !== null);
-
-  // Snap each climb's endCoords to the raw-profile elevation peak within a
-  // conservative lookahead (≤ 300 m, clamped to half the gap before the next
-  // climb) to correct for smoothing-induced under-extension at the summit.
-  for (let i = 0; i < trimmedClimbs.length; i++) {
-    const nextStart =
-      i + 1 < trimmedClimbs.length ? trimmedClimbs[i + 1].segments[0].startDistance : Infinity;
-    const lastSeg = trimmedClimbs[i].segments[trimmedClimbs[i].segments.length - 1];
-    const lookahead = Math.min(300, (nextStart - lastSeg.endDistance) / 2);
-    trimmedClimbs[i] = snapEndCoordsToRawPeak(trimmedClimbs[i], resampled, lookahead);
-  }
+  // Step 5: Trim flat lead-in / tail, score and categorize, then snap each
+  // climb's end to the raw-profile summit.
+  const { climbs, candidates } = trimAndScore(mergedClimbs, scoringModel, emit);
+  const trimmedClimbs = snapAllEndCoords(climbs, resampled);
 
   const { gain, descent } = calculateStats(resampled);
   return {
     climbs: trimmedClimbs,
-    candidates: rawCandidates,
+    candidates,
     totalDistance: profile[profile.length - 1].distance,
     totalElevationGain: gain,
     totalElevationLoss: descent,
@@ -823,6 +767,21 @@ function snapEndCoordsToRawPeak(climb: Climb, rawProfile: GpsPoint[], lookaheadM
   };
 }
 
+/**
+ * Step 5b: snap every climb's endCoords to the raw-profile peak just past its
+ * summit. The lookahead is capped at 300 m and clamped further to half the gap
+ * before the next climb, so an extension can never reach into the climb that
+ * follows.
+ */
+function snapAllEndCoords(climbs: Climb[], rawProfile: GpsPoint[]): Climb[] {
+  return climbs.map((climb, i) => {
+    const nextStart = i + 1 < climbs.length ? climbs[i + 1].segments[0].startDistance : Infinity;
+    const lastSeg = climb.segments[climb.segments.length - 1];
+    const lookahead = Math.min(300, (nextStart - lastSeg.endDistance) / 2);
+    return snapEndCoordsToRawPeak(climb, rawProfile, lookahead);
+  });
+}
+
 function trimClimbEndpoints(climb: RawClimb): RawClimb {
   const trimmed: RawClimb = { ...climb, segments: [...climb.segments] };
   if (!trimmed.segments || trimmed.segments.length === 0) return trimmed;
@@ -876,6 +835,72 @@ function trimClimbEndpoints(climb: RawClimb): RawClimb {
   }
 
   return { segments: climbSegments, totalDistance: newDistance, totalElevation: newElev };
+}
+
+/**
+ * Step 5a: trim each merged candidate's flat lead-in and tail, then score it.
+ *
+ * Returns both halves of the step. `candidates` holds every candidate that
+ * survived trimming — including ones this model scored as null — because that
+ * is what AnalysisResult.candidates feeds to recategorizeClimbs, which replays
+ * them when the user switches scoring model. Returning only the scored climbs
+ * would make a model switch lossy.
+ */
+function trimAndScore(
+  mergedClimbs: RawClimb[],
+  scoringModel: ScoringModel,
+  emit: ClimbDebugSink
+): { climbs: Climb[]; candidates: RawClimb[] } {
+  const candidates: RawClimb[] = [];
+  const climbs = mergedClimbs
+    .map((raw) => {
+      const before = raw.segments;
+      const trimmed = trimClimbEndpoints(raw);
+      const kept = trimmed.totalDistance > 0 && trimmed.totalElevation > 0;
+      if (before.length > 0) {
+        const beforeStart = before[0].startDistance;
+        const beforeEnd = before[before.length - 1].endDistance;
+        let droppedHead = 0;
+        let droppedTail = 0;
+        if (kept && trimmed.segments.length > 0) {
+          const ts = trimmed.segments[0].startDistance;
+          const te = trimmed.segments[trimmed.segments.length - 1].endDistance;
+          for (const s of before) {
+            if (s.endDistance <= ts) droppedHead++;
+            if (s.startDistance >= te) droppedTail++;
+          }
+        } else {
+          droppedHead = before.length;
+        }
+        emit({
+          stage: "trim",
+          startKm: beforeStart / 1000,
+          endKm: beforeEnd / 1000,
+          droppedHeadSegs: droppedHead,
+          droppedTailSegs: droppedTail,
+          remainingDistanceM: trimmed.totalDistance,
+          kept,
+        });
+      }
+      if (!kept) return null;
+      candidates.push(trimmed);
+      const scored = categorizeClimb(trimmed, scoringModel);
+      const s0 = trimmed.segments[0];
+      const sN = trimmed.segments[trimmed.segments.length - 1];
+      emit({
+        stage: "categorize",
+        startKm: s0.startDistance / 1000,
+        endKm: sN.endDistance / 1000,
+        distanceM: trimmed.totalDistance,
+        avgGradePct: (trimmed.totalElevation / trimmed.totalDistance) * 100,
+        difficulty: scored ? scored.difficulty : null,
+        category: scored ? scored.category : null,
+      });
+      return scored;
+    })
+    .filter((c): c is Climb => c !== null);
+
+  return { climbs, candidates };
 }
 
 /**
@@ -983,4 +1008,6 @@ export {
   smoothElevationProfile as _smoothElevationProfile,
   interpolateProfile as _interpolateProfile,
   computeMaxSustainedGradient as _computeMaxSustainedGradient,
+  trimAndScore as _trimAndScore,
+  snapAllEndCoords as _snapAllEndCoords,
 };
