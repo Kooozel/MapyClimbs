@@ -16,6 +16,8 @@ import {
   smoothElevationProfile,
   mergeNearbyClimbs,
   categorizeClimb,
+  _trimAndScore as trimAndScore,
+  _snapAllEndCoords as snapAllEndCoords,
 } from '../src/climb-engine.ts';
 
 // ─── Shared helpers ──────────────────────────────────────────────────────────
@@ -548,6 +550,153 @@ describe('categorizeClimb', () => {
   it('[garmin] returns null when score is below Uncategorized threshold', () => {
     // 500 m, elevation 9 m → avgGrade 1.8 % → Garmin score 900 < 1500 threshold
     expect(categorizeClimb(makeClimb(500, 9), 'garmin')).toBeNull();
+  });
+});
+
+// ─── trimAndScore (step 5a) ──────────────────────────────────────────────────
+
+describe('trimAndScore', () => {
+  /** Collecting sink, so the emitted trace can be asserted on directly. */
+  function sink() {
+    const events = [];
+    const fn = (e) => events.push(e);
+    fn.events = events;
+    return fn;
+  }
+
+  it('strips the flat lead-in and tail before scoring', () => {
+    // 200 m flat → 3 km at 5 % → 200 m flat. Only the ramp survives the trim,
+    // and 3 km × 5 %² = 75 → Cat 3.
+    const candidate = rawClimb([
+      seg(0, 200, 100, 100),
+      seg(200, 3200, 100, 250),
+      seg(3200, 3400, 250, 250),
+    ]);
+
+    const { climbs, candidates } = trimAndScore([candidate], 'aso', sink());
+
+    expect(climbs).toHaveLength(1);
+    expect(climbs[0].segments).toHaveLength(1);
+    expect(climbs[0].distance).toBe(3000);
+    expect(climbs[0].category).toBe('3');
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0].totalDistance).toBe(3000);
+  });
+
+  it('keeps a candidate the model scores as null in candidates', () => {
+    // 300 m at 4 % → ASO score 4.8, below the Uncategorized threshold of 8.
+    // It must still reach AnalysisResult.candidates, or switching to a more
+    // permissive model could never recover it (see recategorizeClimbs).
+    const candidate = rawClimb([seg(0, 300, 100, 112)]);
+
+    const { climbs, candidates } = trimAndScore([candidate], 'aso', sink());
+
+    expect(climbs).toHaveLength(0);
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0].totalDistance).toBe(300);
+  });
+
+  it('drops a candidate that trims away to nothing', () => {
+    const flat = rawClimb([seg(0, 500, 100, 100)]);
+
+    const { climbs, candidates } = trimAndScore([flat], 'aso', sink());
+
+    expect(climbs).toHaveLength(0);
+    expect(candidates).toHaveLength(0);
+  });
+
+  it('emits trim then categorize for a survivor, and trim alone for a reject', () => {
+    const kept = rawClimb([seg(0, 200, 100, 100), seg(200, 3200, 100, 250)]);
+    const dropped = rawClimb([seg(4000, 4500, 250, 250)]);
+    const emit = sink();
+
+    trimAndScore([kept, dropped], 'aso', emit);
+
+    expect(emit.events.map((e) => e.stage)).toEqual(['trim', 'categorize', 'trim']);
+    expect(emit.events[0].kept).toBe(true);
+    expect(emit.events[0].droppedHeadSegs).toBe(1);
+    expect(emit.events[1].category).toBe('3');
+    expect(emit.events[2].kept).toBe(false);
+  });
+});
+
+// ─── snapAllEndCoords (step 5b) ──────────────────────────────────────────────
+
+describe('snapAllEndCoords', () => {
+  /**
+   * Raw profile at 20 m spacing. lat is derived from distance so the point a
+   * climb snapped to can be identified from the resulting endCoords.
+   */
+  function profile(lengthM, elevAt) {
+    const points = [];
+    for (let d = 0; d <= lengthM; d += 20) points.push(pt(d, elevAt(d), 48 + d / 1e6, 16));
+    return points;
+  }
+
+  const latAt = (d) => 48 + d / 1e6;
+
+  /** A scored climb, built the way detectClimbs builds the ones it snaps. */
+  function climb(segments) {
+    return categorizeClimb(rawClimb(segments));
+  }
+
+  it('extends a lone climb to the raw peak past its summit', () => {
+    // Ramp to 200 m at d = 1 000, still rising to 210 m at d = 1 100, then down.
+    const raw = profile(1300, (d) =>
+      d <= 1000 ? 100 + d * 0.1 : d <= 1100 ? 200 + (d - 1000) * 0.1 : 210 - (d - 1100) * 0.1
+    );
+
+    const [snapped] = snapAllEndCoords([climb([seg(0, 1000, 100, 200)])], raw);
+
+    expect(snapped.segments).toHaveLength(2);
+    expect(snapped.distance).toBe(1100);
+    expect(snapped.endCoords.lat).toBeCloseTo(latAt(1100), 6);
+  });
+
+  // The peak sits 140 m past climb 1's summit — inside the 150 m the single-climb
+  // helper allows, so only the half-gap clamp can keep the two climbs apart.
+  const twoClimbElev = (d) =>
+    d <= 1000 ? 100 + d * 0.1 : d <= 1060 ? 200 : d <= 1140 ? 200 + (d - 1060) * 0.125 : 210;
+
+  it('clamps the lookahead to half the gap before the next climb', () => {
+    const raw = profile(1300, twoClimbElev);
+    const climbs = [climb([seg(0, 1000, 100, 200)]), climb([seg(1100, 2100, 200, 300)])];
+
+    const [first] = snapAllEndCoords(climbs, raw);
+
+    // Gap 100 m → lookahead 50 m, which stops short of the rise at 1 060 m.
+    expect(first).toBe(climbs[0]);
+  });
+
+  it('reaches the same peak once the next climb is far enough away', () => {
+    const raw = profile(1300, twoClimbElev);
+    const climbs = [climb([seg(0, 1000, 100, 200)]), climb([seg(1400, 2400, 200, 300)])];
+
+    const [first] = snapAllEndCoords(climbs, raw);
+
+    // Gap 400 m → lookahead 200 m, which reaches the peak at 1 140 m.
+    expect(first.segments).toHaveLength(2);
+    expect(first.endCoords.lat).toBeCloseTo(latAt(1140), 6);
+  });
+
+  it('gives the last climb the full lookahead', () => {
+    const raw = profile(2600, (d) =>
+      d <= 1000
+        ? 100 + d * 0.1
+        : d <= 1400
+          ? 200
+          : d <= 2400
+            ? 200 + (d - 1400) * 0.1
+            : d <= 2500
+              ? 300 + (d - 2400) * 0.1
+              : 310 - (d - 2500) * 0.1
+    );
+    const climbs = [climb([seg(0, 1000, 100, 200)]), climb([seg(1400, 2400, 200, 300)])];
+
+    const [, last] = snapAllEndCoords(climbs, raw);
+
+    expect(last.segments).toHaveLength(2);
+    expect(last.endCoords.lat).toBeCloseTo(latAt(2500), 6);
   });
 });
 
