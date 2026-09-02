@@ -14,8 +14,8 @@ export const RESAMPLE_MIN_INTERVAL_M = 12;
 
 /** Minimum gap (m) that interpolateProfile() will fill with intermediate points.
  *  Pre-smoothing interpolation makes the rolling-average window behave uniformly
- *  across dense and sparse sections, but also shifts climb boundaries — so this
- *  is exported for future use rather than wired into detectClimbs() today. */
+ *  across dense and sparse sections, at the cost of shifting climb boundaries
+ *  slightly — the trade this value tunes. Applied in Step 2b of detectClimbs(). */
 export const INTERPOLATE_MAX_GAP_M = 25;
 
 // ── Smoothing — gradient estimation window (Step 3, Pass 1) ──────────────────
@@ -130,15 +130,12 @@ export const TRIM_START_GRADE_PCT = CLIMB_LEADIN_GRADE_PCT;
  *  the natural sub-trigger run-out toward the summit without making detection
  *  more permissive in opening new candidates. */
 export const TRIM_END_GRADE_PCT = 2.5;
-/** Back-compat re-export for any external consumer that still imports the
- *  combined name. Internally the pipeline reads the two thresholds above. */
-export const TRIM_MIN_GRADE_PCT = TRIM_END_GRADE_PCT;
 /** Backward look-behind window (m) used to judge whether a candidate end-segment lies in a
  *  genuinely steep zone. At each candidate endIndex the algorithm sums the steep and total
  *  distance of the last TRIM_TAIL_WINDOW_M metres. If the steep fraction is below
  *  TRIM_STEEP_RATIO the segment is treated as an isolated noise spike and discarded. */
 export const TRIM_TAIL_WINDOW_M = 200;
-/** Minimum fraction of TRIM_TAIL_WINDOW_M that must be steep (≥ TRIM_MIN_GRADE_PCT) for
+/** Minimum fraction of TRIM_TAIL_WINDOW_M that must be steep (≥ TRIM_END_GRADE_PCT) for
  *  the candidate endpoint to be accepted. Lower values tolerate noisy climbs; higher
  *  values enforce a cleaner end. */
 export const TRIM_STEEP_RATIO = 0.2;

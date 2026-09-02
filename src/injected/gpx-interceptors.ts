@@ -1,7 +1,8 @@
 /**
  * injected/gpx-interceptors.ts
- * Patches window.fetch and XMLHttpRequest to capture GPX export responses
- * and broadcast them via postMessage to the content script.
+ * Patches XMLHttpRequest to capture GPX export responses and broadcast them
+ * via postMessage to the content script. (Mapy.cz issues the export over XHR;
+ * window.fetch is deliberately left alone.)
  */
 
 import { routeClassOrDefault } from "../constants";

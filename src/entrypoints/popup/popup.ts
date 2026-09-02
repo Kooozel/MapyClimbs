@@ -151,7 +151,3 @@ mapLayerToggle.addEventListener("change", () => {
     }
   });
 });
-
-// ── Spinner helpers ───────────────────────────────────────────────────────────
-
-// No GPX-specific UI or actions are needed in the popup.

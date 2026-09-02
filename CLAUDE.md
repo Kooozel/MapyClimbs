@@ -42,7 +42,7 @@ This is a browser extension (Chrome MV3, Firefox MV3) built with [WXT](https://w
 
 ```
 Mapy.cz website
-  → Page context (injected/*)         — monkey-patches fetch/XHR, no sandbox
+  → Page context (injected/*)         — monkey-patches XHR, no sandbox
   → Content scripts (entrypoints/*)   — intercepts postMessages, drives panel & overlay
   → Service worker (background.ts)    — climb detection, storage, lifecycle
   → Popup (popup/)                    — model toggle, layer visibility
@@ -56,7 +56,7 @@ Because content scripts cannot access page JS directly, `interceptor.content.ts`
 
 ### Key data flow
 
-1. **GPX capture**: `injected/gpx-interceptors.ts` intercepts `fetch`/`XHR` to `/tplannerexport?export=gpx`, detects route mode (cycling / hiking / other) from the active transport icon in the DOM, and posts `GPX_FETCHED`. `injected/download-suppressor.ts` suppresses the browser save dialog.
+1. **GPX capture**: `injected/gpx-interceptors.ts` intercepts `XHR` to `/tplannerexport?export=gpx`, detects route mode (cycling / hiking / other) from the active transport icon in the DOM, and posts `GPX_FETCHED`. `injected/download-suppressor.ts` suppresses the browser save dialog.
 
 2. **Alternative routes**: `button-injector.ts` iterates every `h3.alt-*` heading in the route-summary panel, clicks each one, waits for a fresh GPX export, and stores results per `lastAnalysisResult:<tabId>:<routeClass>`. A fullscreen loader is shown during this automation. Switching between alternatives instantly loads the cached result from storage.
 

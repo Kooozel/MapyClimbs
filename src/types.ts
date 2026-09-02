@@ -106,8 +106,6 @@ export interface GpxStoredResponse {
   success: true;
 }
 
-export type ExtensionResponse = ClimbsResponse | GpxStoredResponse;
-
 /**
  * Climb difficulty category — enum-like const so callers can reference values
  * as `ClimbCategory.HC` etc. while the type still resolves to the string union
