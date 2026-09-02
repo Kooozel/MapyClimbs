@@ -212,8 +212,9 @@ export interface AnalysisResult {
 
 /**
  * Structured pipeline-trace event emitted by detectClimbs when a debug sink is
- * passed. Production code never passes a sink so the engine stays a no-op.
- * Each variant corresponds to one decision point in the 5-step pipeline.
+ * passed. Each variant corresponds to one decision point in the 5-step pipeline.
+ * The extension never passes a sink, so the engine stays a no-op there; the
+ * consumers are `climb-cli --debug` and DEBUG_PIPELINE=1 in the integration test.
  */
 export type ClimbDebugEvent =
   | {
@@ -242,7 +243,7 @@ export type ClimbDebugEvent =
     }
   | {
       stage: "identify-reject";
-      reason: "noise-floor" | "empty";
+      reason: "empty";
       measuredGainM: number;
       startKm: number;
       endKm: number;

@@ -242,6 +242,54 @@ describe('analyzeRide — route totals', () => {
   });
 });
 
+/** The seven ClimbDebugEvent discriminants declared in src/types.ts. */
+const DEBUG_STAGES = [
+  'pipeline',
+  'identify-candidate',
+  'identify-close',
+  'identify-reject',
+  'merge-pair',
+  'trim',
+  'categorize',
+];
+
+describe('analyzeRide — debug sink', () => {
+  /** Collects everything the engine emits for one run of the fixture. */
+  const trace = () => {
+    const events = [];
+    analyze({ debug: (event) => events.push(event) });
+    return events;
+  };
+
+  it('forwards the sink to detectClimbs', () => {
+    const events = trace();
+
+    // `pipeline` is the one event detectClimbs always emits once it has data,
+    // so its absence means the sink never reached the engine at all.
+    expect(events.filter((e) => e.stage === 'pipeline')).toHaveLength(1);
+    expect(events.length).toBeGreaterThan(1);
+  });
+
+  it('emits only declared stages, and no retired reject reason', () => {
+    const events = trace();
+
+    for (const event of events) {
+      expect(DEBUG_STAGES).toContain(event.stage);
+    }
+    // "noise-floor" was declared but never emitted; the union is narrowed to
+    // "empty" only, so a payload carrying it would mean the type drifted back.
+    for (const event of events.filter((e) => e.stage === 'identify-reject')) {
+      expect(event.reason).toBe('empty');
+    }
+  });
+
+  it('does not change the analysis it traces', () => {
+    const withSink = analyze({ debug: () => {} });
+
+    expect(withSink).toEqual(analyze());
+  });
+});
+
 describe('analyzeRide — degenerate input', () => {
   it('returns an empty analysis for a track too short to detect anything', () => {
     const minimal = `<gpx xmlns="http://www.topografix.com/GPX/1/1"><trk><trkseg>

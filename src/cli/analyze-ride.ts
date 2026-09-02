@@ -8,7 +8,7 @@
  */
 
 import { detectClimbs, computeMaxSustainedGradient } from "../climb-engine";
-import type { Climb, ScoringModel } from "../types";
+import type { Climb, ClimbDebugSink, ScoringModel } from "../types";
 import { parseGarminGpx } from "./garmin-gpx";
 import type { RidePoint } from "./garmin-gpx";
 import { aggregateWindow, indexAtDistance } from "./ride-metrics";
@@ -21,6 +21,10 @@ export interface AnalyzeOptions {
   /** Null when the caller passed no --zones; pct_z4z5 is then null throughout. */
   zones: HrZones | null;
   moving: MovingOptions;
+  /** Optional pipeline-trace sink, forwarded straight to detectClimbs. Left
+   *  undefined by every caller but `climb-cli --debug`; index.ts owns the
+   *  writing so this file stays free of process/stdio. */
+  debug?: ClimbDebugSink;
 }
 
 export interface ClimbRow {
@@ -70,7 +74,7 @@ export interface RideAnalysis {
 
 export function analyzeRide(gpxContent: string, options: AnalyzeOptions): RideAnalysis {
   const { points, tuples } = parseGarminGpx(gpxContent);
-  const detected = detectClimbs(tuples, options.model);
+  const detected = detectClimbs(tuples, options.model, { debug: options.debug });
 
   let z4z5OnClimb = 0;
   let climbMovingSec = 0;

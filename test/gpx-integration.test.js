@@ -131,12 +131,9 @@ if (fixtures.length === 0) {
     try {
       const gpxContent = readFileSync(resolve(FIXTURES_DIR, file), 'utf-8');
       const elevationProfile = parseGPX(gpxContent);
-      const debug = makePipelineSink(file);
-      const { climbs } = detectClimbs(
-        elevationProfile,
-        scoringModel ?? 'aso',
-        debug ? { debug } : undefined
-      );
+      const { climbs } = detectClimbs(elevationProfile, scoringModel ?? 'aso', {
+        debug: makePipelineSink(file),
+      });
       detectedClimbs = climbs;
       debugLog(file, detectedClimbs);
     } catch (err) {
