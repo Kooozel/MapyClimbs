@@ -1,8 +1,8 @@
 # MapyClimbs
 
-Chrome extension that intercepts GPX exports from Mapy.cz, detects climbs, and injects analysis directly into the route-planner sidebar with live map pins.
+Browser extension that intercepts GPX exports from Mapy.cz, detects climbs, and injects analysis directly into the route-planner sidebar with live grade-coloured map polylines.
 
-**Version**: 1.0.4 | **Browser**: Chrome 88+ / Edge 88+ / Brave
+**Browser**: Chrome 88+ / Edge 88+ / Brave, and Firefox (MV3)
 
 ## Quick Start
 
@@ -21,103 +21,69 @@ npm run zip     # → zip ready for Chrome Web Store
 ### Load manually
 Open `chrome://extensions/`, enable **Developer mode**, click **Load unpacked**, select `dist/chrome-mv3/`.
 
-Then: go to [mapy.cz](https://mapy.cz), open the route planner, plan a route, click **MapyClimbs** in the toolbar. Climb cards and map pins appear in the sidebar instantly.
+Then: go to [mapy.cz](https://mapy.cz), open the route planner, plan a route, click **MapyClimbs** in the toolbar. Climb cards appear in the sidebar and the climbs are drawn on the map.
 
 ## Project Structure
 
 ```
 MapyClimbs/
-├── README.md
+├── ARCHITECTURE.md          ← Layer map + per-file index
+├── CLAUDE.md                ← How each mechanism works, and why
 ├── CHANGELOG.md
-├── ARCHITECTURE.md              ← Architecture, data flow, file responsibilities
-├── wxt.config.ts                ← WXT + manifest configuration
-├── package.json
-├── tsconfig.json                ← extends .wxt/tsconfig.json (auto-generated)
-├── vitest.config.js
-├── scripts/
-│   └── generate-whats-new.mjs  ← Validates & bundles public/whats-new-data.json at build time
-├── public/
-│   ├── whats-new-data.json      ← Hand-authored user-facing What's New bullets
-│   ├── images/                  ← Extension icons (copied as-is to dist)
-│   └── _locales/
-│       ├── cs/messages.json     ← Czech UI strings
-│       └── en/messages.json     ← English UI strings
+├── wxt.config.ts            ← WXT build config + full manifest
+├── scripts/                 ← Build-time helpers (What's New bundling, CLI build, fixtures)
+├── public/                  ← Icons, en/cs locales, hand-authored whats-new-data.json
+├── test/                    ← Vitest suites + real Mapy.cz GPX fixtures
 └── src/
-    ├── types.ts                 ← Shared domain types and message interfaces
-    ├── constants.ts             ← ElementId enum, MAPY_MATCHES URL patterns
-    ├── climb-engine.ts          ← Pure module: 7-step climb-detection pipeline
-    ├── climb-engine.config.ts   ← All numeric pipeline constants (tuning)
-    ├── scoring.ts               ← Pluggable scoring models: aso, garmin
-    ├── format.ts                ← Shared formatting helpers
-    ├── map-geometry.ts          ← Pure mercatorToPixel() projection
-    ├── gpx-parser.ts            ← GPX XML parser (Haversine distances)
-    ├── smap.types.ts            ← Ambient TS declarations for SMap globals
-    ├── map-inject.css           ← Injected panel styles
-    ├── entrypoints/
-    │   ├── background.ts            ← Service worker (defineBackground)
-    │   ├── interceptor.content.ts   ← Content script, document_start
-    │   ├── inject.content.ts        ← Content script, document_idle (RoutePlannerController)
-    │   ├── gpx-interceptor-injected.ts  ← Page-context entry point (defineUnlistedScript)
-    │   ├── popup/
-    │   │   ├── index.html
-    │   │   ├── popup.ts
-    │   │   └── popup.css
-    │   └── whats-new/
-    │       ├── index.html
-    │       ├── whats-new.ts         ← Renders localized What's New page
-    │       └── whats-new.css
-    ├── injected/                    ← Page-context modules (no sandbox)
-    │   ├── gpx-interceptors.ts      ← fetch/XHR monkey-patches
-    │   ├── download-suppressor.ts   ← Suppresses blob download after GPX capture
-    │   ├── smap-capture.ts          ← Captures live SMap instance via constructor hook
-    │   └── marker-injection.ts      ← Native SMap.Layer.Marker pins
-    └── content/
-        ├── button-injector.ts       ← Injects MapyClimbs button, auto-triggers export
-        ├── map-overlay.ts           ← SVG overlay with animated route polylines
-        ├── panel.ts                 ← Sidebar panel orchestrator
-        ├── panel-template.ts        ← Panel shell + header HTML
-        ├── route-overview.ts        ← Route stat card + proportional climb strip
-        ├── climb-card.ts            ← Per-climb card DOM + calcMaxGradientOver()
-        ├── chart.ts                 ← SVG elevation chart renderer
-        └── category.ts             ← Category colour palette
+    ├── climb-engine.ts      ← Pure detection pipeline (no Chrome APIs, no DOM)
+    ├── scoring.ts           ← Scoring models: aso, garmin, hiking
+    ├── entrypoints/         ← Service worker, content scripts, popup, What's New page
+    ├── injected/            ← Page-context modules (XHR capture, download suppression, map centring)
+    ├── content/             ← Sidebar panel, elevation charts, map overlay
+    └── cli/                 ← Node CLI: Garmin ride GPX in, climb JSON out
 ```
+
+Every file under `src/` is listed in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## Documentation
 
 | File                               | Purpose                                                           |
 | ---------------------------------- | ----------------------------------------------------------------- |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Architecture, algorithm details, data flow, file responsibilities |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Layer map and per-file index; points at CLAUDE.md for detail |
+| [CLAUDE.md](CLAUDE.md)             | How each mechanism works, and the constraints behind it           |
 | [CHANGELOG.md](CHANGELOG.md)       | Full version history                                              |
 
 ## Features
 
 - **Auto-capture** — intercepts GPX export requests from Mapy.cz with no manual steps
 - **Sidebar panel** — climb cards injected natively into `.route-modules`, scroll with the sidebar
-- **Map pins** — start (numbered) and end (mountain + category badge) SVG pins track every pan/zoom via Web Mercator
-- **Elevation charts** — per-climb SVG with Catmull-Rom Bézier curves, grade-coloured gradient fills, and distance labels; click to expand
+- **Map overlay** — each climb drawn on the map as grade-coloured polylines, re-projected on every pan/zoom via Web Mercator; click a card to centre the map on its summit
+- **Elevation charts** — per-climb SVG with Catmull-Rom Bézier curves, grade-coloured gradient fills, and distance labels; drag across one to measure a section
 - **Climb metrics** — distance, elevation gain, avg/max grade, VAM, estimated time, Fièts index, difficulty score
 - **Route overview** — total distance, total climbing, max grade, proportional climb strip
+- **Alternative routes** — every alternative Mapy.cz offers is analysed and cached, so switching between them is instant
+- **Hiking mode** — auto-detected from the transport mode; swaps in the TRAILS-GPX scoring formula and wider grade bands
 - **Smart detection** — point resampling, adaptive smoothing, valley merging, flat-end trimming, anti-flat splitting
 
 ## How It Works
 
 ### GPX Capture
 
-`gpx-interceptor-injected.ts` monkey-patches `fetch` and `XHR` in page context. When a `/tplannerexport?export=gpx` response completes, the GPX is posted to `interceptor.content.ts` via `postMessage`, which stores it in `chrome.storage.local` and notifies the background worker.
+`gpx-interceptor-injected.ts` monkey-patches `XMLHttpRequest` in page context (`window.fetch` is deliberately left alone — Mapy.cz issues the export over XHR). When a `/tplannerexport?export=gpx` response completes, the GPX is posted to `interceptor.content.ts` via `postMessage`, which stores it in `chrome.storage.local` and notifies the background worker.
 
-### Climb Detection (`climb-engine.ts`) — 7-step pipeline
+### Climb Detection (`climb-engine.ts`) — 5-step pipeline
 
-1. **Resample** — merge GPS points < 12 m apart (removes micro-jitter)
-2. **Smooth** — adaptive rolling average (50–250 m window, terrain-weighted)
-3. **Spike filter** — interpolate asymmetric DEM spikes (> 12% / < 8%)
-4. **Gradients** — per-segment (Δelev / Δdist) × 100
-5. **Identify + Merge** — sliding-window detection; valleys ≤ 2 km collapse into one climb
-6. **Trim + Split** — flat tails (< 1.5%) removed; large flat mid-sections (> 400 m @ < 2%) split
-7. **Categorize** — ProCyclingStats score → HC / Cat 1–4
+1. **Profile** — raw `[distance, elevation, lat, lon]` tuples → structured points
+2. **Condition** — resample away GPS micro-jitter, interpolate wide gaps, smooth, compute per-segment gradients
+3. **Identify** — find raw climb candidates; a candidate closes on sustained descent or flat
+4. **Merge** — collapse adjacent candidates across short valleys, with the permitted gap scaling with combined elevation gain
+5. **Trim, score, snap** — strip flat lead-in and tail, categorise, then snap each summit to the raw-profile peak
+
+Every threshold the pipeline uses lives in `src/climb-engine.config.ts`.
 
 ### Sidebar & Map
 
-`inject.content.ts` (`RoutePlannerController`) polls for a new GPX every 2 s after the MapyClimbs button is clicked. On receipt, it calls `detectClimbs`, then `buildPanel` (`content/panel.ts`) and `renderMapOverlay` to place animated SVG overlay pins. `injected/marker-injection.ts` additionally places native `SMap.Layer.Marker` pins that move with the map. A `MutationObserver` re-injects the panel if Mapy.cz removes it during SPA navigation.
+`inject.content.ts` (`RoutePlannerController`) polls for a new GPX after the MapyClimbs button is clicked. On receipt it sends `PROCESS_CLIMBS` to the background worker, then renders the result with `buildPanel` (`content/panel.ts`) and `renderMapOverlay` (`content/map-overlay.ts`), which projects grade-coloured polylines over the map and re-projects them on pan and zoom. A `MutationObserver` re-injects the panel if Mapy.cz removes it during SPA navigation.
 
 ## Climb Categories
 
