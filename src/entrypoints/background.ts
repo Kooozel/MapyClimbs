@@ -10,16 +10,15 @@ import {
   type ClimbsResponse,
   type GpxStoredResponse,
   type TabStateResponse,
-  type ScoringModel,
   type RouteMode,
-  type ElevationTuple,
   type CategorizationUpdatedMessage,
-  type AnalysisResult,
+  type StoredAnalysisResult,
   type GpxInfo,
   type TabIdResponse,
 } from "../types";
+import type { ElevationTuple, ScoringModel } from "../climb-types";
 import { MAPY_MATCHES } from "../constants";
-import { clearTabState, getTabState, getTabStorageKeys, saveTabGpx } from "../storage";
+import { clearTabState, getTabState, getTabStorageKeys, saveTabGpx, stampResult } from "../storage";
 
 export default defineBackground(() => {
   // ── Storage version guard ─────────────────────────────────────────────────
@@ -69,8 +68,7 @@ export default defineBackground(() => {
     routeMode?: RouteMode
   ): void {
     try {
-      const detected = detectClimbs(elevation, model);
-      const analysisResult: AnalysisResult = routeMode ? { ...detected, routeMode } : detected;
+      const analysisResult = stampResult(detectClimbs(elevation, model), routeMode);
       if (tabId != null) {
         const keys = getTabStorageKeys(tabId, activeRouteClass);
         chrome.storage.local.set({ [keys.lastAnalysisResult]: analysisResult });
@@ -78,7 +76,7 @@ export default defineBackground(() => {
       sendResponse({ result: analysisResult, activeRouteClass });
     } catch (error) {
       sendResponse({
-        result: emptyAnalysisResult(),
+        result: stampResult(emptyAnalysisResult()),
         error: error instanceof Error ? error.message : String(error),
         activeRouteClass: "",
       });
@@ -89,7 +87,7 @@ export default defineBackground(() => {
     sendResponse: (response: ClimbsResponse) => void,
     model: ScoringModel
   ): void {
-    const EMPTY_RESULT = { result: emptyAnalysisResult(), activeRouteClass: "" };
+    const EMPTY_RESULT = { result: stampResult(emptyAnalysisResult()), activeRouteClass: "" };
     chrome.tabs.query({ url: [...MAPY_MATCHES] }, (tabs) => {
       const tabIds = tabs.map((tab) => tab.id).filter((id): id is number => id != null);
       if (tabIds.length === 0) {
@@ -113,7 +111,7 @@ export default defineBackground(() => {
         const storageUpdates: Record<string, unknown> = {};
 
         for (const key of resultKeys) {
-          const stored = allItems[key] as AnalysisResult | undefined;
+          const stored = allItems[key] as StoredAnalysisResult | undefined;
           if (!stored) continue;
           // Not `climbs.length === 0`: a strict model can reject every candidate, and
           // those rejects are exactly what a switch to a permissive model recovers.

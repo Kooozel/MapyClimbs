@@ -8,7 +8,7 @@
  */
 
 import { detectClimbs, computeMaxSustainedGradient } from "../climb-engine";
-import type { Climb, ClimbDebugSink, ScoringModel } from "../types";
+import type { Climb, ClimbDebugSink, ScoringModel } from "../climb-types";
 import { parseGarminGpx } from "./garmin-gpx";
 import type { RidePoint } from "./garmin-gpx";
 import { aggregateWindow, indexAtDistance } from "./ride-metrics";

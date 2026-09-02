@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { getTabStorageKeys, clearTabState, saveTabGpx } from '../src/storage.ts';
+import { getTabStorageKeys, clearTabState, saveTabGpx, stampResult } from '../src/storage.ts';
 
 /** Minimal `chrome.storage.local` over a plain object; callbacks fire synchronously. */
 function stubStorage(seed = {}) {
@@ -113,5 +113,39 @@ describe('saveTabGpx', () => {
     saveTabGpx(7, gpxInfo, 1234);
 
     expect(store).toEqual({ 'pendingGPX:7': gpxInfo, 'gpxCaptureTime:7': 1234 });
+  });
+});
+
+describe('stampResult', () => {
+  /** What detectClimbs returns: no clock, no route mode (#68). */
+  const engineResult = {
+    climbs: [],
+    totalDistance: 100,
+    totalElevationGain: 10,
+    totalElevationLoss: 5,
+  };
+
+  it('adds the timestamp the engine deliberately does not carry', () => {
+    const before = Date.now();
+    const stamped = stampResult(engineResult);
+
+    expect(stamped.timestamp).toBeGreaterThanOrEqual(before);
+    expect(stamped).toMatchObject(engineResult);
+  });
+
+  it('omits routeMode entirely when there is none, rather than storing undefined', () => {
+    // A stored `routeMode: undefined` reads back as a key that is present but
+    // empty, which is not the same shape as a cycling route's result.
+    expect('routeMode' in stampResult(engineResult)).toBe(false);
+  });
+
+  it('carries routeMode through when the capture had one', () => {
+    expect(stampResult(engineResult, 'hiking').routeMode).toBe('hiking');
+  });
+
+  it('does not mutate the engine result it stamps', () => {
+    stampResult(engineResult, 'hiking');
+    expect(engineResult).not.toHaveProperty('timestamp');
+    expect(engineResult).not.toHaveProperty('routeMode');
   });
 });

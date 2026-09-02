@@ -6,8 +6,17 @@
  */
 
 import { routeClassOrDefault } from "../constants";
+import type { RouteMode } from "../types";
 
-type RouteMode = "cycling" | "hiking" | "other";
+declare global {
+  interface XMLHttpRequest {
+    /** Marks the one XHR whose response is the GPX export, so the load handler
+     *  can ignore every other request the page makes. Augmented here rather
+     *  than in types.ts: a global augmentation reaches every consumer of a file,
+     *  and the engine's types are about to be published as a library (#68). */
+    _isGPXRequest?: boolean;
+  }
+}
 
 function detectRouteMode(): RouteMode {
   if (document.querySelector("button.active .icon-bike")) return "cycling";

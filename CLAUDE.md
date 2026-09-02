@@ -75,6 +75,32 @@ score and the CLI's `max_grade` column, while `maxPitchGradient` (`gradient-zone
 simplified chart profile and is the card's "Max grade" stat, which must never contradict the
 steepest colour band drawn above it.
 
+### The engine's library boundary
+
+The climb engine is being extracted into its own repo and published (#68), so five files are
+treated as a closed set: `climb-engine.ts`, `climb-engine.config.ts`, `climb-types.ts`,
+`max-gradient.ts` and `scoring.ts`. Three rules follow, and two checks enforce them.
+
+- **Its domain types live in `src/climb-types.ts`, not `src/types.ts`.** `types.ts` is
+  extension-only now — `StorageKey`, the `chrome.runtime` message union, `RouteMode`,
+  `StoredAnalysisResult` — and the dependency runs one way: `types.ts` imports the domain, never
+  the reverse. The `XMLHttpRequest` global augmentation lives in `injected/gpx-interceptors.ts`,
+  the only file that uses it, because a `declare global` in a published `.d.ts` would land in
+  every consumer's type environment.
+- **`detectClimbs` is deterministic.** No clock, no ambient state: same input, same output, so
+  snapshot tests and byte-comparing consumers work. `AnalysisResult` therefore has no `timestamp`
+  and no `routeMode`; the extension adds both at the storage boundary via `stampResult()`
+  (`src/storage.ts`), producing a `StoredAnalysisResult`.
+- **Only four functions are public API** — `detectClimbs`, `recategorizeResult`,
+  `emptyAnalysisResult`, `computeMaxSustainedGradient`. Everything else the engine exports carries
+  an `_` prefix and exists for tests, which is the marker that it carries no semver promise.
+
+`npm run typecheck` compiles the closure a second time through `tsconfig.engine.json` with no DOM
+lib and no ambient types, so a stray `document.` or `chrome.` fails there. `npm run build:cli`
+asserts the module graph esbuild actually walks stays inside `ENGINE_CLOSURE`, so a value import
+reaching back into the extension fails there. A file joining the engine must be added to both
+lists. Neither check catches a *type-only* import of an extension type — that one is on review.
+
 ### Hiking mode
 
 Hiking mode is auto-detected: `injected/gpx-interceptors.ts` reads the active transport-icon class from the Mapy.cz DOM and sets `routeMode = "hiking"` in the stored `GpxInfo`. The background then applies the TRAILS-GPX hiking formula (summit elevation + max gradient + distance) instead of the ASO/Garmin cycling formula. Grade colour bands are wider (5 / 10 / 20 / 30 / 40 %) to match walking pace. Hiking routes always keep the hiking model regardless of the user's scoring preference.
@@ -158,7 +184,7 @@ the drawn curve and the measured numbers come from the same points.
 
 ### Storage
 
-All state lives in `chrome.storage.local` using typed keys from `StorageKey` in `src/types.ts`. Tab-scoped helpers (`getTabStorageKeys`, `getTabState`, `saveTabGpx`, `clearTabState`, `getTabId`) are in `src/storage.ts`.
+All state lives in `chrome.storage.local` using typed keys from `StorageKey` in `src/types.ts`. Tab-scoped helpers (`getTabStorageKeys`, `getTabState`, `saveTabGpx`, `clearTabState`, `getTabId`, `stampResult`) are in `src/storage.ts`. A stored result is a `StoredAnalysisResult` — the engine's clock-free `AnalysisResult` plus the `timestamp` and `routeMode` this side stamps on.
 
 Key layout:
 - `pendingGPX:<tabId>` — latest intercepted GPX + metadata for a tab (no route-class suffix; one per tab)
@@ -230,7 +256,7 @@ Fixtures in `test/fixtures/` are real Mapy.cz route exports, except
 heart rate) so CLI behaviour can be tested without committing a real ride.
 
 **Tracing the detection pipeline.** `detectClimbs` takes an optional `ClimbDebugSink`
-(`src/types.ts`) that emits one structured event per decision point. Two consumers render it:
+(`src/climb-types.ts`) that emits one structured event per decision point. Two consumers render it:
 `npm run test:trace` (`DEBUG_PIPELINE=1` in `test/gpx-integration.test.js`) prints human-readable
 lines for the route fixtures, and `climb-cli --debug` writes NDJSON to stderr for a ride GPX.
 Both need their flag — vitest's default reporter hides `console.log` from passing tests, so a

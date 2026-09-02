@@ -8,8 +8,8 @@ import { parseGPX } from "../gpx-parser";
 import { buildPanel } from "../content/panel";
 import { renderMapOverlay, setOverlayVisible, flashPin } from "../content/map-overlay";
 import { tryInjectButton } from "../content/button-injector";
+import type { ElevationTuple } from "../climb-types";
 import {
-  type ElevationTuple,
   type ProcessClimbsMessage,
   type ClimbsResponse,
   type CategorizationUpdatedMessage,
@@ -17,7 +17,7 @@ import {
   type GetTabStateMessage,
   type ClearTabStateMessage,
   type TabStateResponse,
-  type AnalysisResult,
+  type StoredAnalysisResult,
 } from "../types";
 import {
   MAPY_MATCHES,
@@ -63,7 +63,7 @@ export default defineContentScript({
  * (instantiate without the Chrome Extension environment).
  */
 class RoutePlannerController {
-  private analysisResult: AnalysisResult | null = null;
+  private analysisResult: StoredAnalysisResult | null = null;
   private popupOpen = false;
   private lastGPXLength = 0;
   private lastURL = "";
@@ -279,7 +279,7 @@ class RoutePlannerController {
     const keys = getTabStorageKeys(tabId, routeClass);
 
     chrome.storage.local.get([keys.lastAnalysisResult], (data) => {
-      const cached = data[keys.lastAnalysisResult] as AnalysisResult | undefined;
+      const cached = data[keys.lastAnalysisResult] as StoredAnalysisResult | undefined;
       if (cached && this.isResultValid(cached)) {
         this.analysisResult = cached;
         this.renderPanel();
@@ -377,7 +377,7 @@ class RoutePlannerController {
   }
 
   /** Helper to validate result structure */
-  private isResultValid(result: AnalysisResult): boolean {
+  private isResultValid(result: StoredAnalysisResult): boolean {
     return !!(result && Array.isArray(result.climbs) && result.climbs.length > 0);
   }
 

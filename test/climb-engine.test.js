@@ -11,12 +11,12 @@
 import { describe, it, expect } from 'vitest';
 import {
   detectClimbs,
-  resamplePoints,
-  _interpolateProfile as interpolateProfile,
-  smoothElevationProfile,
-  mergeNearbyClimbs,
-  categorizeClimb,
   recategorizeResult,
+  _resamplePoints as resamplePoints,
+  _interpolateProfile as interpolateProfile,
+  _smoothElevationProfile as smoothElevationProfile,
+  _mergeNearbyClimbs as mergeNearbyClimbs,
+  _categorizeClimb as categorizeClimb,
   _trimAndScore as trimAndScore,
   _snapAllEndCoords as snapAllEndCoords,
 } from '../src/climb-engine.ts';
@@ -668,6 +668,19 @@ describe('recategorizeResult', () => {
     }
   });
 
+  it("preserves fields the engine does not own, like the extension's stamp", () => {
+    // AnalysisResult carries no timestamp or routeMode since #68 — the extension
+    // adds them at the storage boundary. recategorizeResult is generic in the
+    // result type so a model switch carries them through the re-partition rather
+    // than silently dropping what the caller stored alongside.
+    const stored = { climbs: [], droppedCandidates: [A, S, B, T], ...META, routeMode: 'hiking' };
+
+    const switched = recategorizeResult(stored, 'garmin');
+
+    expect(switched.timestamp).toBe(1234);
+    expect(switched.routeMode).toBe('hiking');
+  });
+
   it('is smaller serialised than the pre-split encoding it replaces', () => {
     const aso = seed('aso');
     const preSplit = { ...aso, droppedCandidates: undefined, candidates: [A, S, B, T] };
@@ -832,8 +845,20 @@ describe('detectClimbs', () => {
       totalDistance: 0,
       totalElevationGain: 0,
       totalElevationLoss: 0,
-      timestamp: expect.any(Number),
     });
+  });
+
+  it('returns the same result for the same input — no clock in the engine', () => {
+    // The engine is a library (#68): identical input must give identical output,
+    // or snapshot tests and byte-comparing consumers break. Compared as strings
+    // rather than with toEqual because a Date.now() landing in the same
+    // millisecond would pass a deep-equal check and hide the very thing this
+    // pins. The stamp the extension needs is applied at the storage boundary
+    // instead — stampResult() in storage.ts.
+    const route = makeSingleClimbRoute();
+    expect(JSON.stringify(detectClimbs(route))).toBe(JSON.stringify(detectClimbs(route)));
+    expect(detectClimbs(route)).not.toHaveProperty('timestamp');
+    expect(detectClimbs([])).not.toHaveProperty('timestamp');
   });
 
   it('returns [] for a flat route with no elevation gain', () => {

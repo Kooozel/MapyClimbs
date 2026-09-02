@@ -15,7 +15,7 @@ import { parseArgs } from "node:util";
 
 import { analyzeRide } from "./analyze-ride";
 import { parseZones, DEFAULT_MOVING } from "./ride-metrics";
-import type { ScoringModel } from "../types";
+import type { ScoringModel } from "../climb-types";
 
 const SCORING_MODELS: ScoringModel[] = ["aso", "garmin", "hiking"];
 

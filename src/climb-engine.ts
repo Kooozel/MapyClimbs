@@ -2,12 +2,16 @@
  * climb-engine.ts — MapyClimbs
  * Pure climb-detection algorithm. No Chrome APIs — fully testable in isolation.
  *
- * Public API
+ * Public API — four functions and the types in climb-types.ts. Everything else
+ * this file exports carries an `_` prefix and is a test hatch, not API.
  * ----------
- *   detectClimbs(elevationData) → Climb[]
+ *   detectClimbs(elevationData, scoringModel?, options?) → AnalysisResult
+ *   recategorizeResult(result, model)                    → the same result, re-scored
+ *   emptyAnalysisResult()                                → the nothing-to-detect shape
+ *   computeMaxSustainedGradient(segments)                → % over MAX_SUSTAINED_GRADIENT_WINDOW_M
  *
  * Where elevationData is an array of [distance_m, elevation_m, lat, lon] tuples
- * as produced by gpx-parser.ts, and Climb is defined in types.ts.
+ * as produced by gpx-parser.ts (browser) or cli/garmin-gpx.ts (Node).
  */
 
 import type {
@@ -22,7 +26,7 @@ import type {
   Segment,
   ScoringModel,
   AnalysisResult,
-} from "./types";
+} from "./climb-types";
 import { applyScore, applyHikingScore } from "./scoring";
 import {
   RESAMPLE_MIN_INTERVAL_M,
@@ -77,13 +81,12 @@ export function emptyAnalysisResult(): AnalysisResult {
     totalDistance: 0,
     totalElevationGain: 0,
     totalElevationLoss: 0,
-    timestamp: Date.now(),
   };
 }
 
 /**
  * Climb Detection Algorithm — 5-step pipeline.
- * See types.ts for the Climb interface definition.
+ * See climb-types.ts for the Climb interface definition.
  *
  * @param elevationData - [[distance_m, elevation_m, lat, lon], ...]
  */
@@ -149,13 +152,12 @@ export function detectClimbs(
     totalDistance: profile[profile.length - 1].distance,
     totalElevationGain: gain,
     totalElevationLoss: descent,
-    timestamp: Date.now(),
   };
 }
 
 // ─── Step 2: Resampling ───────────────────────────────────────────────────────
 
-export function resamplePoints(profile: GpsPoint[]): GpsPoint[] {
+function resamplePoints(profile: GpsPoint[]): GpsPoint[] {
   if (profile.length <= 2) return profile;
 
   const resampled: GpsPoint[] = [profile[0]];
@@ -177,7 +179,7 @@ export function resamplePoints(profile: GpsPoint[]): GpsPoint[] {
 
 // ─── Step 2b: Profile interpolation ─────────────────────────────────────────
 
-export function interpolateProfile(profile: GpsPoint[]): GpsPoint[] {
+function interpolateProfile(profile: GpsPoint[]): GpsPoint[] {
   if (profile.length <= 1) return profile;
 
   const result: GpsPoint[] = [profile[0]];
@@ -208,7 +210,7 @@ export function interpolateProfile(profile: GpsPoint[]): GpsPoint[] {
 
 // ─── Step 3: Smoothing ────────────────────────────────────────────────────────
 
-export function smoothElevationProfile(profile: GpsPoint[]): GpsPoint[] {
+function smoothElevationProfile(profile: GpsPoint[]): GpsPoint[] {
   if (profile.length <= 2) return profile;
 
   // Pass 1: estimate local gradient magnitude.
@@ -567,7 +569,7 @@ function rawElevationAt(profile: GpsPoint[], distanceM: number): number {
 
 // ─── Step 4 (cont): Merging ───────────────────────────────────────────────────
 
-export function mergeNearbyClimbs(
+function mergeNearbyClimbs(
   climbs: RawClimb[],
   allSegments: Segment[],
   rawProfile: GpsPoint[] = [],
@@ -959,7 +961,7 @@ function scoreForHiking(
   });
 }
 
-export function categorizeClimb(climb: RawClimb, scoringModel: ScoringModel = "aso"): Climb | null {
+function categorizeClimb(climb: RawClimb, scoringModel: ScoringModel = "aso"): Climb | null {
   if (!climb || climb.totalDistance === 0 || climb.totalElevation === 0) return null;
 
   const avgGrade = (climb.totalElevation / climb.totalDistance) * 100;
@@ -1040,7 +1042,7 @@ function allCandidates(result: AnalysisResult): RawClimb[] {
  * switch. Because every switch only re-partitions the same candidate set, going
  * from a permissive model to a strict one and back returns the original climbs.
  */
-export function recategorizeResult(result: AnalysisResult, model: ScoringModel): AnalysisResult {
+export function recategorizeResult<T extends AnalysisResult>(result: T, model: ScoringModel): T {
   const climbs: Climb[] = [];
   const droppedCandidates: RawClimb[] = [];
 
@@ -1050,9 +1052,15 @@ export function recategorizeResult(result: AnalysisResult, model: ScoringModel):
     else droppedCandidates.push(candidate);
   }
 
-  const next: AnalysisResult = { ...result, climbs, droppedCandidates };
-  delete next.candidates; // read once, then gone — the split encoding replaces it
-  return next;
+  // Generic in the result type so a caller that stores extra fields alongside the
+  // engine's own — the extension's timestamp and routeMode (#68) — keeps them in
+  // the type system as well as in the spread. `candidates` is destructured out
+  // rather than deleted: it is read once by allCandidates() and then gone, and
+  // `delete` on a generic's property is not provably safe.
+  const { candidates: _readOnce, ...rest } = result;
+  // The spread carries every own property, but TypeScript cannot prove a spread
+  // reconstructs T, so the assertion stands in for what the code guarantees.
+  return { ...rest, climbs, droppedCandidates } as T;
 }
 
 function calculateStats(resampled: GpsPoint[]) {
@@ -1073,10 +1081,15 @@ function calculateStats(resampled: GpsPoint[]) {
 }
 
 // ─── Test exports ─────────────────────────────────────────────────────────────
+// Not public API. The `_` prefix is the marker: these exist so unit tests can
+// drive one pipeline step in isolation, and carry no semver promise. Anything
+// exported without it is API the day this engine is published (#68).
 export {
   resamplePoints as _resamplePoints,
-  smoothElevationProfile as _smoothElevationProfile,
   interpolateProfile as _interpolateProfile,
+  smoothElevationProfile as _smoothElevationProfile,
+  mergeNearbyClimbs as _mergeNearbyClimbs,
+  categorizeClimb as _categorizeClimb,
   trimAndScore as _trimAndScore,
   snapAllEndCoords as _snapAllEndCoords,
 };
