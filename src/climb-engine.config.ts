@@ -142,3 +142,15 @@ export const TRIM_TAIL_WINDOW_M = 200;
  *  the candidate endpoint to be accepted. Lower values tolerate noisy climbs; higher
  *  values enforce a cleaner end. */
 export const TRIM_STEEP_RATIO = 0.2;
+
+// ── Max sustained gradient (reporting / hiking score) ────────────────────────
+
+/** Window (m) over which the max *sustained* gradient is measured. Wide enough
+ *  that a single steep pitch cannot dominate it — reporting that pitch is
+ *  maxPitchGradient's job (gradient-zones.ts). Feeds the hiking score's G_max
+ *  term and the CLI's `max_grade` column.
+ *
+ *  Deliberately its own constant rather than a reuse of SMOOTH_GRAD_WINDOW_M,
+ *  which happens to be 200 too: that one is a smoothing input, and tying them
+ *  together would move a reported figure every time smoothing is retuned. */
+export const MAX_SUSTAINED_GRADIENT_WINDOW_M = 200;
