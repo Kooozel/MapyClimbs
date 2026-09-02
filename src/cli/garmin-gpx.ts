@@ -15,7 +15,7 @@
  * treated as optional throughout so other exporters parse too.
  */
 
-import type { ElevationTuple } from "../types";
+import type { ElevationTuple } from "../climb-types";
 import { haversineDistance } from "../geo";
 
 /** One trackpoint, with everything the ride metrics need. */

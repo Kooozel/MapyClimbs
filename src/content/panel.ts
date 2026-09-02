@@ -8,14 +8,13 @@
 import { buildClimbCard } from "./climb-card";
 import { buildRouteOverview } from "./route-overview";
 import { renderEmptyPanel, renderPanelShell } from "./panel-template";
-import type { AnalysisResult } from "../types";
-import { StorageKey } from "../types";
+import { StorageKey, type StoredAnalysisResult } from "../types";
 import { ElementId, CssClass } from "../constants";
 import { showClimbRoute, hideClimbRoute } from "./route-highlight";
 import { flashPin } from "./map-overlay";
 import { requestMapCenter } from "./map-center";
 
-function buildPanelContent(analysisResult: AnalysisResult): DocumentFragment {
+function buildPanelContent(analysisResult: StoredAnalysisResult): DocumentFragment {
   const { climbs } = analysisResult;
 
   const frag = document.createDocumentFragment();
@@ -74,7 +73,7 @@ function wireLayerToggle(panel: HTMLElement): void {
   });
 }
 
-function wireCardClickHandlers(panel: HTMLElement, analysisResult: AnalysisResult): void {
+function wireCardClickHandlers(panel: HTMLElement, analysisResult: StoredAnalysisResult): void {
   panel.querySelectorAll<HTMLElement>(".climb-item[data-climb-index]").forEach((card) => {
     const idx = card.dataset.climbIndex;
     card.addEventListener("click", () => {
@@ -104,7 +103,7 @@ function wireCardClickHandlers(panel: HTMLElement, analysisResult: AnalysisResul
 }
 
 /** Build the full sidebar panel element. */
-export function buildPanel(analysisResult: AnalysisResult | null): HTMLElement {
+export function buildPanel(analysisResult: StoredAnalysisResult | null): HTMLElement {
   const panel = document.createElement("div");
   panel.id = ElementId.Panel;
 

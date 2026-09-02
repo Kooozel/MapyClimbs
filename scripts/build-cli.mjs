@@ -5,10 +5,13 @@
  *   climb-engine.mjs  the detection engine as a library
  *   climb-cli.mjs     the executable CLI wrapping it
  *
- * The engine's whole transitive closure is local (types.ts, scoring.ts,
- * climb-engine.config.ts) with no DOM, chrome.*, or third-party imports, so
- * the bundle needs no shims and installs nothing. The CLI additionally imports
- * node: builtins, which are part of the runtime, not dependencies.
+ * The engine's whole transitive closure is local (climb-types.ts, scoring.ts,
+ * climb-engine.config.ts, max-gradient.ts) with no DOM, chrome.*, or
+ * third-party imports, so the bundle needs no shims and installs nothing. The
+ * CLI additionally imports node: builtins, which are part of the runtime, not
+ * dependencies.
+ *
+ * That closure is asserted here rather than assumed — see ENGINE_CLOSURE below.
  *
  * Output goes to dist-cli/ rather than dist/ to stay clear of `wxt build`.
  */
@@ -27,13 +30,45 @@ const shared = {
   logLevel: "warning",
 };
 
+/**
+ * Every file the engine is allowed to pull in. The engine is being extracted as
+ * a standalone library (#68), so an import that reaches back into the extension
+ * — storage.ts, constants.ts, types.ts, anything under content/ — turns the
+ * move from a file copy into a redesign.
+ *
+ * This is the value-level half of the boundary; tsconfig.engine.json is the
+ * other half, compiling these same files with no DOM lib and no ambient types
+ * so a stray `document.` or `chrome.` fails there. Neither catches a *type-only*
+ * import of an extension type, which esbuild erases and tsc accepts: that one
+ * is on review, and on the explicit file list both configs carry.
+ */
+const ENGINE_CLOSURE = new Set([
+  "src/climb-engine.ts",
+  "src/climb-engine.config.ts",
+  "src/climb-types.ts",
+  "src/max-gradient.ts",
+  "src/scoring.ts",
+]);
+
 await rm(OUT_DIR, { recursive: true, force: true });
 
-await build({
+const engine = await build({
   ...shared,
   entryPoints: ["src/climb-engine.ts"],
   outfile: `${OUT_DIR}/climb-engine.mjs`,
+  metafile: true,
 });
+
+const strays = Object.keys(engine.metafile.inputs).filter((file) => !ENGINE_CLOSURE.has(file));
+if (strays.length > 0) {
+  console.error(
+    `The climb engine reached outside its closure (#68):\n` +
+      strays.map((f) => `  ${f}`).join("\n") +
+      `\n\nEither the import belongs somewhere else, or the file joins the engine —` +
+      ` in which case add it to ENGINE_CLOSURE here and to tsconfig.engine.json.`
+  );
+  process.exit(1);
+}
 
 await build({
   ...shared,

@@ -4,8 +4,8 @@
  * Consumed by climb-engine.ts (detection pipeline) and popup.ts (display).
  */
 
-import { ClimbCategory } from "./types";
-import type { ScoringModel } from "./types";
+import { ClimbCategory } from "./climb-types";
+import type { ScoringModel } from "./climb-types";
 
 export interface ScoringThreshold {
   category: ClimbCategory;

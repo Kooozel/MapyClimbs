@@ -3,7 +3,7 @@
  * Produces ElevationTuple[] consumed by climb-engine.ts and background.ts.
  */
 
-import type { ElevationTuple } from "./types";
+import type { ElevationTuple } from "./climb-types";
 import { haversineDistance } from "./geo";
 
 interface TrackPoint {

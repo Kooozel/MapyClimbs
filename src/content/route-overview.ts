@@ -6,7 +6,7 @@
 
 import { getCategoryColor } from "./category";
 import { metersToKm, toPercent, ratioToPercent } from "../format";
-import { ClimbCategory, type AnalysisResult } from "../types";
+import { ClimbCategory, type AnalysisResult } from "../climb-types";
 
 // ── Route overview ────────────────────────────────────────────────────────────
 

@@ -9,7 +9,8 @@ import { generateElevationChart } from "./chart";
 import { attachChartSelection } from "./chart-selection";
 import { getCategoryClass } from "./category";
 import { metersToKm, metersToKmNum, toPercent, formatMinutes } from "../format";
-import { ClimbCategory, type Climb, type RouteMode } from "../types";
+import { ClimbCategory, type Climb } from "../climb-types";
+import type { RouteMode } from "../types";
 import {
   CYCLING_GRADE_COLORS,
   HIKING_GRADE_COLORS,

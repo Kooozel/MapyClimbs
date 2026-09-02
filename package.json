@@ -12,7 +12,7 @@
     "zip": "wxt zip",
     "zip:firefox": "wxt zip -b firefox --mv3",
     "postinstall": "wxt prepare",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p tsconfig.engine.json",
     "lint": "eslint src/ wxt.config.ts eslint.config.js",
     "lint:fix": "eslint src/ wxt.config.ts --fix",
     "format": "prettier --write src/",

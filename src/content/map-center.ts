@@ -6,7 +6,7 @@
  * in `injected/map-center.ts`, which owns the actual map call.
  */
 
-import type { Coords } from "../types";
+import type { Coords } from "../climb-types";
 import { PageMessage, SIDEBAR_SELECTOR } from "../constants";
 import { getMapContainer, viewportFromURL, visibleCenterOffset, worldSize } from "../map-geometry";
 

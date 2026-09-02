@@ -8,7 +8,7 @@
  * No DOM or browser-API dependencies — pure data transformation.
  */
 
-import type { Segment } from "./types";
+import type { Segment } from "./climb-types";
 import { maxGradientOverWindow } from "./max-gradient";
 
 // ── Types ─────────────────────────────────────────────────────────────────────

@@ -3,13 +3,8 @@
  * Shows last GPX capture status and climb analysis results.
  */
 
-import {
-  StorageKey,
-  type ScoringModel,
-  type RecategorizeMessage,
-  type MapLayerVisibilityMessage,
-  type ClimbCategory,
-} from "../../types";
+import { StorageKey, type RecategorizeMessage, type MapLayerVisibilityMessage } from "../../types";
+import type { ClimbCategory, ScoringModel } from "../../climb-types";
 import { SCORING_CONFIGS } from "../../scoring";
 import { CATEGORY_COLOR } from "../../content/category";
 
