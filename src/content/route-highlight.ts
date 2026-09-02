@@ -2,10 +2,11 @@
  * content/route-highlight.ts — SVG route overlay with per-zone gradient colors.
  *
  * Each climb's route is drawn as:
- *   1. One blurred glow polyline (single category color, behind everything).
- *   2. N sharp polylines — one per contiguous gradient color zone — that animate
- *      in sequence from climb start (bottom) to summit, changing color as the
- *      road steepens. Colors match the chart elevation profile exactly.
+ *   1. N blurred glow polylines — one per gradient zone, in that zone's colour,
+ *      appended first so they sit behind everything.
+ *   2. N sharp polylines over them — same zones — that animate in sequence from
+ *      climb start (bottom) to summit, changing color as the road steepens.
+ *      Colors match the chart elevation profile exactly.
  *
  * Animation: every zone draws its portion in `(zoneLength / totalLength) * ROUTE_ANIM_MS`
  * starting at `(zoneStartOffset / totalLength) * ROUTE_ANIM_MS` delay, so all zones

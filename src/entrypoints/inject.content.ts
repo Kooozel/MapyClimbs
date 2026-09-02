@@ -64,7 +64,6 @@ export default defineContentScript({
  */
 class RoutePlannerController {
   private analysisResult: AnalysisResult | null = null;
-  private panelInjected = false;
   private popupOpen = false;
   private lastGPXLength = 0;
   private lastURL = "";
@@ -79,8 +78,6 @@ class RoutePlannerController {
   // ── Entry point ─────────────────────────────────────────────────────────────
 
   init(): void {
-    // Discard stale cached climbs that pre-date the marker-coords field.
-
     const observer = new MutationObserver(() => this.onMutation());
     observer.observe(document.body, { childList: true, subtree: true });
     this.checkPopupOverlap();
@@ -389,7 +386,6 @@ class RoutePlannerController {
     this.isAutomating = false;
     this.hideFullscreenLoader();
     this.analysisResult = null;
-    this.panelInjected = false;
     document.getElementById(ElementId.Panel)?.remove();
     const overlay = document.getElementById(ElementId.MarkerOverlay);
     if (overlay) overlay.innerHTML = "";
@@ -470,12 +466,7 @@ class RoutePlannerController {
       if (hadLoader && this.analysisResult) renderMapOverlay(this.analysisResult);
     }
     const existing = document.getElementById(ElementId.Panel);
-    if (existing) {
-      existing.replaceWith(buildPanel(this.analysisResult));
-      this.panelInjected = true;
-    } else {
-      this.panelInjected = false;
-    }
+    if (existing) existing.replaceWith(buildPanel(this.analysisResult));
   }
 
   private tryInjectPanel(): void {
@@ -487,7 +478,6 @@ class RoutePlannerController {
       document.querySelector(".route-modules") ?? document.querySelector(".route-container");
     if (!target) return;
     target.appendChild(buildPanel(this.analysisResult));
-    this.panelInjected = true;
   }
 
   // ── State & cleanup ───────────────────────────────────────────────────────────
@@ -546,9 +536,6 @@ class RoutePlannerController {
         (routeClass) => this.handleClimbStart(routeClass),
         () => this.handleAutomationDone()
       );
-    if (this.analysisResult && (!this.panelInjected || !document.getElementById(ElementId.Panel))) {
-      this.panelInjected = false;
-      this.tryInjectPanel();
-    }
+    if (this.analysisResult && !document.getElementById(ElementId.Panel)) this.tryInjectPanel();
   }
 }

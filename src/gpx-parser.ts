@@ -80,22 +80,3 @@ export function parseGPX(gpxContent: string): ElevationTuple[] {
 
   return elevationProfile;
 }
-
-/** Load and parse a GPX File object. */
-export function loadGPXFile(file: File): Promise<ElevationTuple[]> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-
-    reader.onload = (e) => {
-      try {
-        const gpxContent = (e.target as FileReader).result as string;
-        resolve(parseGPX(gpxContent));
-      } catch (error) {
-        reject(error);
-      }
-    };
-
-    reader.onerror = () => reject(new Error("Failed to read file"));
-    reader.readAsText(file);
-  });
-}
