@@ -16,6 +16,7 @@ import {
   smoothElevationProfile,
   mergeNearbyClimbs,
   categorizeClimb,
+  recategorizeResult,
   _trimAndScore as trimAndScore,
   _snapAllEndCoords as snapAllEndCoords,
 } from '../src/climb-engine.ts';
@@ -573,36 +574,37 @@ describe('trimAndScore', () => {
       seg(3200, 3400, 250, 250),
     ]);
 
-    const { climbs, candidates } = trimAndScore([candidate], 'aso', sink());
+    const { climbs, droppedCandidates } = trimAndScore([candidate], 'aso', sink());
 
     expect(climbs).toHaveLength(1);
     expect(climbs[0].segments).toHaveLength(1);
     expect(climbs[0].distance).toBe(3000);
     expect(climbs[0].category).toBe('3');
-    expect(candidates).toHaveLength(1);
-    expect(candidates[0].totalDistance).toBe(3000);
+    // A scored candidate carries its own segments inside `climbs`; storing it a
+    // second time here is the duplication issue #49 removed.
+    expect(droppedCandidates).toHaveLength(0);
   });
 
-  it('keeps a candidate the model scores as null in candidates', () => {
+  it('keeps a candidate the model scores as null in droppedCandidates', () => {
     // 300 m at 4 % → ASO score 4.8, below the Uncategorized threshold of 8.
-    // It must still reach AnalysisResult.candidates, or switching to a more
-    // permissive model could never recover it (see recategorizeClimbs).
+    // It must still reach AnalysisResult.droppedCandidates, or switching to a more
+    // permissive model could never recover it (see recategorizeResult).
     const candidate = rawClimb([seg(0, 300, 100, 112)]);
 
-    const { climbs, candidates } = trimAndScore([candidate], 'aso', sink());
+    const { climbs, droppedCandidates } = trimAndScore([candidate], 'aso', sink());
 
     expect(climbs).toHaveLength(0);
-    expect(candidates).toHaveLength(1);
-    expect(candidates[0].totalDistance).toBe(300);
+    expect(droppedCandidates).toHaveLength(1);
+    expect(droppedCandidates[0].totalDistance).toBe(300);
   });
 
   it('drops a candidate that trims away to nothing', () => {
     const flat = rawClimb([seg(0, 500, 100, 100)]);
 
-    const { climbs, candidates } = trimAndScore([flat], 'aso', sink());
+    const { climbs, droppedCandidates } = trimAndScore([flat], 'aso', sink());
 
     expect(climbs).toHaveLength(0);
-    expect(candidates).toHaveLength(0);
+    expect(droppedCandidates).toHaveLength(0);
   });
 
   it('emits trim then categorize for a survivor, and trim alone for a reject', () => {
@@ -617,6 +619,112 @@ describe('trimAndScore', () => {
     expect(emit.events[0].droppedHeadSegs).toBe(1);
     expect(emit.events[1].category).toBe('3');
     expect(emit.events[2].kept).toBe(false);
+  });
+});
+
+// ─── recategorizeResult (scoring-model switch) ───────────────────────────────
+
+describe('recategorizeResult', () => {
+  /**
+   * Four candidates laid out along one route, chosen so each model partitions
+   * them differently:
+   *
+   *   A  0–3 km    @ 5.0 %  → ASO 75 (Cat 3), Garmin 15 000 (Cat 4)  — both keep
+   *   S  4–6 km    @ 1.9 %  → ASO 7.22 (< 8), Garmin 3 800 (≥ 1 500) — only Garmin
+   *   B  7–10 km   @ 5.0 %  → both keep
+   *   T  11–11.3 km @ 4.0 % → ASO 4.8, Garmin 1 200 — both reject
+   *
+   * S sits *between* two kept climbs, so promoting it also pins the route
+   * ordering of the rejoined candidate set.
+   */
+  const A = rawClimb([seg(0, 3000, 100, 250)]);
+  const S = rawClimb([seg(4000, 6000, 250, 288)]);
+  const B = rawClimb([seg(7000, 10000, 288, 438)]);
+  const T = rawClimb([seg(11000, 11300, 438, 450)]);
+
+  const META = {
+    totalDistance: 12000,
+    totalElevationGain: 350,
+    totalElevationLoss: 0,
+    timestamp: 1234,
+  };
+
+  /** A result in the split encoding, built by scoring all four under `model`. */
+  function seed(model) {
+    return recategorizeResult({ climbs: [], droppedCandidates: [A, S, B, T], ...META }, model);
+  }
+
+  it('splits the candidate set so no climb geometry is stored twice', () => {
+    const aso = seed('aso');
+
+    expect(aso.climbs.map((c) => c.segments[0].startDistance)).toEqual([0, 7000]);
+    expect(aso.droppedCandidates.map((c) => c.segments[0].startDistance)).toEqual([4000, 11000]);
+
+    // The defect issue #49 describes: a scored climb's segments appearing in both
+    // halves. Identity, not equality — that is what JSON.stringify duplicates.
+    const inClimbs = new Set(aso.climbs.flatMap((c) => c.segments));
+    for (const candidate of aso.droppedCandidates) {
+      for (const s of candidate.segments) expect(inClimbs.has(s)).toBe(false);
+    }
+  });
+
+  it('is smaller serialised than the pre-split encoding it replaces', () => {
+    const aso = seed('aso');
+    const preSplit = { ...aso, droppedCandidates: undefined, candidates: [A, S, B, T] };
+
+    expect(JSON.stringify(aso).length).toBeLessThan(JSON.stringify(preSplit).length);
+  });
+
+  it('switching model and back returns the original climbs', () => {
+    // The invariant the candidate set exists to protect: ASO drops S, and a
+    // switch to Garmin and back must not leave it stranded either way.
+    const aso = seed('aso');
+    const roundTrip = recategorizeResult(recategorizeResult(aso, 'garmin'), 'aso');
+
+    expect(roundTrip).toEqual(aso);
+  });
+
+  it('conserves the candidate set across every switch', () => {
+    const aso = seed('aso');
+    const garmin = recategorizeResult(aso, 'garmin');
+
+    const total = (r) => r.climbs.length + r.droppedCandidates.length;
+    expect(total(aso)).toBe(4);
+    expect(total(garmin)).toBe(4);
+  });
+
+  it('moves a promoted candidate out of droppedCandidates, into route order', () => {
+    // S must not linger in both halves — that is what would duplicate it on the
+    // next switch — and it must land between A and B, not appended after them.
+    const garmin = recategorizeResult(seed('aso'), 'garmin');
+
+    expect(garmin.climbs.map((c) => c.segments[0].startDistance)).toEqual([0, 4000, 7000]);
+    expect(garmin.droppedCandidates.map((c) => c.segments[0].startDistance)).toEqual([11000]);
+  });
+
+  it('reads a pre-split result stored under `candidates`, and stops writing it', () => {
+    const legacy = { climbs: [], candidates: [A, S, B, T], ...META };
+
+    const aso = recategorizeResult(legacy, 'aso');
+
+    expect(aso.climbs).toHaveLength(2);
+    expect(aso.droppedCandidates.map((c) => c.segments[0].startDistance)).toEqual([4000, 11000]);
+    expect('candidates' in aso).toBe(false);
+  });
+
+  it('carries a snapped climb’s summit extension through a switch without re-adding it', () => {
+    // snapAllEndCoords appends one synthetic segment reaching the raw summit, and
+    // recategorizeResult never re-runs it — the segment rides along inside `climbs`.
+    const snapped = rawClimb([seg(0, 3000, 100, 250), seg(3000, 3080, 250, 254)]);
+    const start = recategorizeResult({ climbs: [], droppedCandidates: [snapped], ...META }, 'aso');
+
+    expect(start.climbs[0].segments).toHaveLength(2);
+
+    const there = recategorizeResult(start, 'garmin');
+    const back = recategorizeResult(there, 'aso');
+
+    expect(back.climbs[0].segments).toEqual(start.climbs[0].segments);
+    expect(back.climbs[0].endCoords).toEqual(start.climbs[0].endCoords);
   });
 });
 

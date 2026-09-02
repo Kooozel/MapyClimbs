@@ -3,7 +3,7 @@
  * Chrome messaging + storage glue only. All detection logic lives in climb-engine.ts.
  */
 
-import { detectClimbs, emptyAnalysisResult, recategorizeClimbs } from "../climb-engine";
+import { detectClimbs, emptyAnalysisResult, recategorizeResult } from "../climb-engine";
 import {
   StorageKey,
   type ExtensionMessage,
@@ -15,7 +15,6 @@ import {
   type ElevationTuple,
   type CategorizationUpdatedMessage,
   type AnalysisResult,
-  type RawClimb,
   type GpxInfo,
   type TabIdResponse,
 } from "../types";
@@ -114,21 +113,15 @@ export default defineBackground(() => {
         const storageUpdates: Record<string, unknown> = {};
 
         for (const key of resultKeys) {
-          const storedAnalysisResult = allItems[key] as AnalysisResult | undefined;
-          if (!storedAnalysisResult || storedAnalysisResult.climbs.length === 0) continue;
-          const effectiveModel: ScoringModel =
-            storedAnalysisResult.routeMode === "hiking" ? "hiking" : model;
-          const rawCandidates: RawClimb[] =
-            storedAnalysisResult.candidates ??
-            storedAnalysisResult.climbs.map((c) => ({
-              segments: c.segments,
-              totalDistance: c.distance,
-              totalElevation: c.elevation,
-            }));
-          storageUpdates[key] = {
-            ...storedAnalysisResult,
-            climbs: recategorizeClimbs(rawCandidates, effectiveModel),
-          };
+          const stored = allItems[key] as AnalysisResult | undefined;
+          if (!stored) continue;
+          // Not `climbs.length === 0`: a strict model can reject every candidate, and
+          // those rejects are exactly what a switch to a permissive model recovers.
+          const candidateCount =
+            stored.climbs.length + (stored.droppedCandidates ?? stored.candidates ?? []).length;
+          if (candidateCount === 0) continue;
+          const effectiveModel: ScoringModel = stored.routeMode === "hiking" ? "hiking" : model;
+          storageUpdates[key] = recategorizeResult(stored, effectiveModel);
         }
 
         if (Object.keys(storageUpdates).length > 0) {
