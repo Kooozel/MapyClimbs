@@ -57,11 +57,25 @@ describe('maxPitchGradient', () => {
     expect(maxPitchGradient([], 200)).toBe(0);
   });
 
-  it('returns 0 when the profile is shorter than the window', () => {
-    // Only 100 m total span, window = 200. Reporting 0 for a climb shorter than
-    // the window is wrong, but it is the pre-refactor behaviour of both figures
-    // and is preserved deliberately; fixing it is tracked in #69.
+  it('falls back to the whole-profile gradient when no span reaches the window', () => {
+    // Only 100 m total span, window = 200. Reporting 0 here (the pre-#69
+    // behaviour) called a real climb flat.
     const profile = [pt(0, 100), pt(100, 110)];
+    expect(maxPitchGradient(profile, 200)).toBeCloseTo(10);
+  });
+
+  it('reads the whole short span, not the steepest part of it', () => {
+    // 100 m total against a 200 m window, steepest 50 m at 20%. The fallback is
+    // the widest span the profile has — picking the sub-span would answer with a
+    // narrower window than the caller asked for.
+    const profile = [pt(0, 100), pt(50, 110), pt(100, 112)];
+    expect(maxPitchGradient(profile, 200)).toBeCloseTo(12);
+  });
+
+  it('floors a net-descending short profile at 0', () => {
+    // The window scan has always reported 0 for a descent; the short-profile
+    // fallback must not start reporting a negative "max gradient".
+    const profile = [pt(0, 100), pt(100, 90)];
     expect(maxPitchGradient(profile, 200)).toBe(0);
   });
 
@@ -114,6 +128,14 @@ describe('computeMaxSustainedGradient', () => {
 
   it('returns 0 for no segments', () => {
     expect(computeMaxSustainedGradient([])).toBe(0);
+  });
+
+  it('reports a real gradient for a climb shorter than the window', () => {
+    // Issue #69, exactly as filed: 150 m at 8% is an ASO-qualifying climb
+    // (distKm × grade² = 9.6 ≥ 8) and used to report 0 — a `0.0` in the CLI's
+    // max_grade column and a zeroed G_max term in the hiking score.
+    const segs = segments(6, 25, () => 8);
+    expect(computeMaxSustainedGradient(segs)).toBeCloseTo(0.08, 5);
   });
 
   it('averages a short pitch away over its 200 m window', () => {

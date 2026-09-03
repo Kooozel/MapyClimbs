@@ -34,12 +34,31 @@ export interface GradientPoint {
  * metres starting at any point. Wider spans from the same start only average
  * down, so the first span that satisfies `windowM` is the best one from there.
  *
- * Returns 0 when no span reaches `windowM` — i.e. when the whole profile is
- * shorter than the window. That is wrong for a short climb, but it is what both
- * callers did before they were unified, and it is preserved deliberately so this
- * refactor moves no number; fixing it is tracked in #69.
+ * When the whole profile is shorter than `windowM` there is no such span, and
+ * the answer is the profile's own overall gradient: the widest span it has, so
+ * the same conservative read the window asks for, just over less distance —
+ * deliberately not the steepest sub-span, which would be a narrower window than
+ * the caller asked for. Returning 0 here (what both callers did before they were
+ * unified) reported a real 8 % climb as flat: it reached the CLI's `max_grade`
+ * column and zeroed the hiking score's G_max term (#69).
+ *
+ * Both paths floor at 0: a net-descending span is not a max gradient, and the
+ * window scan has always reported 0 for one.
  */
 export function maxGradientOverWindow(points: GradientPoint[], windowM: number): number {
+  if (points.length < 2) return 0;
+
+  // `distance` is cumulative, so this is exactly the case where the loop below
+  // could find no qualifying span — and not the other way it can return 0, a
+  // long but net-descending profile, which must keep returning 0.
+  const first = points[0];
+  const last = points[points.length - 1];
+  const totalSpan = last.distance - first.distance;
+  if (totalSpan < windowM) {
+    if (totalSpan <= 0) return 0;
+    return Math.max(0, ((last.elevation - first.elevation) / totalSpan) * 100);
+  }
+
   let best = 0;
   for (let i = 0; i < points.length - 1; i++) {
     for (let j = i + 1; j < points.length; j++) {
