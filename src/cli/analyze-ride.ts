@@ -9,8 +9,8 @@
 
 import { detectClimbs, computeMaxSustainedGradient } from "../climb-engine";
 import type { Climb, ClimbDebugSink, ScoringModel } from "../climb-types";
-import { parseGarminGpx } from "./garmin-gpx";
-import type { RidePoint } from "./garmin-gpx";
+import { parseGpx } from "../gpx";
+import type { TrackPoint } from "../gpx";
 import { aggregateWindow, indexAtDistance } from "./ride-metrics";
 import type { HrZones, MovingOptions, WindowMetrics } from "./ride-metrics";
 
@@ -73,7 +73,7 @@ export interface RideAnalysis {
 }
 
 export function analyzeRide(gpxContent: string, options: AnalyzeOptions): RideAnalysis {
-  const { points, tuples } = parseGarminGpx(gpxContent);
+  const { points, tuples } = parseGpx(gpxContent);
   const detected = detectClimbs(tuples, options.model, { debug: options.debug });
 
   let z4z5OnClimb = 0;
@@ -115,7 +115,7 @@ export function analyzeRide(gpxContent: string, options: AnalyzeOptions): RideAn
   };
 }
 
-function windowFor(climb: Climb, points: RidePoint[], options: AnalyzeOptions) {
+function windowFor(climb: Climb, points: TrackPoint[], options: AnalyzeOptions) {
   const startDistance = climb.segments[0].startDistance;
   const endDistance = climb.segments[climb.segments.length - 1].endDistance;
   const from = indexAtDistance(points, startDistance);

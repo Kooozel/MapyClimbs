@@ -1,28 +1,32 @@
 /**
- * garmin-gpx.ts — dependency-free GPX trackpoint reader for Node.
+ * gpx.ts — the one GPX trackpoint reader, for every consumer.
  *
- * src/gpx-parser.ts targets the browser: it needs DOMParser (absent in Node)
- * and returns only ElevationTuple[], discarding <time> and heart rate. Ride
- * analysis needs both, so this reader scans the XML directly and keeps them.
+ * It scans the XML directly (indexOf + stateless regexes) rather than through a
+ * parser: no DOM, no Node API, no dependency, so the same file serves the
+ * browser extension and the Node CLI. It replaced a second, DOMParser-based
+ * reader that existed only because that portability was assumed to be
+ * impossible (#77); a parity test had pinned the two together over the real
+ * route fixtures for as long as both existed, which is what made the merge safe.
  *
- * Distance is accumulated with the shared haversine in ../geo.ts — the same
- * function gpx-parser.ts calls — so the two readers agree on the distance axis
- * by construction; test/garmin-gpx.test.js pins them together over a shared
- * fixture.
+ * Distance is accumulated with the shared haversine in ./geo.ts, so the distance
+ * axis every downstream figure is read off — gradients, climb lengths, VAM — has
+ * one definition.
  *
  * Verified against Garmin Connect exports: heart rate lives at
- * <extensions>/<ns3:TrackPointExtension>/<ns3:hr>. The namespace prefix is
- * treated as optional throughout so other exporters parse too.
+ * <extensions>/<ns3:TrackPointExtension>/<ns3:hr>. That namespace prefix is the
+ * only Garmin-specific thing here and it is treated as optional throughout, so
+ * other exporters parse too. <time> and heart rate ride along as optional
+ * per-point data — the extension ignores them, the CLI's ride metrics need them.
  */
 
-import type { ElevationTuple } from "../climb-types";
-import { haversineDistance } from "../geo";
+import type { ElevationTuple } from "./climb-types";
+import { haversineDistance } from "./geo";
 
 /** One trackpoint, with everything the ride metrics need. */
-export interface RidePoint {
+export interface TrackPoint {
   lat: number;
   lon: number;
-  /** Metres. 0 when the trackpoint carries no <ele>, matching gpx-parser.ts. */
+  /** Metres. 0 when the trackpoint carries no <ele>. */
   ele: number;
   /** Unix seconds, or null when the trackpoint carries no <time>. */
   t: number | null;
@@ -32,8 +36,8 @@ export interface RidePoint {
   d: number;
 }
 
-export interface RideTrack {
-  points: RidePoint[];
+export interface GpxTrack {
+  points: TrackPoint[];
   /** The same track in the shape detectClimbs() consumes. */
   tuples: ElevationTuple[];
 }
@@ -50,12 +54,19 @@ const TIME_RE = /<(?:[\w.-]+:)?time\b[^>]*>([\s\S]*?)<\//;
 const HR_RE = /<(?:[\w.-]+:)?hr\b[^>]*>([\s\S]*?)<\//;
 
 /**
- * Parse GPX XML into a ride track. Throws when no usable trackpoint is found —
+ * Parse GPX XML into a track. Throws when no usable trackpoint is found —
  * which is also how a malformed file surfaces, since there is no DOM parser
  * here to report a syntax error.
+ *
+ * That is one error where the DOM reader had two ("Invalid XML in GPX file"
+ * against an empty track), and it is a deliberate trade rather than a
+ * regression that slipped through: the exception's text never reaches rendered
+ * markup — buildErrorPanel puts it in a `title` attribute and console.error,
+ * on purpose (panel.ts) — so the panel a user sees is identical either way,
+ * and one portable reader is worth more than that distinction (#77).
  */
-export function parseGarminGpx(gpxContent: string): RideTrack {
-  const points: RidePoint[] = [];
+export function parseGpx(gpxContent: string): GpxTrack {
+  const points: TrackPoint[] = [];
   let cursor = 0;
 
   for (;;) {

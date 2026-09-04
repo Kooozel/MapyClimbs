@@ -20,6 +20,8 @@
     "src/climb-engine.ts",
     "src/climb-engine.config.ts",
     "src/climb-types.ts",
+    "src/geo.ts",
+    "src/gpx.ts",
     "src/max-gradient.ts",
     "src/scoring.ts"
   ]

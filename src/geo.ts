@@ -1,20 +1,19 @@
 /**
  * geo.ts — The one great-circle distance used on the distance axis.
  *
- * Both GPX readers accumulate distance with this function: src/gpx-parser.ts
- * (browser, DOMParser) and src/cli/garmin-gpx.ts (Node, keeps <time> and heart
- * rate). The two readers are deliberately separate — each needs an API the other
- * environment lacks — but they must agree point-for-point on distance, because
- * test/garmin-gpx.test.js asserts their tuples are *exactly* equal and every
- * downstream figure (gradients, climb lengths, VAM) is read off that axis.
+ * gpx.ts accumulates cumulative distance with this function, and it is the
+ * distance axis every downstream figure is read off — gradients, climb lengths,
+ * VAM — so the whole pipeline agrees about how far apart two trackpoints are by
+ * construction rather than by convention.
  *
- * Its own module rather than a home in either reader: neither can import the
- * other, and a copy in each is what left the invariant resting on a test.
+ * Its own module rather than a home in the reader: the climb engine reads that
+ * axis too, and neither side should have to import the other to share one
+ * formula. A copy in each is what once left the invariant resting on a test.
  *
  * No DOM or Node dependencies — pure arithmetic, safe in either bundle.
  */
 
-/** Mean Earth radius in metres, as used by both GPX readers. */
+/** Mean Earth radius in metres. */
 const EARTH_RADIUS_M = 6371000;
 
 /**

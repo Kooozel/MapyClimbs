@@ -32,7 +32,7 @@ export type ClimbCategory = (typeof ClimbCategory)[keyof typeof ClimbCategory];
 export type ScoringModel = "aso" | "garmin" | "hiking";
 
 /**
- * Raw elevation tuple as produced by gpx-parser.
+ * Raw elevation tuple as produced by gpx.ts.
  * [distance_m, elevation_m, lat, lon]
  */
 export type ElevationTuple = [number, number, number, number];

@@ -11,7 +11,7 @@
  *   computeMaxSustainedGradient(segments)                → % over MAX_SUSTAINED_GRADIENT_WINDOW_M
  *
  * Where elevationData is an array of [distance_m, elevation_m, lat, lon] tuples
- * as produced by gpx-parser.ts (browser) or cli/garmin-gpx.ts (Node).
+ * as produced by gpx.ts, the one reader both environments share.
  */
 
 import type {

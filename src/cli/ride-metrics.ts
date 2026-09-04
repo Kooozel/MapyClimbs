@@ -6,7 +6,7 @@
  * elapsed against 79:44 moving; VAM computed on elapsed time is meaningless.
  */
 
-import type { RidePoint } from "./garmin-gpx";
+import type { TrackPoint } from "../gpx";
 
 /** Bounds that decide whether a sample-to-sample interval counts as moving. */
 export interface MovingOptions {
@@ -53,7 +53,7 @@ export interface WindowMetrics {
  * window — a peak is a peak, whether or not the bike was rolling at that moment.
  */
 export function aggregateWindow(
-  points: RidePoint[],
+  points: TrackPoint[],
   from: number,
   to: number,
   zones: HrZones | null,
@@ -153,7 +153,7 @@ export function parseZones(spec: string): HrZones {
  * RESAMPLE_MIN_INTERVAL_M and interpolateProfile() only inserts points at real
  * distances — neither reparametrizes — so the two can be matched directly.
  */
-export function indexAtDistance(points: RidePoint[], distanceM: number): number {
+export function indexAtDistance(points: TrackPoint[], distanceM: number): number {
   let lo = 0;
   let hi = points.length - 1;
   while (lo < hi) {
