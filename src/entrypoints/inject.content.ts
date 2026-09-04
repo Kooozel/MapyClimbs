@@ -8,7 +8,7 @@ import { parseGpx } from "../gpx";
 import { buildPanel, buildErrorPanel } from "../content/panel";
 import { renderMapOverlay, setOverlayVisible, flashPin } from "../content/map-overlay";
 import { tryInjectButton, runClimbAnalysis } from "../content/button-injector";
-import type { ElevationTuple } from "../climb-types";
+import type { ElevationTuple, ScoringModel } from "../climb-types";
 import {
   type ProcessClimbsMessage,
   type ClimbsResponse,
@@ -17,7 +17,9 @@ import {
   type GetTabStateMessage,
   type ClearTabStateMessage,
   type TabStateResponse,
+  type ScoredAnalysisResult,
   type StoredAnalysisResult,
+  StorageKey,
 } from "../types";
 import {
   MAPY_MATCHES,
@@ -28,6 +30,7 @@ import {
   routeClassOrDefault,
 } from "../constants";
 import { getTabId, getTabStorageKeys } from "../storage";
+import { scoreForDisplay } from "../scoring-view";
 
 // ── Timing constants ───────────────────────────────────────────────────────────
 /** How often (ms) to check storage for a newly-intercepted GPX file. */
@@ -63,7 +66,17 @@ export default defineContentScript({
  * (instantiate without the Chrome Extension environment).
  */
 class RoutePlannerController {
-  private analysisResult: StoredAnalysisResult | null = null;
+  /**
+   * What is on screen: the stored result scored under `scoringModel` and
+   * filtered to the categorised climbs. Held rather than derived per render
+   * because the overlay re-projects on every pan.
+   */
+  private analysisResult: ScoredAnalysisResult | null = null;
+  /** The same result as stored — measured, with no verdict (#77). Kept so a
+   *  scoring-model switch can re-score without touching storage. */
+  private measuredResult: StoredAnalysisResult | null = null;
+  /** The user's preference. A hiking route overrides it; see scoring-view.ts. */
+  private scoringModel: ScoringModel = "aso";
   /**
    * Failed analyses, keyed by route class exactly as
    * `lastAnalysisResult:<tabId>:<routeClass>` is. Per-route because the
@@ -99,6 +112,11 @@ class RoutePlannerController {
 
     setInterval(() => this.pollForGPX(), GPX_POLL_MS);
 
+    chrome.storage.local.get(StorageKey.ScoringModel, (pref) => {
+      const stored = pref[StorageKey.ScoringModel] as ScoringModel | undefined;
+      if (stored) this.setScoringModel(stored);
+    });
+
     this.registerMessageListeners();
     this.startSPAWatcher();
 
@@ -108,6 +126,33 @@ class RoutePlannerController {
 
     this.watchMapInteraction();
     this.watchMapCentering();
+  }
+
+  // ── Scoring ──────────────────────────────────────────────────────────────────
+
+  /**
+   * Hold a stored result and the scored view of it together, so the ~15 render
+   * sites keep reading one field. The engine measures and does not judge (#77),
+   * so the verdict every one of them needs is produced here.
+   *
+   * Returns the scored view as well as storing it, which is what lets the call
+   * sites hand it straight to renderMapOverlay without a non-null assertion.
+   */
+  private setAnalysisResult(stored: StoredAnalysisResult): ScoredAnalysisResult {
+    this.measuredResult = stored;
+    this.analysisResult = scoreForDisplay(stored, this.scoringModel);
+    return this.analysisResult;
+  }
+
+  private clearAnalysisResult(): void {
+    this.measuredResult = null;
+    this.analysisResult = null;
+  }
+
+  /** Adopt a new scoring preference and re-score whatever is already held. */
+  private setScoringModel(model: ScoringModel): void {
+    this.scoringModel = model;
+    if (this.measuredResult) this.setAnalysisResult(this.measuredResult);
   }
 
   // ── Map pan/zoom watcher ─────────────────────────────────────────────────────
@@ -221,12 +266,12 @@ class RoutePlannerController {
           return;
         }
         if (msg.type !== "CATEGORIZATION_UPDATED") return;
-        this.fetchTabState((data) => {
-          if (!data || !data.lastAnalysisResult) return;
-          this.analysisResult = data.lastAnalysisResult;
-          this.renderPanel();
-          renderMapOverlay(this.analysisResult);
-        });
+        // No storage read: the stored result is measured, so a model switch is
+        // a re-score of what is already in memory (#77).
+        this.setScoringModel(msg.model);
+        if (!this.analysisResult) return;
+        this.renderPanel();
+        renderMapOverlay(this.analysisResult);
       }
     );
   }
@@ -302,9 +347,9 @@ class RoutePlannerController {
     chrome.storage.local.get([keys.lastAnalysisResult], (data) => {
       const cached = data[keys.lastAnalysisResult] as StoredAnalysisResult | undefined;
       if (cached && this.isResultValid(cached)) {
-        this.analysisResult = cached;
+        const scored = this.setAnalysisResult(cached);
         this.renderPanel();
-        renderMapOverlay(cached);
+        renderMapOverlay(scored);
       } else if (this.analysisErrors.has(routeClass)) {
         // clearUI() has just removed the panel and this route cached nothing,
         // so without this the failure leaves an empty sidebar (#60). This is
@@ -398,9 +443,9 @@ class RoutePlannerController {
         // The stored result was fetched for the route on screen, which is not
         // necessarily the one pendingGPX was exported for.
         this.analysisErrors.delete(this.activeRouteClass());
-        this.analysisResult = lastAnalysisResult;
+        const scored = this.setAnalysisResult(lastAnalysisResult);
         this.renderPanel();
-        if (!this.isAutomating) renderMapOverlay(this.analysisResult);
+        if (!this.isAutomating) renderMapOverlay(scored);
 
         this.isAnalyzing = false; // Stop polling
       }
@@ -408,6 +453,13 @@ class RoutePlannerController {
   }
 
   /** Helper to validate result structure */
+  /**
+   * Whether a stored result is worth restoring. `climbs` is the *candidate* set
+   * now (#77), so this asks "did detection find anything", not "did the current
+   * model keep anything" — which is the better question: a model that
+   * categorises none of them should show "no climbs detected", not an empty
+   * sidebar, and switching to a permissive one then fills the panel in.
+   */
   private isResultValid(result: StoredAnalysisResult): boolean {
     return !!(result && Array.isArray(result.climbs) && result.climbs.length > 0);
   }
@@ -419,7 +471,7 @@ class RoutePlannerController {
   private clearUI(): void {
     this.isAutomating = false;
     this.hideFullscreenLoader();
-    this.analysisResult = null;
+    this.clearAnalysisResult();
     document.getElementById(ElementId.Panel)?.remove();
     const overlay = document.getElementById(ElementId.MarkerOverlay);
     if (overlay) overlay.innerHTML = "";
@@ -465,9 +517,9 @@ class RoutePlannerController {
         return;
       }
       this.analysisErrors.delete(activeRouteClass);
-      this.analysisResult = response.result;
+      const scored = this.setAnalysisResult(response.result);
       this.renderPanel();
-      if (!this.isAutomating) renderMapOverlay(this.analysisResult);
+      if (!this.isAutomating) renderMapOverlay(scored);
     });
   }
 

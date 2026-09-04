@@ -1,5 +1,5 @@
 import { metersToKm } from "../format";
-import { StorageKey, type StoredAnalysisResult } from "../types";
+import { StorageKey, type ScoredAnalysisResult } from "../types";
 import { ClimbCategory } from "../climb-types";
 import { CATEGORY_COLOR } from "./category";
 import { ElementId, CssClass } from "../constants";
@@ -21,7 +21,7 @@ const CARD_FLASH_MS = 1500;
 /** Duration (ms) of the pin pulse triggered by clicking a climb card. */
 const PIN_FLASH_MS = 600;
 
-export function renderMapOverlay(analysisResult: StoredAnalysisResult): void {
+export function renderMapOverlay(analysisResult: ScoredAnalysisResult): void {
   const { climbs } = analysisResult;
   if (!climbs?.length) return;
   const vp = viewportFromURL();

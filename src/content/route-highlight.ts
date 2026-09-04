@@ -17,7 +17,8 @@
  * array.  See `ZoneFilterFn` and `mergeShortZones` in ../gradient-zones.
  */
 
-import type { Climb, Segment } from "../climb-types";
+import type { Segment } from "../climb-types";
+import type { CategorizedClimb } from "../types";
 import { ElementId, CssClass } from "../constants";
 import { mercatorToPixel } from "../map-geometry";
 import {
@@ -201,7 +202,7 @@ function pointsToStr(points: { x: number; y: number }[]): string {
  *   Signature: `(zones, totalDistance, zoom) => GradientZone[]`.
  */
 export function createRouteSvg(
-  climbs: Climb[],
+  climbs: CategorizedClimb[],
   vp: Viewport,
   mb: DOMRect,
   zoneFilter?: ZoneFilterFn,

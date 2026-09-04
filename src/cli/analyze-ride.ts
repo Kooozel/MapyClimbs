@@ -7,8 +7,9 @@
  * are converted here and nowhere else, leaving the engine untouched.
  */
 
-import { detectClimbs, computeMaxSustainedGradient } from "../climb-engine";
-import type { Climb, ClimbDebugSink, ScoringModel } from "../climb-types";
+import { detectClimbs } from "../climb-engine";
+import { score } from "../scoring";
+import type { ClimbCategory, ClimbDebugSink, ScoredClimb, ScoringModel } from "../climb-types";
 import { parseGpx } from "../gpx";
 import type { TrackPoint } from "../gpx";
 import { aggregateWindow, indexAtDistance } from "./ride-metrics";
@@ -18,6 +19,9 @@ export interface AnalyzeOptions {
   /** Label echoed into the output, normally the input filename. */
   source: string;
   model: ScoringModel;
+  /** Emit every candidate, including the ones the model gave no category.
+   *  Off by default: a `climbs` table should not receive non-climbs. */
+  includeUncategorized: boolean;
   /** Null when the caller passed no --zones; pct_z4z5 is then null throughout. */
   zones: HrZones | null;
   moving: MovingOptions;
@@ -34,8 +38,10 @@ export interface ClimbRow {
   elevation_m: number;
   avg_grade: number;
   max_grade: number;
-  category: string;
-  difficulty: number;
+  /** Null only under --include-uncategorized: the climb cleared no threshold
+   *  under this model. The default output never carries one. */
+  category: ClimbCategory | null;
+  difficulty: number | null;
   moving_sec: number;
   elapsed_sec: number;
   vam: number | null;
@@ -74,14 +80,21 @@ export interface RideAnalysis {
 
 export function analyzeRide(gpxContent: string, options: AnalyzeOptions): RideAnalysis {
   const { points, tuples } = parseGpx(gpxContent);
-  const detected = detectClimbs(tuples, options.model, { debug: options.debug });
+  const detected = detectClimbs(tuples, { debug: options.debug });
+  // The engine measures every candidate and judges none (#77), so the filter
+  // that used to happen inside detection happens here — which is also the only
+  // place the new flag needs to reach.
+  const scored = score(detected, options.model);
+  const emitted = options.includeUncategorized
+    ? scored
+    : scored.filter((climb) => climb.category !== null);
 
   let z4z5OnClimb = 0;
   let climbMovingSec = 0;
   let sawClimbZoneData = false;
   const climbs: ClimbRow[] = [];
 
-  detected.climbs.forEach((climb, index) => {
+  emitted.forEach((climb, index) => {
     const window = windowFor(climb, points, options);
     climbs.push(toClimbRow(climb, index, window));
     climbMovingSec += window.movingSec;
@@ -115,7 +128,7 @@ export function analyzeRide(gpxContent: string, options: AnalyzeOptions): RideAn
   };
 }
 
-function windowFor(climb: Climb, points: TrackPoint[], options: AnalyzeOptions) {
+function windowFor(climb: ScoredClimb, points: TrackPoint[], options: AnalyzeOptions) {
   const startDistance = climb.segments[0].startDistance;
   const endDistance = climb.segments[climb.segments.length - 1].endDistance;
   const from = indexAtDistance(points, startDistance);
@@ -123,7 +136,7 @@ function windowFor(climb: Climb, points: TrackPoint[], options: AnalyzeOptions) 
   return aggregateWindow(points, from, to, options.zones, options.moving);
 }
 
-function toClimbRow(climb: Climb, index: number, window: WindowMetrics): ClimbRow {
+function toClimbRow(climb: ScoredClimb, index: number, window: WindowMetrics): ClimbRow {
   const startDistance = climb.segments[0].startDistance;
 
   // VAM is only meaningful on moving time, and only when there is any.
@@ -137,10 +150,12 @@ function toClimbRow(climb: Climb, index: number, window: WindowMetrics): ClimbRo
     distance_m: round(climb.distance, 1),
     elevation_m: round(climb.elevation, 1),
     avg_grade: round(climb.avgGrade, 2),
-    // The *sustained* figure: a decimal fraction over MAX_SUSTAINED_GRADIENT_WINDOW_M.
-    // The card's maxPitchGradient is a different, deliberately steeper stat — this
-    // column must stay sustained, since rows are already imported under that meaning.
-    max_grade: round(computeMaxSustainedGradient(climb.segments) * 100, 2),
+    // The *sustained* figure: a decimal fraction over MAX_SUSTAINED_GRADIENT_WINDOW_M,
+    // now measured by the engine and carried on the climb rather than recomputed
+    // here. The card's maxPitchGradient is a different, deliberately steeper stat —
+    // this column must stay sustained, since rows are already imported under that
+    // meaning.
+    max_grade: round(climb.maxSustainedGradient * 100, 2),
     category: climb.category,
     difficulty: round(climb.difficulty, 1),
     moving_sec: Math.round(window.movingSec),

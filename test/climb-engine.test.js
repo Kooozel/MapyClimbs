@@ -11,13 +11,12 @@
 import { describe, it, expect } from 'vitest';
 import {
   detectClimbs,
-  recategorizeResult,
   _resamplePoints as resamplePoints,
   _interpolateProfile as interpolateProfile,
   _smoothElevationProfile as smoothElevationProfile,
   _mergeNearbyClimbs as mergeNearbyClimbs,
-  _categorizeClimb as categorizeClimb,
-  _trimAndScore as trimAndScore,
+  _measureClimb as measureClimb,
+  _trimAndMeasure as trimAndMeasure,
   _snapAllEndCoords as snapAllEndCoords,
 } from '../src/climb-engine.ts';
 
@@ -29,7 +28,7 @@ function pt(distance, elevation, lat = 48.0, lon = 16.0) {
 }
 
 /**
- * Create a minimal segment object (the shape mergeNearbyClimbs / categorizeClimb expect).
+ * Create a minimal segment object (the shape mergeNearbyClimbs / measureClimb expect).
  * grade is derived automatically from the elevation arguments.
  */
 function seg(startDist, endDist, startElev, endElev, lat1 = 48.0, lon1 = 16.0, lat2 = 48.1, lon2 = 16.1) {
@@ -382,11 +381,11 @@ describe('mergeNearbyClimbs', () => {
   });
 });
 
-// ─── categorizeClimb ─────────────────────────────────────────────────────────
+// ─── measureClimb ────────────────────────────────────────────────────────────
 
-describe('categorizeClimb', () => {
+describe('measureClimb', () => {
   /**
-   * Helper: build a minimal but valid climb object that categorizeClimb accepts.
+   * Helper: build a minimal but valid climb object that measureClimb accepts.
    * The single segment gives the function start/end coords + gradient.
    */
   function makeClimb(totalDistanceM, totalElevationM) {
@@ -394,85 +393,43 @@ describe('categorizeClimb', () => {
     return { segments: [segment], totalDistance: totalDistanceM, totalElevation: totalElevationM };
   }
 
+  // The only nulls left. They are degenerate shapes, not verdicts: scoring left
+  // the pipeline in #77, so nothing here can reject a real climb any more.
+
   it('returns null for a climb with zero distance', () => {
-    expect(categorizeClimb(makeClimb(0, 100))).toBeNull();
+    expect(measureClimb(makeClimb(0, 100))).toBeNull();
   });
 
   it('returns null for a climb with zero elevation', () => {
-    expect(categorizeClimb(makeClimb(5000, 0))).toBeNull();
+    expect(measureClimb(makeClimb(5000, 0))).toBeNull();
   });
 
   it('returns null for a null climb', () => {
-    expect(categorizeClimb(null)).toBeNull();
+    expect(measureClimb(null)).toBeNull();
   });
 
-  it('assigns category 4 when score ≥ 25 and < 75', () => {
-    // 5 km × 3 %² = 5 × 9 = 45  →  Cat 4
-    const climb = makeClimb(5000, 150);
-    const result = categorizeClimb(climb);
-    expect(result.category).toBe('4');
-    expect(result.difficulty).toBeCloseTo(45, 0);
+  it('measures a climb no scoring model would keep', () => {
+    // 300 m at 4 %: below ASO's Uncategorized floor of 8, so the old pipeline
+    // dropped it here and stored it in droppedCandidates. It is a measurement
+    // like any other now, and deciding it is not a climb is the caller's job.
+    const result = measureClimb(makeClimb(300, 12));
+
+    expect(result).not.toBeNull();
+    expect(result.distance).toBe(300);
+    expect(result.avgGrade).toBeCloseTo(4, 5);
+    expect(result).not.toHaveProperty('category');
+    expect(result).not.toHaveProperty('difficulty');
   });
 
-  it('[aso] assigns Uncategorized when score ≥ 8 and < 25', () => {
-    // 0.6 km × 4 %² = 0.6 × 16 = 9.6  →  Uncategorized
-    const climb = makeClimb(600, 24);
-    const result = categorizeClimb(climb);
-    expect(result.category).toBe('uncategorized');
-    expect(result.difficulty).toBeCloseTo(9.6, 1);
-  });
-
-  it('[aso] assigns category 4 exactly at the lower boundary (score = 25)', () => {
-    // 1 km × 5 %² = 1 × 25 = 25  →  Cat 4
-    const climb = makeClimb(1000, 50);
-    const result = categorizeClimb(climb);
-    expect(result.category).toBe('4');
-    expect(result.difficulty).toBeCloseTo(25, 1);
-  });
-
-  it('assigns category 3 at the lower boundary (score = 75)', () => {
-    // 3 km × 5 %² = 3 × 25 = 75  →  Cat 3
-    const climb = makeClimb(3000, 150);
-    const result = categorizeClimb(climb);
-    expect(result.category).toBe('3');
-    expect(result.difficulty).toBeCloseTo(75, 0);
-  });
-
-  it('assigns category 2 at the lower boundary (score = 150)', () => {
-    // 6 km × 5 %² = 6 × 25 = 150  →  Cat 2
-    const climb = makeClimb(6000, 300);
-    const result = categorizeClimb(climb);
-    expect(result.category).toBe('2');
-    expect(result.difficulty).toBeCloseTo(150, 0);
-  });
-
-  it('assigns category 1 at the lower boundary (score = 300)', () => {
-    // 12 km × 5 %² = 12 × 25 = 300  →  Cat 1
-    const climb = makeClimb(12000, 600);
-    const result = categorizeClimb(climb);
-    expect(result.category).toBe('1');
-    expect(result.difficulty).toBeCloseTo(300, 0);
-  });
-
-  it('assigns HC at the lower boundary (score = 600)', () => {
-    // 24 km × 5 %² = 24 × 25 = 600  →  HC
-    const climb = makeClimb(24000, 1200);
-    const result = categorizeClimb(climb);
-    expect(result.category).toBe('HC');
-    expect(result.difficulty).toBeCloseTo(600, 0);
-  });
-
-  it('returns a complete climb object with all required fields', () => {
-    const climb = makeClimb(8000, 480);   // 8 km × 6 %² = 8 × 36 = 288 → Cat 2
-    const result = categorizeClimb(climb);
+  it('returns a complete measurement with all required fields', () => {
+    const result = measureClimb(makeClimb(8000, 480));
 
     expect(result).toMatchObject({
-      distance:   expect.any(Number),
-      elevation:  expect.any(Number),
-      avgGrade:   expect.any(Number),
-      difficulty: expect.any(Number),
-      category:   expect.any(String),
-      segments:   expect.any(Array),
+      distance: expect.any(Number),
+      elevation: expect.any(Number),
+      avgGrade: expect.any(Number),
+      maxSustainedGradient: expect.any(Number),
+      segments: expect.any(Array),
     });
     expect(result.markerCoords).not.toBeNull(); // seg() supplies lat/lon
     expect(result.endCoords).not.toBeNull();
@@ -480,83 +437,21 @@ describe('categorizeClimb', () => {
 
   it('computes avgGrade correctly', () => {
     // 6 000 m gain 300 m → avgGrade = 5 %
-    const result = categorizeClimb(makeClimb(6000, 300));
+    const result = measureClimb(makeClimb(6000, 300));
     expect(result.avgGrade).toBeCloseTo(5, 5);
   });
 
-  // ── Garmin model ──────────────────────────────────────────────────────────
-
-  it('[garmin] assigns category 4 when score ≥ 8 000', () => {
-    // 1 000 m × 10 % = 10 000 → Cat 4
-    const result = categorizeClimb(makeClimb(1000, 100), 'garmin');
-    expect(result.category).toBe('4');
-    expect(result.difficulty).toBeCloseTo(10000, 0);
-  });
-
-  it('[garmin] assigns category 3 at the lower boundary (score = 16 000)', () => {
-    // 2 000 m × 8 % = 16 000 → Cat 3
-    const result = categorizeClimb(makeClimb(2000, 160), 'garmin');
-    expect(result.category).toBe('3');
-    expect(result.difficulty).toBeCloseTo(16000, 0);
-  });
-
-  it('[garmin] assigns HC at the lower boundary (score = 64 000)', () => {
-    // 8 000 m × 8 % = 64 000 → HC
-    const result = categorizeClimb(makeClimb(8000, 640), 'garmin');
-    expect(result.category).toBe('HC');
-    expect(result.difficulty).toBeCloseTo(64000, 0);
-  });
-
-  it('[garmin] assigns category 4 exactly at the lower boundary (score = 8 000)', () => {
-    // 1 000 m × 8 % = 8 000 → Cat 4
-    const result = categorizeClimb(makeClimb(1000, 80), 'garmin');
-    expect(result.category).toBe('4');
-    expect(result.difficulty).toBeCloseTo(8000, 0);
-  });
-
-  it('[garmin] assigns Uncategorized when score < 8 000', () => {
-    // 500 m × 6 % = 3 000 → Uncategorized
-    const result = categorizeClimb(makeClimb(500, 30), 'garmin');
-    expect(result.category).toBe('uncategorized');
-    expect(result.difficulty).toBeCloseTo(3000, 0);
-  });
-
-  it('[garmin] assigns Uncategorized at exactly min score (1 500)', () => {
-    // 500 m × 3 % = 1 500 → Uncategorized (geometric minimums exactly met)
-    const result = categorizeClimb(makeClimb(500, 15), 'garmin');
-    expect(result.category).toBe('uncategorized');
-    expect(result.difficulty).toBeCloseTo(1500, 0);
-  });
-
-  // ── Score-only filtering (no geometric floor) ────────────────────────────
-
-  it('[aso] 400 m @ 5 % is Uncategorized (score 10 is above Uncat floor)', () => {
-    // score = 0.4 × 25 = 10.0 → ≥ 8 (Uncat) and < 25 (Cat4)
-    const result = categorizeClimb(makeClimb(400, 20));
-    expect(result).not.toBeNull();
-    expect(result?.category).toBe('uncategorized');
-  });
-
-  it('[aso] returns null when score is below Uncategorized threshold', () => {
-    // 500 m, elevation 9 m → avgGrade 1.8 % → ASO score 1.62 < 4.5 threshold
-    expect(categorizeClimb(makeClimb(500, 9))).toBeNull();
-  });
-
-  it('[garmin] 299 m @ 5 % is Uncategorized (score 1500 at threshold)', () => {
-    const result = categorizeClimb(makeClimb(299, 15), 'garmin');
-    expect(result).not.toBeNull();
-    expect(result?.category).toBe('uncategorized');
-  });
-
-  it('[garmin] returns null when score is below Uncategorized threshold', () => {
-    // 500 m, elevation 9 m → avgGrade 1.8 % → Garmin score 900 < 1500 threshold
-    expect(categorizeClimb(makeClimb(500, 9), 'garmin')).toBeNull();
+  it('measures maxSustainedGradient so no scorer has to walk the segments', () => {
+    // One 6 % segment well over the 200 m window: the sustained figure is the
+    // segment's own gradient, as a decimal.
+    const result = measureClimb(makeClimb(1000, 60));
+    expect(result.maxSustainedGradient).toBeCloseTo(0.06, 5);
   });
 });
 
-// ─── trimAndScore (step 5a) ──────────────────────────────────────────────────
+// ─── trimAndMeasure (step 5a) ────────────────────────────────────────────────
 
-describe('trimAndScore', () => {
+describe('trimAndMeasure', () => {
   /** Collecting sink, so the emitted trace can be asserted on directly. */
   function sink() {
     const events = [];
@@ -565,179 +460,54 @@ describe('trimAndScore', () => {
     return fn;
   }
 
-  it('strips the flat lead-in and tail before scoring', () => {
-    // 200 m flat → 3 km at 5 % → 200 m flat. Only the ramp survives the trim,
-    // and 3 km × 5 %² = 75 → Cat 3.
+  it('strips the flat lead-in and tail before measuring', () => {
+    // 200 m flat → 3 km at 5 % → 200 m flat. Only the ramp survives the trim.
     const candidate = rawClimb([
       seg(0, 200, 100, 100),
       seg(200, 3200, 100, 250),
       seg(3200, 3400, 250, 250),
     ]);
 
-    const { climbs, droppedCandidates } = trimAndScore([candidate], 'aso', sink());
+    const climbs = trimAndMeasure([candidate], sink());
 
     expect(climbs).toHaveLength(1);
     expect(climbs[0].segments).toHaveLength(1);
     expect(climbs[0].distance).toBe(3000);
-    expect(climbs[0].category).toBe('3');
-    // A scored candidate carries its own segments inside `climbs`; storing it a
-    // second time here is the duplication issue #49 removed.
-    expect(droppedCandidates).toHaveLength(0);
+    expect(climbs[0].avgGrade).toBeCloseTo(5, 5);
   });
 
-  it('keeps a candidate the model scores as null in droppedCandidates', () => {
-    // 300 m at 4 % → ASO score 4.8, below the Uncategorized threshold of 8.
-    // It must still reach AnalysisResult.droppedCandidates, or switching to a more
-    // permissive model could never recover it (see recategorizeResult).
+  it('returns a candidate no model would score, rather than dropping it', () => {
+    // 300 m at 4 % → ASO score 4.8, below its Uncategorized threshold of 8.
+    // This step used to drop it into droppedCandidates so a switch to a more
+    // permissive model could recover it; there is nothing to recover from now
+    // because nothing is thrown away (#77).
     const candidate = rawClimb([seg(0, 300, 100, 112)]);
 
-    const { climbs, droppedCandidates } = trimAndScore([candidate], 'aso', sink());
+    const climbs = trimAndMeasure([candidate], sink());
 
-    expect(climbs).toHaveLength(0);
-    expect(droppedCandidates).toHaveLength(1);
-    expect(droppedCandidates[0].totalDistance).toBe(300);
+    expect(climbs).toHaveLength(1);
+    expect(climbs[0].distance).toBe(300);
   });
 
   it('drops a candidate that trims away to nothing', () => {
     const flat = rawClimb([seg(0, 500, 100, 100)]);
 
-    const { climbs, droppedCandidates } = trimAndScore([flat], 'aso', sink());
-
-    expect(climbs).toHaveLength(0);
-    expect(droppedCandidates).toHaveLength(0);
+    expect(trimAndMeasure([flat], sink())).toHaveLength(0);
   });
 
-  it('emits trim then categorize for a survivor, and trim alone for a reject', () => {
+  it('emits trim then measure for a survivor, and trim alone for a reject', () => {
     const kept = rawClimb([seg(0, 200, 100, 100), seg(200, 3200, 100, 250)]);
     const dropped = rawClimb([seg(4000, 4500, 250, 250)]);
     const emit = sink();
 
-    trimAndScore([kept, dropped], 'aso', emit);
+    trimAndMeasure([kept, dropped], emit);
 
-    expect(emit.events.map((e) => e.stage)).toEqual(['trim', 'categorize', 'trim']);
+    expect(emit.events.map((e) => e.stage)).toEqual(['trim', 'measure', 'trim']);
     expect(emit.events[0].kept).toBe(true);
     expect(emit.events[0].droppedHeadSegs).toBe(1);
-    expect(emit.events[1].category).toBe('3');
+    expect(emit.events[1].distanceM).toBe(3000);
+    expect(emit.events[1].avgGradePct).toBeCloseTo(5, 5);
     expect(emit.events[2].kept).toBe(false);
-  });
-});
-
-// ─── recategorizeResult (scoring-model switch) ───────────────────────────────
-
-describe('recategorizeResult', () => {
-  /**
-   * Four candidates laid out along one route, chosen so each model partitions
-   * them differently:
-   *
-   *   A  0–3 km    @ 5.0 %  → ASO 75 (Cat 3), Garmin 15 000 (Cat 4)  — both keep
-   *   S  4–6 km    @ 1.9 %  → ASO 7.22 (< 8), Garmin 3 800 (≥ 1 500) — only Garmin
-   *   B  7–10 km   @ 5.0 %  → both keep
-   *   T  11–11.3 km @ 4.0 % → ASO 4.8, Garmin 1 200 — both reject
-   *
-   * S sits *between* two kept climbs, so promoting it also pins the route
-   * ordering of the rejoined candidate set.
-   */
-  const A = rawClimb([seg(0, 3000, 100, 250)]);
-  const S = rawClimb([seg(4000, 6000, 250, 288)]);
-  const B = rawClimb([seg(7000, 10000, 288, 438)]);
-  const T = rawClimb([seg(11000, 11300, 438, 450)]);
-
-  const META = {
-    totalDistance: 12000,
-    totalElevationGain: 350,
-    totalElevationLoss: 0,
-    timestamp: 1234,
-  };
-
-  /** A result in the split encoding, built by scoring all four under `model`. */
-  function seed(model) {
-    return recategorizeResult({ climbs: [], droppedCandidates: [A, S, B, T], ...META }, model);
-  }
-
-  it('splits the candidate set so no climb geometry is stored twice', () => {
-    const aso = seed('aso');
-
-    expect(aso.climbs.map((c) => c.segments[0].startDistance)).toEqual([0, 7000]);
-    expect(aso.droppedCandidates.map((c) => c.segments[0].startDistance)).toEqual([4000, 11000]);
-
-    // The defect issue #49 describes: a scored climb's segments appearing in both
-    // halves. Identity, not equality — that is what JSON.stringify duplicates.
-    const inClimbs = new Set(aso.climbs.flatMap((c) => c.segments));
-    for (const candidate of aso.droppedCandidates) {
-      for (const s of candidate.segments) expect(inClimbs.has(s)).toBe(false);
-    }
-  });
-
-  it("preserves fields the engine does not own, like the extension's stamp", () => {
-    // AnalysisResult carries no timestamp or routeMode since #68 — the extension
-    // adds them at the storage boundary. recategorizeResult is generic in the
-    // result type so a model switch carries them through the re-partition rather
-    // than silently dropping what the caller stored alongside.
-    const stored = { climbs: [], droppedCandidates: [A, S, B, T], ...META, routeMode: 'hiking' };
-
-    const switched = recategorizeResult(stored, 'garmin');
-
-    expect(switched.timestamp).toBe(1234);
-    expect(switched.routeMode).toBe('hiking');
-  });
-
-  it('is smaller serialised than the pre-split encoding it replaces', () => {
-    const aso = seed('aso');
-    const preSplit = { ...aso, droppedCandidates: undefined, candidates: [A, S, B, T] };
-
-    expect(JSON.stringify(aso).length).toBeLessThan(JSON.stringify(preSplit).length);
-  });
-
-  it('switching model and back returns the original climbs', () => {
-    // The invariant the candidate set exists to protect: ASO drops S, and a
-    // switch to Garmin and back must not leave it stranded either way.
-    const aso = seed('aso');
-    const roundTrip = recategorizeResult(recategorizeResult(aso, 'garmin'), 'aso');
-
-    expect(roundTrip).toEqual(aso);
-  });
-
-  it('conserves the candidate set across every switch', () => {
-    const aso = seed('aso');
-    const garmin = recategorizeResult(aso, 'garmin');
-
-    const total = (r) => r.climbs.length + r.droppedCandidates.length;
-    expect(total(aso)).toBe(4);
-    expect(total(garmin)).toBe(4);
-  });
-
-  it('moves a promoted candidate out of droppedCandidates, into route order', () => {
-    // S must not linger in both halves — that is what would duplicate it on the
-    // next switch — and it must land between A and B, not appended after them.
-    const garmin = recategorizeResult(seed('aso'), 'garmin');
-
-    expect(garmin.climbs.map((c) => c.segments[0].startDistance)).toEqual([0, 4000, 7000]);
-    expect(garmin.droppedCandidates.map((c) => c.segments[0].startDistance)).toEqual([11000]);
-  });
-
-  it('reads a pre-split result stored under `candidates`, and stops writing it', () => {
-    const legacy = { climbs: [], candidates: [A, S, B, T], ...META };
-
-    const aso = recategorizeResult(legacy, 'aso');
-
-    expect(aso.climbs).toHaveLength(2);
-    expect(aso.droppedCandidates.map((c) => c.segments[0].startDistance)).toEqual([4000, 11000]);
-    expect('candidates' in aso).toBe(false);
-  });
-
-  it('carries a snapped climb’s summit extension through a switch without re-adding it', () => {
-    // snapAllEndCoords appends one synthetic segment reaching the raw summit, and
-    // recategorizeResult never re-runs it — the segment rides along inside `climbs`.
-    const snapped = rawClimb([seg(0, 3000, 100, 250), seg(3000, 3080, 250, 254)]);
-    const start = recategorizeResult({ climbs: [], droppedCandidates: [snapped], ...META }, 'aso');
-
-    expect(start.climbs[0].segments).toHaveLength(2);
-
-    const there = recategorizeResult(start, 'garmin');
-    const back = recategorizeResult(there, 'aso');
-
-    expect(back.climbs[0].segments).toEqual(start.climbs[0].segments);
-    expect(back.climbs[0].endCoords).toEqual(start.climbs[0].endCoords);
   });
 });
 
@@ -756,9 +526,9 @@ describe('snapAllEndCoords', () => {
 
   const latAt = (d) => 48 + d / 1e6;
 
-  /** A scored climb, built the way detectClimbs builds the ones it snaps. */
+  /** A measured climb, built the way detectClimbs builds the ones it snaps. */
   function climb(segments) {
-    return categorizeClimb(rawClimb(segments));
+    return measureClimb(rawClimb(segments));
   }
 
   it('extends a lone climb to the raw peak past its summit', () => {
@@ -874,14 +644,32 @@ describe('detectClimbs', () => {
   it('single climb has correct structure', () => {
     const [climb] = detectClimbs(makeSingleClimbRoute()).climbs;
     expect(climb).toMatchObject({
-      distance:   expect.any(Number),
-      elevation:  expect.any(Number),
-      avgGrade:   expect.any(Number),
-      difficulty: expect.any(Number),
-      category:   expect.any(String),
-      segments:   expect.any(Array),
+      distance:             expect.any(Number),
+      elevation:            expect.any(Number),
+      avgGrade:             expect.any(Number),
+      maxSustainedGradient: expect.any(Number),
+      segments:             expect.any(Array),
     });
-    expect(['4', '3', '2', '1', 'HC']).toContain(climb.category);
+    // Measurement only. A difficulty and a category are what score() adds.
+    expect(climb).not.toHaveProperty('difficulty');
+    expect(climb).not.toHaveProperty('category');
+  });
+
+  it('measures a real maxSustainedGradient for every climb it returns', () => {
+    // The hiking model and the CLI's max_grade column both read this field, so
+    // a candidate that reached them as 0 would be reported as flat (#69, #77).
+    for (const climb of detectClimbs(makeMultiClimbRoute()).climbs) {
+      expect(climb.maxSustainedGradient).toBeGreaterThan(0);
+    }
+  });
+
+  it('snaps every candidate’s summit, including ones no model would keep', () => {
+    // The snap used to run after scoring and only over the kept climbs, so a
+    // rejected candidate never got a summit at all. Every returned climb now
+    // carries endCoords from the same pass (#77).
+    for (const climb of detectClimbs(makeMultiClimbRoute()).climbs) {
+      expect(climb.endCoords).not.toBeNull();
+    }
   });
 
   it('single climb elevation gain is within ±15 % of the design value (600 m)', () => {

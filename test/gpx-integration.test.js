@@ -28,7 +28,8 @@ import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 import { parseGpx } from '../src/gpx.ts';
-import { detectClimbs, recategorizeResult } from '../src/climb-engine.ts';
+import { detectClimbs } from '../src/climb-engine.ts';
+import { score } from '../src/scoring.ts';
 import { fixtures } from './fixtures/expected.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -110,9 +111,9 @@ function makePipelineSink(file) {
           `[trim] km${km(evt.startKm)}-${km(evt.endKm)}  head-=${evt.droppedHeadSegs} tail-=${evt.droppedTailSegs}  remain=${m(evt.remainingDistanceM)}m  kept=${evt.kept}`
         );
         break;
-      case 'categorize':
+      case 'measure':
         console.log(
-          `[cat] km${km(evt.startKm)}-${km(evt.endKm)}  dist=${m(evt.distanceM)}m  avg=${evt.avgGradePct.toFixed(2)}%  diff=${evt.difficulty == null ? '—' : evt.difficulty.toFixed(0)}  cat=${evt.category ?? '—'}`
+          `[measure] km${km(evt.startKm)}-${km(evt.endKm)}  dist=${m(evt.distanceM)}m  avg=${evt.avgGradePct.toFixed(2)}%`
         );
         break;
     }
@@ -145,10 +146,13 @@ if (fixtures.length === 0) {
     try {
       const gpxContent = readFileSync(resolve(FIXTURES_DIR, file), 'utf-8');
       const elevationProfile = parseGpx(gpxContent).tuples;
-      detectionResult = detectClimbs(elevationProfile, scoringModel ?? 'aso', {
-        debug: makePipelineSink(file),
-      });
-      detectedClimbs = detectionResult.climbs;
+      detectionResult = detectClimbs(elevationProfile, { debug: makePipelineSink(file) });
+      // The engine measures every candidate now (#77), so the filter that used
+      // to happen inside detection happens here — which keeps expected.js
+      // meaning what it always meant: the climbs this model keeps.
+      detectedClimbs = score(detectionResult, scoringModel ?? 'aso').filter(
+        (climb) => climb.category !== null
+      );
       debugLog(file, detectedClimbs);
     } catch (err) {
       it(`should load and parse ${file}`, () => {
@@ -160,20 +164,22 @@ if (fixtures.length === 0) {
       expect(detectedClimbs).toHaveLength(climbCount);
     });
 
-    it('re-partitions the same candidate set on a scoring-model switch', () => {
-      // The invariant droppedCandidates exists for, on real data: a switch only
-      // moves candidates between the two halves, so switching away and back is
-      // the identity, and no candidate is lost or duplicated on the way.
-      const model = scoringModel ?? 'aso';
-      const other = model === 'garmin' ? 'aso' : 'garmin';
+    it('finds one candidate set, invariant across every scoring model', () => {
+      // The evidence that scoring was never part of detection: the models
+      // disagree substantially about how many of these are climbs (travny:
+      // 3 / 5 / 1), and agree exactly on how many candidates there are.
+      for (const model of ['aso', 'garmin', 'hiking']) {
+        expect(score(detectionResult, model)).toHaveLength(detectionResult.climbs.length);
+      }
+    });
 
-      const direct = recategorizeResult(detectionResult, model);
-      const roundTrip = recategorizeResult(recategorizeResult(direct, other), model);
-
-      expect(roundTrip).toEqual(direct);
-
-      const total = (r) => r.climbs.length + r.droppedCandidates.length;
-      expect(total(roundTrip)).toBe(total(detectionResult));
+    it('measures every candidate whatever a model makes of it', () => {
+      // The snap runs before scoring now, so a candidate no model would keep
+      // still reaches its summit — it never did before (#77).
+      for (const climb of detectionResult.climbs) {
+        expect(climb.maxSustainedGradient).toBeGreaterThanOrEqual(0);
+        expect(climb.endCoords).not.toBeNull();
+      }
     });
 
     if (expectedClimbs) {

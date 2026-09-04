@@ -2,32 +2,33 @@
  * climb-engine.ts — MapyClimbs
  * Pure climb-detection algorithm. No Chrome APIs — fully testable in isolation.
  *
- * Public API — four functions and the types in climb-types.ts. Everything else
- * this file exports carries an `_` prefix and is a test hatch, not API.
+ * Public API — two functions here, plus the types in climb-types.ts.
+ * Everything else this file exports carries an `_` prefix and is a test hatch,
+ * not API. The published surface is pinned deliberately (#68 item 1 was about
+ * not letting it grow by accident); the rest of it lives next door:
  * ----------
- *   detectClimbs(elevationData, scoringModel?, options?) → AnalysisResult
- *   recategorizeResult(result, model)                    → the same result, re-scored
- *   emptyAnalysisResult()                                → the nothing-to-detect shape
- *   computeMaxSustainedGradient(segments)                → % over MAX_SUSTAINED_GRADIENT_WINDOW_M
+ *   detectClimbs(elevationData, options?) → DetectionResult
+ *   emptyDetectionResult()                → the nothing-to-detect shape
+ *   score, ASO, GARMIN, HIKING            → scoring.ts
+ *   maxGradientOverWindow, GradientPoint  → max-gradient.ts, for gradient-zones.ts,
+ *                                           which stays in the extension and so
+ *                                           calls it from outside once this moves
  *
  * Where elevationData is an array of [distance_m, elevation_m, lat, lon] tuples
  * as produced by gpx.ts, the one reader both environments share.
  */
 
 import type {
-  Climb,
-  ClimbCategory,
   ClimbDebugSink,
   Coords,
   DetectClimbsOptions,
+  DetectionResult,
   ElevationTuple,
   GpsPoint,
+  MeasuredClimb,
   RawClimb,
   Segment,
-  ScoringModel,
-  AnalysisResult,
 } from "./climb-types";
-import { applyScore, applyHikingScore } from "./scoring";
 import {
   RESAMPLE_MIN_INTERVAL_M,
   SMOOTH_GRAD_WINDOW_M,
@@ -73,9 +74,9 @@ const NOOP_DEBUG: ClimbDebugSink = () => {};
 /**
  * A result with nothing in it — the shape every caller returns when there is
  * nothing to detect or detection failed. One factory so a new required field on
- * AnalysisResult is added in one place rather than three.
+ * DetectionResult is added in one place rather than three.
  */
-export function emptyAnalysisResult(): AnalysisResult {
+export function emptyDetectionResult(): DetectionResult {
   return {
     climbs: [],
     totalDistance: 0,
@@ -86,18 +87,17 @@ export function emptyAnalysisResult(): AnalysisResult {
 
 /**
  * Climb Detection Algorithm — 5-step pipeline.
- * See climb-types.ts for the Climb interface definition.
+ * See climb-types.ts for the MeasuredClimb interface definition.
  *
  * @param elevationData - [[distance_m, elevation_m, lat, lon], ...]
  */
 export function detectClimbs(
   elevationData: ElevationTuple[],
-  scoringModel: ScoringModel = "aso",
   options: DetectClimbsOptions = {}
-): AnalysisResult {
+): DetectionResult {
   const emit: ClimbDebugSink = options.debug ?? NOOP_DEBUG;
 
-  if (!elevationData || elevationData.length < 2) return emptyAnalysisResult();
+  if (!elevationData || elevationData.length < 2) return emptyDetectionResult();
 
   // Step 1: Build structured profile from raw elevation tuples
   const profile: GpsPoint[] = elevationData.map((point) => ({
@@ -140,15 +140,20 @@ export function detectClimbs(
   // separated by the same distance stay separate.
   const mergedClimbs = mergeNearbyClimbs(rawClimbs, segments, resampled, emit);
 
-  // Step 5: Trim flat lead-in / tail, score and categorize, then snap each
-  // climb's end to the raw-profile summit.
-  const { climbs, droppedCandidates } = trimAndScore(mergedClimbs, scoringModel, emit);
-  const trimmedClimbs = snapAllEndCoords(climbs, resampled);
+  // Step 5: Trim flat lead-in / tail, measure, then snap each climb's end to
+  // the raw-profile summit.
+  //
+  // The snap runs over *every* candidate and before anything scores — which is
+  // the fix hiding inside this refactor. It used to run after scoring and only
+  // over the climbs a model had kept, so a rejected candidate never got its
+  // summit, and a kept one was scored on pre-snap geometry that the card then
+  // contradicted. Whoever scores now reads the geometry that is displayed.
+  const measured = trimAndMeasure(mergedClimbs, emit);
+  const climbs = snapAllEndCoords(measured, resampled);
 
   const { gain, descent } = calculateStats(resampled);
   return {
-    climbs: trimmedClimbs,
-    droppedCandidates,
+    climbs,
     totalDistance: profile[profile.length - 1].distance,
     totalElevationGain: gain,
     totalElevationLoss: descent,
@@ -704,7 +709,11 @@ function mergeNearbyClimbs(
  * If the raw peak is not actually higher than the current smoothed endpoint
  * (rare over-smoothing artefact), the climb is returned unchanged.
  */
-function snapEndCoordsToRawPeak(climb: Climb, rawProfile: GpsPoint[], lookaheadM: number): Climb {
+function snapEndCoordsToRawPeak(
+  climb: MeasuredClimb,
+  rawProfile: GpsPoint[],
+  lookaheadM: number
+): MeasuredClimb {
   if (lookaheadM <= 0) return climb;
   const lastSeg = climb.segments[climb.segments.length - 1];
   if (!lastSeg) return climb;
@@ -769,13 +778,19 @@ function snapEndCoordsToRawPeak(climb: Climb, rawProfile: GpsPoint[], lookaheadM
 
   const newDistance = climb.distance + distExtension;
   const newElevation = climb.elevation + elevExtension;
+  const newSegments = [...climb.segments, extensionSeg];
 
   return {
     ...climb,
-    segments: [...climb.segments, extensionSeg],
+    segments: newSegments,
     distance: newDistance,
     elevation: newElevation,
     avgGrade: (newElevation / newDistance) * 100,
+    // Recomputed, not carried over: the extension segment is part of the climb
+    // now, so a gradient measured before it was appended describes a shape that
+    // no longer exists. That staleness is exactly what the old score-then-snap
+    // ordering shipped — here it is one line to keep honest.
+    maxSustainedGradient: computeMaxSustainedGradient(newSegments),
     endCoords: { lat: peakPoint.lat, lon: peakPoint.lon },
   };
 }
@@ -785,8 +800,13 @@ function snapEndCoordsToRawPeak(climb: Climb, rawProfile: GpsPoint[], lookaheadM
  * summit. The lookahead is capped at 300 m and clamped further to half the gap
  * before the next climb, so an extension can never reach into the climb that
  * follows.
+ *
+ * "Every climb" is now every *candidate*: this used to see only the ones a
+ * scoring model had kept, which both left rejected candidates un-snapped and
+ * let a kept climb's neighbour gap be measured against a climb further away
+ * than the real one. Both are fixed by running before anything scores.
  */
-function snapAllEndCoords(climbs: Climb[], rawProfile: GpsPoint[]): Climb[] {
+function snapAllEndCoords(climbs: MeasuredClimb[], rawProfile: GpsPoint[]): MeasuredClimb[] {
   return climbs.map((climb, i) => {
     const nextStart = i + 1 < climbs.length ? climbs[i + 1].segments[0].startDistance : Infinity;
     const lastSeg = climb.segments[climb.segments.length - 1];
@@ -851,22 +871,16 @@ function trimClimbEndpoints(climb: RawClimb): RawClimb {
 }
 
 /**
- * Step 5a: trim each merged candidate's flat lead-in and tail, then score it.
+ * Step 5a: trim each merged candidate's flat lead-in and tail, then measure it.
  *
- * Returns both halves of the step, and they are disjoint: a candidate this model
- * scored rides along inside `climbs` carrying its own segments, so only the ones
- * scored as null need `droppedCandidates`. The rejects have to be kept — that is
- * what recategorizeResult replays when the user switches scoring model, and
- * returning the scored climbs alone would make a switch lossy. Returning *every*
- * candidate, as this once did, stored each climb's geometry twice (issue #49).
+ * Every candidate that survives the trim comes back. The only thing dropped here
+ * is a candidate the trim left with no distance or no gain, which is a
+ * degenerate shape rather than a verdict — this step used to also drop whatever
+ * the scoring model rejected, and the partition that grew out of that
+ * (`droppedCandidates`, `candidates`, `allCandidates`) is what #77 removed.
  */
-function trimAndScore(
-  mergedClimbs: RawClimb[],
-  scoringModel: ScoringModel,
-  emit: ClimbDebugSink
-): { climbs: Climb[]; droppedCandidates: RawClimb[] } {
-  const droppedCandidates: RawClimb[] = [];
-  const climbs = mergedClimbs
+function trimAndMeasure(mergedClimbs: RawClimb[], emit: ClimbDebugSink): MeasuredClimb[] {
+  return mergedClimbs
     .map((raw) => {
       const before = raw.segments;
       const trimmed = trimClimbEndpoints(raw);
@@ -897,24 +911,18 @@ function trimAndScore(
         });
       }
       if (!kept) return null;
-      const scored = categorizeClimb(trimmed, scoringModel);
-      if (!scored) droppedCandidates.push(trimmed);
       const s0 = trimmed.segments[0];
       const sN = trimmed.segments[trimmed.segments.length - 1];
       emit({
-        stage: "categorize",
+        stage: "measure",
         startKm: s0.startDistance / 1000,
         endKm: sN.endDistance / 1000,
         distanceM: trimmed.totalDistance,
         avgGradePct: (trimmed.totalElevation / trimmed.totalDistance) * 100,
-        difficulty: scored ? scored.difficulty : null,
-        category: scored ? scored.category : null,
       });
-      return scored;
+      return measureClimb(trimmed);
     })
-    .filter((c): c is Climb => c !== null);
-
-  return { climbs, droppedCandidates };
+    .filter((c): c is MeasuredClimb => c !== null);
 }
 
 /**
@@ -931,7 +939,7 @@ function trimAndScore(
  * which is the same number: each term is (Δe/d · 100) · d = 100 · Δe, so the
  * weighted mean divided by the span *is* geometric rise/run over the span.
  */
-export function computeMaxSustainedGradient(
+function computeMaxSustainedGradient(
   segments: Segment[],
   windowM = MAX_SUSTAINED_GRADIENT_WINDOW_M
 ): number {
@@ -948,30 +956,13 @@ export function computeMaxSustainedGradient(
   return maxGradientOverWindow(points, windowM) / 100;
 }
 
-function scoreForHiking(
-  elevation: number,
-  distance: number,
-  segments: Segment[]
-): { difficulty: number; category: ClimbCategory } | null {
-  const maxGradientDecimal = computeMaxSustainedGradient(segments);
-  return applyHikingScore({
-    totalElevationM: elevation,
-    totalDistanceM: distance,
-    maxGradientDecimal,
-  });
-}
-
-function categorizeClimb(climb: RawClimb, scoringModel: ScoringModel = "aso"): Climb | null {
+/**
+ * Turn a trimmed candidate into a measurement. No model, no verdict: the only
+ * thing that can come back null is a degenerate shape with no distance or no
+ * gain, which nothing downstream could describe either.
+ */
+function measureClimb(climb: RawClimb): MeasuredClimb | null {
   if (!climb || climb.totalDistance === 0 || climb.totalElevation === 0) return null;
-
-  const avgGrade = (climb.totalElevation / climb.totalDistance) * 100;
-
-  const scored =
-    scoringModel === "hiking"
-      ? scoreForHiking(climb.totalElevation, climb.totalDistance, climb.segments)
-      : applyScore(climb.totalDistance, avgGrade, scoringModel);
-
-  if (!scored) return null;
 
   const firstSeg = climb.segments[0];
   const lastSeg = climb.segments[climb.segments.length - 1];
@@ -989,78 +980,12 @@ function categorizeClimb(climb: RawClimb, scoringModel: ScoringModel = "aso"): C
   return {
     distance: climb.totalDistance,
     elevation: climb.totalElevation,
-    avgGrade,
-    ...scored,
+    avgGrade: (climb.totalElevation / climb.totalDistance) * 100,
+    maxSustainedGradient: computeMaxSustainedGradient(climb.segments),
     segments: climb.segments,
     markerCoords,
     endCoords,
   };
-}
-
-/**
- * The full trimmed-candidate set a scoring-model switch has to replay.
- *
- * detectClimbs stores it split in two so no geometry is serialised twice: the
- * candidates this model scored sit in `climbs` carrying their own segments, and
- * only the rejected ones in `droppedCandidates`. Re-joining them by start distance
- * recovers the route-ordered set trimAndScore produced.
- *
- * A scored climb may carry one extra synthetic segment appended by snapAllEndCoords,
- * so the replayed candidate reaches the true summit. The pre-split encoding stored
- * the un-snapped candidate and silently lost that extension on every model switch;
- * carrying it is stable — the segment rides along, it is never re-appended.
- *
- * One consequence: snapAllEndCoords runs *after* trimAndScore has scored, and it
- * updates distance/elevation/avgGrade but not difficulty/category. A replayed
- * candidate therefore scores on the geometry the card actually displays, which for
- * a snapped climb can land in a different band than the category stored at
- * detection time (hukvaldy.gpx climb 4: 25.19 → 23.69, Cat 4 → uncategorized).
- * Switching is still reversible — every switch re-partitions the same set — but
- * it is not the identity against the first detection. The pre-split encoding was
- * not either; it dropped the summit extension instead.
- */
-function allCandidates(result: AnalysisResult): RawClimb[] {
-  if (result.candidates) return result.candidates; // pre-split result: already the whole set
-
-  const fromClimbs: RawClimb[] = result.climbs.map((c) => ({
-    segments: c.segments,
-    totalDistance: c.distance,
-    totalElevation: c.elevation,
-  }));
-  return [...fromClimbs, ...(result.droppedCandidates ?? [])].sort(
-    (a, b) => (a.segments[0]?.startDistance ?? 0) - (b.segments[0]?.startDistance ?? 0)
-  );
-}
-
-/**
- * Re-scores a stored result under a new scoring model without re-running the
- * detection pipeline, returning a result in the same split encoding.
- *
- * Both halves are recomputed together: a candidate this model keeps moves into
- * `climbs`, one it rejects into `droppedCandidates`. Recomputing only `climbs`
- * would leave a promoted candidate in both halves and duplicate it on the next
- * switch. Because every switch only re-partitions the same candidate set, going
- * from a permissive model to a strict one and back returns the original climbs.
- */
-export function recategorizeResult<T extends AnalysisResult>(result: T, model: ScoringModel): T {
-  const climbs: Climb[] = [];
-  const droppedCandidates: RawClimb[] = [];
-
-  for (const candidate of allCandidates(result)) {
-    const scored = categorizeClimb(candidate, model);
-    if (scored) climbs.push(scored);
-    else droppedCandidates.push(candidate);
-  }
-
-  // Generic in the result type so a caller that stores extra fields alongside the
-  // engine's own — the extension's timestamp and routeMode (#68) — keeps them in
-  // the type system as well as in the spread. `candidates` is destructured out
-  // rather than deleted: it is read once by allCandidates() and then gone, and
-  // `delete` on a generic's property is not provably safe.
-  const { candidates: _readOnce, ...rest } = result;
-  // The spread carries every own property, but TypeScript cannot prove a spread
-  // reconstructs T, so the assertion stands in for what the code guarantees.
-  return { ...rest, climbs, droppedCandidates } as T;
 }
 
 function calculateStats(resampled: GpsPoint[]) {
@@ -1089,7 +1014,8 @@ export {
   interpolateProfile as _interpolateProfile,
   smoothElevationProfile as _smoothElevationProfile,
   mergeNearbyClimbs as _mergeNearbyClimbs,
-  categorizeClimb as _categorizeClimb,
-  trimAndScore as _trimAndScore,
+  measureClimb as _measureClimb,
+  trimAndMeasure as _trimAndMeasure,
   snapAllEndCoords as _snapAllEndCoords,
+  computeMaxSustainedGradient as _computeMaxSustainedGradient,
 };

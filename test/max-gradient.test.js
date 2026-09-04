@@ -14,7 +14,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { buildProfilePoints, maxPitchGradient } from '../src/gradient-zones.ts';
-import { computeMaxSustainedGradient } from '../src/climb-engine.ts';
+import { _computeMaxSustainedGradient as computeMaxSustainedGradient } from '../src/climb-engine.ts';
 
 /** Build a minimal ProfilePoint for maxPitchGradient tests. */
 function pt(distance, elevation) {

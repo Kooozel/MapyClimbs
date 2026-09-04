@@ -6,7 +6,13 @@
  * when it is extracted (#68). Nothing here may be imported from that side.
  */
 
-import type { AnalysisResult, ElevationTuple } from "./climb-types";
+import type {
+  ClimbCategory,
+  DetectionResult,
+  ElevationTuple,
+  ScoredClimb,
+  ScoringModel,
+} from "./climb-types";
 
 // ── Storage keys ──────────────────────────────────────────────────────────────
 
@@ -92,18 +98,24 @@ export type ExtensionMessage =
   | GetTabIdMessage;
 
 /**
- * Sent by background → active mapy tab content script after re-categorisation
- * completes, so the overlay/panel can refresh without a full re-analysis.
+ * Sent by background → every open mapy tab when the scoring-model preference
+ * changes, so each content script can re-score what it already holds.
+ *
+ * It carries the model rather than announcing that storage moved, because
+ * storage does not move any more: a stored result is measured, and the switch
+ * is a re-score in memory (#77). A hiking route ignores the value and keeps the
+ * hiking model, as it always has.
  */
 export interface CategorizationUpdatedMessage {
   type: "CATEGORIZATION_UPDATED";
+  model: ScoringModel;
 }
 
 /**
  * Response shape for PROCESS_CLIMBS and ANALYZE_GPX messages. Exactly one arm:
  * detection that threw has no result, and an empty result must never stand in
  * for one — that substitution is what made a crash read as "No climbs
- * detected" (#60). The engine's own AnalysisResult carries no error field; a
+ * detected" (#60). The engine's own DetectionResult carries no error field; a
  * failure is an exception there, and this is where the extension names it.
  */
 export type ClimbsResponse =
@@ -124,13 +136,34 @@ export type RouteMode = "cycling" | "hiking" | "other";
 export type GpxInfo = { gpxContent: string; activeRouteClass: string; routeMode?: RouteMode };
 
 /**
- * An AnalysisResult as the *extension* stores it. The engine returns a
+ * A DetectionResult as the *extension* stores it. The engine returns a
  * clock-free, mode-free result (#68); `timestamp` and `routeMode` are this
  * side's own decoration, applied at the storage boundary by stampResult()
- * (storage.ts). Assignable to AnalysisResult, so anything that only reads
+ * (storage.ts). Assignable to DetectionResult, so anything that only reads
  * climbs and totals keeps the engine's type.
+ *
+ * What is stored is *measured*, with no difficulty and no category: the
+ * scoring model is applied at render (scoring-view.ts), so switching it costs
+ * no storage write (#77).
  */
-export interface StoredAnalysisResult extends AnalysisResult {
+export interface StoredAnalysisResult extends DetectionResult {
   timestamp: number;
   routeMode?: RouteMode;
+}
+
+/**
+ * A ScoredClimb the active model actually categorised.
+ *
+ * The engine returns every candidate with a possibly-null category, and the
+ * panel, the cards and the overlay show only the ones that cleared a threshold
+ * — the same set that used to arrive pre-filtered from detection. Narrowing the
+ * type once, at the filter, keeps every UI module reading non-null
+ * category/difficulty exactly as it did before.
+ */
+export type CategorizedClimb = ScoredClimb & { difficulty: number; category: ClimbCategory };
+
+/** A stored result as the UI renders it: scored under the active model, then
+ *  filtered to the climbs that cleared a threshold. */
+export interface ScoredAnalysisResult extends Omit<StoredAnalysisResult, "climbs"> {
+  climbs: CategorizedClimb[];
 }
