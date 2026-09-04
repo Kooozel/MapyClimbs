@@ -1,13 +1,12 @@
 /**
  * test/geo.test.js
  *
- * Unit tests for the one great-circle distance (`src/geo.ts`), which both GPX
- * readers accumulate the distance axis with.
+ * Unit tests for the one great-circle distance (`src/geo.ts`), which src/gpx.ts
+ * accumulates the distance axis with.
  *
- * The regression guard for the duplication this replaced lives in
- * test/garmin-gpx.test.js: it asserts the two readers produce *exactly* equal
- * tuples over eight fixtures. These tests pin the formula itself, so a wrong
- * edit here fails with a readable number rather than as a fixture mismatch.
+ * These pin the formula itself, so a wrong edit here fails with a readable
+ * number rather than as a fixture mismatch in test/gpx-integration.test.js,
+ * where every real route runs through the reader into detection.
  *
  * Run: npm test
  */

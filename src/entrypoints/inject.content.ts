@@ -4,7 +4,7 @@
  */
 
 import "../map-inject.css";
-import { parseGPX } from "../gpx-parser";
+import { parseGpx } from "../gpx";
 import { buildPanel, buildErrorPanel } from "../content/panel";
 import { renderMapOverlay, setOverlayVisible, flashPin } from "../content/map-overlay";
 import { tryInjectButton, runClimbAnalysis } from "../content/button-injector";
@@ -430,10 +430,12 @@ class RoutePlannerController {
   private async analyzeGPX(gpxContent: string, activeRouteClass: string): Promise<void> {
     let elevationProfile: ElevationTuple[];
     try {
-      elevationProfile = parseGPX(gpxContent);
+      elevationProfile = parseGpx(gpxContent).tuples;
     } catch (error) {
       // A malformed export used to leave isAnalyzing stuck true and nothing on
-      // screen — the same silent dead end as a detection crash (#60).
+      // screen — the same silent dead end as a detection crash (#60). The
+      // reader reports malformed XML and an empty track as one error (#77);
+      // the text only reaches the failure line's title, never the markup.
       this.recordAnalysisFailure(
         activeRouteClass,
         error instanceof Error ? error.message : String(error)

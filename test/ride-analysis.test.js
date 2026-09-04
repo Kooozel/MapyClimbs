@@ -22,7 +22,7 @@ import { fileURLToPath } from 'url';
 import { analyzeRide } from '../src/cli/analyze-ride.ts';
 import { DEFAULT_MOVING } from '../src/cli/ride-metrics.ts';
 import { detectClimbs } from '../src/climb-engine.ts';
-import { parseGarminGpx } from '../src/cli/garmin-gpx.ts';
+import { parseGpx } from '../src/gpx.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const RIDE = readFileSync(resolve(__dirname, 'fixtures', 'ride-synthetic.gpx'), 'utf-8');
@@ -125,7 +125,7 @@ describe('analyzeRide — detection', () => {
   });
 
   it('agrees with detectClimbs run directly on route totals', () => {
-    const direct = detectClimbs(parseGarminGpx(RIDE).tuples, 'aso');
+    const direct = detectClimbs(parseGpx(RIDE).tuples, 'aso');
 
     expect(result.route.total_distance_m).toBeCloseTo(direct.totalDistance, 0);
     expect(result.route.total_elevation_gain_m).toBeCloseTo(direct.totalElevationGain, 0);

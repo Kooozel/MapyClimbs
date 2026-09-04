@@ -1,13 +1,16 @@
-// @vitest-environment happy-dom
 /**
  * test/gpx-integration.test.js
  *
- * Integration tests: real GPX files → parseGPX → detectClimbs → assertions.
+ * Integration tests: real GPX files → parseGpx → detectClimbs → assertions.
+ *
+ * With the DOMParser-based reader gone (#77) this file also stands in for the
+ * parity suite that used to pin the two readers together: every real route
+ * fixture goes through src/gpx.ts into detection, so an unnoticed change to the
+ * distance axis shows up here as a fixture mismatch.
  *
  * SETUP:
- *   1. npm install -D happy-dom  (already done)
- *   2. Drop .gpx files into test/fixtures/
- *   3. Fill expected values into test/fixtures/expected.js
+ *   1. Drop .gpx files into test/fixtures/
+ *   2. Fill expected values into test/fixtures/expected.js
  *      (Discovery run: see DEBUG_OUTPUT below)
  *
  * Both debug helpers below print through console.log, and vitest's default
@@ -17,9 +20,6 @@
  *
  *   DEBUG_OUTPUT=1   npx vitest run --reporter=verbose test/gpx-integration.test.js
  *   DEBUG_PIPELINE=1 npx vitest run --reporter=verbose test/gpx-integration.test.js
- *
- * The @vitest-environment happy-dom annotation above provides DOMParser,
- * required by parseGPX, without affecting other test files.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -27,7 +27,7 @@ import { readFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
-import { parseGPX } from '../src/gpx-parser.ts';
+import { parseGpx } from '../src/gpx.ts';
 import { detectClimbs, recategorizeResult } from '../src/climb-engine.ts';
 import { fixtures } from './fixtures/expected.js';
 
@@ -144,7 +144,7 @@ if (fixtures.length === 0) {
     // Parse + detect once per fixture file
     try {
       const gpxContent = readFileSync(resolve(FIXTURES_DIR, file), 'utf-8');
-      const elevationProfile = parseGPX(gpxContent);
+      const elevationProfile = parseGpx(gpxContent).tuples;
       detectionResult = detectClimbs(elevationProfile, scoringModel ?? 'aso', {
         debug: makePipelineSink(file),
       });

@@ -5,11 +5,11 @@
  *   climb-engine.mjs  the detection engine as a library
  *   climb-cli.mjs     the executable CLI wrapping it
  *
- * The engine's whole transitive closure is local (climb-types.ts, scoring.ts,
- * climb-engine.config.ts, max-gradient.ts) with no DOM, chrome.*, or
- * third-party imports, so the bundle needs no shims and installs nothing. The
- * CLI additionally imports node: builtins, which are part of the runtime, not
- * dependencies.
+ * The engine's whole transitive closure is local — climb-types.ts, scoring.ts,
+ * climb-engine.config.ts, max-gradient.ts, plus gpx.ts and geo.ts behind the
+ * reader's own entry point — with no DOM, chrome.*, or third-party imports, so
+ * the bundle needs no shims and installs nothing. The CLI additionally imports
+ * node: builtins, which are part of the runtime, not dependencies.
  *
  * That closure is asserted here rather than assumed — see ENGINE_CLOSURE below.
  *
@@ -46,6 +46,8 @@ const ENGINE_CLOSURE = new Set([
   "src/climb-engine.ts",
   "src/climb-engine.config.ts",
   "src/climb-types.ts",
+  "src/geo.ts",
+  "src/gpx.ts",
   "src/max-gradient.ts",
   "src/scoring.ts",
 ]);
@@ -59,7 +61,20 @@ const engine = await build({
   metafile: true,
 });
 
-const strays = Object.keys(engine.metafile.inputs).filter((file) => !ENGINE_CLOSURE.has(file));
+// The GPX reader ships as its own entry point (#77) and the engine never imports
+// it, so the check above walks right past it. Built for the metafile alone —
+// `write: false` — since the CLI bundle already inlines the reader and the
+// extension imports it from source.
+const gpx = await build({
+  ...shared,
+  entryPoints: ["src/gpx.ts"],
+  write: false,
+  metafile: true,
+});
+
+const strays = [
+  ...new Set([...Object.keys(engine.metafile.inputs), ...Object.keys(gpx.metafile.inputs)]),
+].filter((file) => !ENGINE_CLOSURE.has(file));
 if (strays.length > 0) {
   console.error(
     `The climb engine reached outside its closure (#68):\n` +

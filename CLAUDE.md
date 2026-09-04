@@ -77,9 +77,10 @@ steepest colour band drawn above it.
 
 ### The engine's library boundary
 
-The climb engine is being extracted into its own repo and published (#68), so five files are
+The climb engine is being extracted into its own repo and published (#68), so seven files are
 treated as a closed set: `climb-engine.ts`, `climb-engine.config.ts`, `climb-types.ts`,
-`max-gradient.ts` and `scoring.ts`. Three rules follow, and two checks enforce them.
+`max-gradient.ts`, `scoring.ts`, and — behind the reader's own entry point — `gpx.ts` and
+`geo.ts`. Three rules follow, and two checks enforce them.
 
 - **Its domain types live in `src/climb-types.ts`, not `src/types.ts`.** `types.ts` is
   extension-only now — `StorageKey`, the `chrome.runtime` message union, `RouteMode`,
@@ -96,10 +97,12 @@ treated as a closed set: `climb-engine.ts`, `climb-engine.config.ts`, `climb-typ
   an `_` prefix and exists for tests, which is the marker that it carries no semver promise.
 
 `npm run typecheck` compiles the closure a second time through `tsconfig.engine.json` with no DOM
-lib and no ambient types, so a stray `document.` or `chrome.` fails there. `npm run build:cli`
-asserts the module graph esbuild actually walks stays inside `ENGINE_CLOSURE`, so a value import
-reaching back into the extension fails there. A file joining the engine must be added to both
-lists. Neither check catches a *type-only* import of an extension type — that one is on review.
+lib and no ambient types, so a stray `document.` or `chrome.` fails there — and that is the check
+standing behind the claim that one `gpx.ts` runs in a browser as well as in Node.
+`npm run build:cli` asserts the module graph esbuild actually walks stays inside `ENGINE_CLOSURE`;
+it walks **two** entry points, since `climb-engine.ts` never imports the reader and would leave it
+checked by nothing. A file joining the engine must be added to both lists. Neither check catches a
+*type-only* import of an extension type — that one is on review.
 
 ### Hiking mode
 
@@ -229,10 +232,13 @@ UI strings use `__MSG_*__` manifest keys. Locale files: `public/_locales/en/mess
 separate from `dist/` so `wxt build` never touches it, and CI builds it in its own step
 so a broken CLI bundle cannot block an extension release.
 
-- `cli/garmin-gpx.ts` — Node-side GPX reader. It exists *alongside* `src/gpx-parser.ts`
-  (which needs `DOMParser` and discards `<time>` / heart rate) because ride analysis needs
-  both. Both call the one haversine in `src/geo.ts`, so they agree on the distance axis by
-  construction; `test/garmin-gpx.test.js` still pins them together over a shared fixture.
+- `src/gpx.ts` — the GPX reader, shared with the extension rather than owned by the CLI.
+  It scans the XML itself (no `DOMParser`, no Node API) and keeps `<time>` and heart rate,
+  which ride analysis needs and the extension ignores. It replaced a second, DOM-based
+  reader in #77; the parity suite that had pinned the two together is gone with it, and
+  `test/gpx-integration.test.js` — every real route fixture through this reader into
+  detection — is the regression net. One consequence to know: malformed XML and a
+  well-formed empty track now raise the same error, which the panel never renders anyway.
 - `cli/ride-metrics.ts` — pure moving-time and HR-zone aggregation. VAM must be computed
   on moving time, not elapsed.
 - `cli/analyze-ride.ts` — the output contract: every `climbs[]` key maps 1:1 onto a column
@@ -248,8 +254,8 @@ When absent, `pct_z4z5` is null but HR avg/max are still emitted.
 
 Tests are plain JS in `test/` using Vitest + happy-dom. Covered modules: `climb-engine.ts`,
 `chart.ts` / `gradient-zones.ts`, `chart-selection.ts`, `map-geometry.ts`, `max-gradient.ts`,
-`gpx-parser.ts`, `geo.ts`, `storage.ts`, `gpx-integration` (full GPX fixture round-trip
-including hiking), plus the CLI layer: `garmin-gpx`, `ride-metrics`, `ride-analysis`.
+`gpx.ts`, `geo.ts`, `storage.ts`, `gpx-integration` (full GPX fixture round-trip
+including hiking), plus the CLI layer: `ride-metrics`, `ride-analysis`.
 
 Fixtures in `test/fixtures/` are real Mapy.cz route exports, except
 `ride-synthetic.gpx` — a generated ride-shaped track (1 Hz noise, stops, recording gaps,
