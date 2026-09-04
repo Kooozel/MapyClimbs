@@ -2,12 +2,12 @@
  * content/panel.ts — Sidebar climb analysis panel logic and event wiring.
  * Depends on: climb-card.ts, route-overview.ts, panel-template.ts
  *
- * Exports: buildPanel
+ * Exports: buildPanel, buildErrorPanel
  */
 
 import { buildClimbCard } from "./climb-card";
 import { buildRouteOverview } from "./route-overview";
-import { renderEmptyPanel, renderPanelShell } from "./panel-template";
+import { renderEmptyPanel, renderErrorPanel, renderPanelShell } from "./panel-template";
 import { StorageKey, type StoredAnalysisResult } from "../types";
 import { ElementId, CssClass } from "../constants";
 import { showClimbRoute, hideClimbRoute } from "./route-highlight";
@@ -107,6 +107,9 @@ export function buildPanel(analysisResult: StoredAnalysisResult | null): HTMLEle
   const panel = document.createElement("div");
   panel.id = ElementId.Panel;
 
+  // The !analysisResult half is a defensive default with no live caller: every
+  // call site sets the controller's result first and tryInjectPanel is gated on
+  // it. Kept so neither site needs a non-null assertion (#60).
   if (!analysisResult || !analysisResult.climbs || analysisResult.climbs.length === 0) {
     panel.innerHTML = renderEmptyPanel(chrome.runtime.getURL("images/icon-48.png"));
     return panel;
@@ -118,6 +121,26 @@ export function buildPanel(analysisResult: StoredAnalysisResult | null): HTMLEle
   wireCollapseToggle(panel);
   wireLayerToggle(panel);
   wireCardClickHandlers(panel, analysisResult);
+
+  return panel;
+}
+
+/**
+ * The panel for an analysis that threw. `message` is the exception's own text:
+ * it goes into the failure line's `title` and to console.error, never into the
+ * rendered markup — see renderErrorPanel.
+ */
+export function buildErrorPanel(message: string, onRetry: () => void): HTMLElement {
+  const panel = document.createElement("div");
+  panel.id = ElementId.Panel;
+  panel.innerHTML = renderErrorPanel(chrome.runtime.getURL("images/icon-48.png"));
+
+  // Property assignment, not interpolation: an exception string is arbitrary
+  // text and must never be parsed as markup on its way into the sidebar.
+  panel.querySelector<HTMLElement>(".cip-error")!.title = message;
+  console.error("[MapyClimbs] Climb analysis failed:", message);
+
+  panel.querySelector<HTMLButtonElement>(".cip-retry")!.addEventListener("click", onRetry);
 
   return panel;
 }

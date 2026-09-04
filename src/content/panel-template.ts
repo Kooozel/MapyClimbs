@@ -1,7 +1,7 @@
 /**
  * content/panel-template.ts — HTML template strings for the sidebar panel.
  *
- * Exports: renderEmptyPanel, renderPanelShell
+ * Exports: renderEmptyPanel, renderErrorPanel, renderPanelShell
  */
 
 export function renderEmptyPanel(iconUrl: string): string {
@@ -13,6 +13,25 @@ export function renderEmptyPanel(iconUrl: string): string {
       </div>
     </div>
     <p class="cip-empty">${chrome.i18n.getMessage("panelNoClimbs")}</p>`;
+}
+
+/**
+ * The failure state. Deliberately says only that the analysis failed: the
+ * underlying message is an exception string, which is developer text, so it
+ * rides along as the line's `title` (set by buildErrorPanel) and in
+ * console.error rather than in the sidebar. Enough to put in a bug report,
+ * not enough to alarm someone planning a ride.
+ */
+export function renderErrorPanel(iconUrl: string): string {
+  return `
+    <div class="cip-header">
+      <div class="cip-header-bar">
+        <img src="${iconUrl}" width="16" height="16" alt="" aria-hidden="true">
+        <span>${chrome.i18n.getMessage("panelTitle")}</span>
+      </div>
+    </div>
+    <p class="cip-error">${chrome.i18n.getMessage("panelErrorTitle")}</p>
+    <button type="button" class="cip-retry">${chrome.i18n.getMessage("panelRetry")}</button>`;
 }
 
 export function renderPanelShell(iconUrl: string, inner: string): string {

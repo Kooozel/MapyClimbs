@@ -182,6 +182,14 @@
     "message": "Na této trase nebylo zjištěno žádné stoupání.",
     "description": "Message shown when no climbs are found"
   },
+  "panelErrorTitle": {
+    "message": "Analýza selhala",
+    "description": "Message shown in the sidebar panel when climb detection threw an error"
+  },
+  "panelRetry": {
+    "message": "Zkusit znovu",
+    "description": "Button in the sidebar panel that re-runs a failed climb analysis"
+  },
   "panelAnalyzing": {
     "message": "Analyzuji trasu…",
     "description": "Loading message shown in sidebar panel while GPX is being processed"

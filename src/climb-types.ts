@@ -108,7 +108,6 @@ export interface AnalysisResult {
   totalDistance: number;
   totalElevationGain: number;
   totalElevationLoss: number;
-  error?: string;
 }
 
 /**

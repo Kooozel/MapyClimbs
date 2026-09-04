@@ -99,12 +99,16 @@ export interface CategorizationUpdatedMessage {
   type: "CATEGORIZATION_UPDATED";
 }
 
-/** Response shape for PROCESS_CLIMBS and ANALYZE_GPX messages. */
-export interface ClimbsResponse {
-  result: StoredAnalysisResult;
-  activeRouteClass: string;
-  error?: string;
-}
+/**
+ * Response shape for PROCESS_CLIMBS and ANALYZE_GPX messages. Exactly one arm:
+ * detection that threw has no result, and an empty result must never stand in
+ * for one — that substitution is what made a crash read as "No climbs
+ * detected" (#60). The engine's own AnalysisResult carries no error field; a
+ * failure is an exception there, and this is where the extension names it.
+ */
+export type ClimbsResponse =
+  | { result: StoredAnalysisResult; activeRouteClass: string; error?: undefined }
+  | { result?: undefined; activeRouteClass: string; error: string };
 
 /** Response shape for GPX_CAPTURED messages. */
 export interface GpxStoredResponse {

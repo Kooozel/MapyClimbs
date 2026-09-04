@@ -182,6 +182,14 @@
     "message": "No climbs detected on this route.",
     "description": "Message shown when no climbs are found"
   },
+  "panelErrorTitle": {
+    "message": "Analysis failed",
+    "description": "Message shown in the sidebar panel when climb detection threw an error"
+  },
+  "panelRetry": {
+    "message": "Try again",
+    "description": "Button in the sidebar panel that re-runs a failed climb analysis"
+  },
   "panelAnalyzing": {
     "message": "Analyzing route…",
     "description": "Loading message shown in sidebar panel while GPX is being processed"

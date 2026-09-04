@@ -5,9 +5,9 @@
 
 import "../map-inject.css";
 import { parseGPX } from "../gpx-parser";
-import { buildPanel } from "../content/panel";
+import { buildPanel, buildErrorPanel } from "../content/panel";
 import { renderMapOverlay, setOverlayVisible, flashPin } from "../content/map-overlay";
-import { tryInjectButton } from "../content/button-injector";
+import { tryInjectButton, runClimbAnalysis } from "../content/button-injector";
 import type { ElevationTuple } from "../climb-types";
 import {
   type ProcessClimbsMessage,
@@ -64,6 +64,15 @@ export default defineContentScript({
  */
 class RoutePlannerController {
   private analysisResult: StoredAnalysisResult | null = null;
+  /**
+   * Failed analyses, keyed by route class exactly as
+   * `lastAnalysisResult:<tabId>:<routeClass>` is. Per-route because the
+   * automation analyses every alternative and only one is on screen, and
+   * because clearUI() runs between the failure and the panel that reports it
+   * (#60). In-memory only: a reload with no stored result shows no panel
+   * either way, so there is nothing to restore.
+   */
+  private analysisErrors = new Map<string, string>();
   private popupOpen = false;
   private lastGPXLength = 0;
   private lastURL = "";
@@ -216,13 +225,19 @@ class RoutePlannerController {
     );
   }
 
+  /** The route class currently on screen, as storage and analysisErrors key it. */
+  private activeRouteClass(): string {
+    return (
+      this.lastActiveRoute ??
+      routeClassOrDefault(document.querySelector(".route-summary h3.active"))
+    );
+  }
+
   private async fetchTabState(
     callback: (response: TabStateResponse | undefined) => void
   ): Promise<void> {
     const tabId = await getTabId();
-    const activeRouteClass =
-      this.lastActiveRoute ??
-      routeClassOrDefault(document.querySelector(".route-summary h3.active"));
+    const activeRouteClass = this.activeRouteClass();
 
     const message: GetTabStateMessage = { type: "GET_TAB_STATE", activeRouteClass, tabId };
     chrome.runtime.sendMessage(message, callback);
@@ -284,6 +299,12 @@ class RoutePlannerController {
         this.analysisResult = cached;
         this.renderPanel();
         renderMapOverlay(cached);
+      } else if (this.analysisErrors.has(routeClass)) {
+        // clearUI() has just removed the panel and this route cached nothing,
+        // so without this the failure leaves an empty sidebar (#60). This is
+        // the path the automation itself takes on its way back to the
+        // originally-active route.
+        this.tryInjectPanel();
       }
     });
   }
@@ -367,6 +388,9 @@ class RoutePlannerController {
         this.isResultValid(lastAnalysisResult) &&
         (!this.analysisResult || this.isAnalyzing)
       ) {
+        // The stored result was fetched for the route on screen, which is not
+        // necessarily the one pendingGPX was exported for.
+        this.analysisErrors.delete(this.activeRouteClass());
         this.analysisResult = lastAnalysisResult;
         this.renderPanel();
         if (!this.isAutomating) renderMapOverlay(this.analysisResult);
@@ -381,7 +405,10 @@ class RoutePlannerController {
     return !!(result && Array.isArray(result.climbs) && result.climbs.length > 0);
   }
 
-  /** Helper to wipe visual elements */
+  /** Helper to wipe visual elements. Deliberately leaves analysisErrors alone:
+   *  the automation restores the original route once it finishes, and the
+   *  resulting route change calls this — clearing the map here would wipe the
+   *  failure before it was ever shown (#60). */
   private clearUI(): void {
     this.isAutomating = false;
     this.hideFullscreenLoader();
@@ -397,7 +424,13 @@ class RoutePlannerController {
     let elevationProfile: ElevationTuple[];
     try {
       elevationProfile = parseGPX(gpxContent);
-    } catch {
+    } catch (error) {
+      // A malformed export used to leave isAnalyzing stuck true and nothing on
+      // screen — the same silent dead end as a detection crash (#60).
+      this.recordAnalysisFailure(
+        activeRouteClass,
+        error instanceof Error ? error.message : String(error)
+      );
       return;
     }
     const tabId = await getTabId();
@@ -411,14 +444,50 @@ class RoutePlannerController {
 
     chrome.runtime.sendMessage(message, (response: ClimbsResponse | undefined) => {
       this.isAnalyzing = false;
-      if (chrome.runtime.lastError || !response?.result) {
-        if (!this.isAutomating) this.hideFullscreenLoader();
+      // A dead service worker, a detection crash and a missing result are the
+      // same dead end from the user's side, so all three land in one place.
+      if (chrome.runtime.lastError || response?.error || !response?.result) {
+        this.recordAnalysisFailure(
+          activeRouteClass,
+          chrome.runtime.lastError?.message ??
+            response?.error ??
+            "The analysis worker returned no result."
+        );
         return;
       }
+      this.analysisErrors.delete(activeRouteClass);
       this.analysisResult = response.result;
       this.renderPanel();
       if (!this.isAutomating) renderMapOverlay(this.analysisResult);
     });
+  }
+
+  /**
+   * Remember that this route's analysis failed and put the error panel on
+   * screen. Keyed by the route the analysis was *for*, not the one showing:
+   * during the automation they differ. `analysisResult` is left alone so a
+   * later alternative's failure cannot erase an earlier one's good result.
+   */
+  private recordAnalysisFailure(routeClass: string, message: string): void {
+    this.analysisErrors.set(routeClass, message);
+    this.isAnalyzing = false;
+    if (!this.isAutomating) this.hideFullscreenLoader();
+    this.tryInjectPanel();
+  }
+
+  /**
+   * Re-run the analysis from the panel. This goes through the same export
+   * automation as the toolbar button rather than re-analysing the cached GPX:
+   * pendingGPX is one key per tab holding the *last* alternative exported, so
+   * reusing it after a multi-route run would analyse one route's GPX and store
+   * it under another's key.
+   */
+  private retryAnalysis(): void {
+    this.analysisErrors.delete(this.activeRouteClass());
+    void runClimbAnalysis(
+      (routeClass) => this.handleClimbStart(routeClass),
+      () => this.handleAutomationDone()
+    );
   }
 
   private handleClimbStart(routeClass: string): void {
@@ -459,6 +528,18 @@ class RoutePlannerController {
 
   // ── Panel ─────────────────────────────────────────────────────────────────────
 
+  /**
+   * The panel for whatever this route is in: a failure outranks a result, so a
+   * crash can never be read as a flat route (#60). Keyed by route class because
+   * the automation analyses every alternative and only one is on screen.
+   */
+  private currentPanel(): HTMLElement {
+    const error = this.analysisErrors.get(this.activeRouteClass());
+    return error
+      ? buildErrorPanel(error, () => this.retryAnalysis())
+      : buildPanel(this.analysisResult);
+  }
+
   private renderPanel(): void {
     if (!this.isAutomating) {
       const hadLoader = !!document.getElementById(ElementId.Loader);
@@ -466,7 +547,7 @@ class RoutePlannerController {
       if (hadLoader && this.analysisResult) renderMapOverlay(this.analysisResult);
     }
     const existing = document.getElementById(ElementId.Panel);
-    if (existing) existing.replaceWith(buildPanel(this.analysisResult));
+    if (existing) existing.replaceWith(this.currentPanel());
   }
 
   private tryInjectPanel(): void {
@@ -477,13 +558,14 @@ class RoutePlannerController {
     const target =
       document.querySelector(".route-modules") ?? document.querySelector(".route-container");
     if (!target) return;
-    target.appendChild(buildPanel(this.analysisResult));
+    target.appendChild(this.currentPanel());
   }
 
   // ── State & cleanup ───────────────────────────────────────────────────────────
 
   private async clearRoutePlannerState(): Promise<void> {
     this.clearUI();
+    this.analysisErrors.clear();
     this.lastGPXLength = 0;
     document.getElementById(ElementId.Button)?.remove();
     const tabId = await getTabId();
@@ -536,6 +618,10 @@ class RoutePlannerController {
         (routeClass) => this.handleClimbStart(routeClass),
         () => this.handleAutomationDone()
       );
-    if (this.analysisResult && !document.getElementById(ElementId.Panel)) this.tryInjectPanel();
+    if (
+      (this.analysisResult || this.analysisErrors.has(this.activeRouteClass())) &&
+      !document.getElementById(ElementId.Panel)
+    )
+      this.tryInjectPanel();
   }
 }
