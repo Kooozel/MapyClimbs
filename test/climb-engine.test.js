@@ -11,6 +11,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   detectClimbs,
+  DEFAULT_CLIMB_CONFIG,
   _resamplePoints as resamplePoints,
   _interpolateProfile as interpolateProfile,
   _smoothElevationProfile as smoothElevationProfile,
@@ -752,5 +753,118 @@ describe('detectClimbs', () => {
 
     const result = detectClimbs(points).climbs;
     expect(result).toHaveLength(1);
+  });
+});
+
+// ─── Configurable thresholds ─────────────────────────────────────────────────
+
+/**
+ * Fixture 4 — a single sustained ramp just above the default start trigger.
+ * 500 m flat lead-in → 4 km at 4 % → 500 m flat tail.
+ *
+ * 4 % sits above CLIMB_START_GRADE_PCT's default of 3.75 and well below 6, so
+ * the same route is one climb or none depending purely on that one key.
+ */
+function makeGentleRampRoute() {
+  const points = [];
+  for (let i = 0; i <= 20; i++) {
+    points.push([i * 25, 300, 48.0 + i * 0.00022, 16.0]);
+  }
+  for (let i = 1; i <= 160; i++) {
+    points.push([500 + i * 25, 300 + i * 25 * 0.04, 48.0044 + i * 0.00022, 16.0]);
+  }
+  for (let i = 1; i <= 20; i++) {
+    points.push([4500 + i * 25, 460, 48.04 + i * 0.00022, 16.0]);
+  }
+  return points;
+}
+
+/**
+ * Fixture 5 — two 3 km ramps at 5 % separated by 2 km of flat.
+ * The gap is wider than the default effective merge gap, so they stay apart
+ * until MERGE_MAX_GAP_M is widened.
+ */
+function makeTwoRampRoute() {
+  const points = [];
+  for (let i = 0; i <= 150; i++) {
+    points.push([i * 20, 500 + i * 20 * 0.05, 48.0 + i * 0.00018, 16.0]);
+  }
+  for (let i = 1; i <= 100; i++) {
+    points.push([3000 + i * 20, 650, 48.027 + i * 0.00018, 16.0]);
+  }
+  for (let i = 1; i <= 150; i++) {
+    points.push([5000 + i * 20, 650 + i * 20 * 0.05, 48.045 + i * 0.00018, 16.0]);
+  }
+  return points;
+}
+
+/**
+ * Fixture 6 — a 5 % ramp sampled every 30 m with a ±15 m alternating spike.
+ * 30 m segments are longer than the default SPIKE_MAX_SEGMENT_M of 24, so the
+ * spike filter skips them; at 60 it would not. That gap is what makes the
+ * "is SPIKE_MAX_SEGMENT_M re-derived from RESAMPLE_MIN_INTERVAL_M?" question
+ * observable from outside.
+ */
+function makeSpikyRampRoute() {
+  const points = [];
+  for (let i = 0; i <= 200; i++) {
+    const d = i * 30;
+    points.push([d, 300 + d * 0.05 + (i % 2 === 1 ? 15 : 0), 48.0 + i * 0.0002, 16.0]);
+  }
+  return points;
+}
+
+describe('configurable thresholds', () => {
+  it('omitting config is identical to passing an empty one', () => {
+    // The whole change is meant to be additive (#76): a caller that passes
+    // nothing must get byte-identical output, or the extension and the CLI
+    // both moved without anyone asking them to.
+    const route = makeMultiClimbRoute();
+    expect(detectClimbs(route, { config: {} })).toEqual(detectClimbs(route));
+    expect(detectClimbs(route, {})).toEqual(detectClimbs(route));
+  });
+
+  it('CLIMB_START_GRADE_PCT decides whether a 4 % ramp opens a candidate', () => {
+    const route = makeGentleRampRoute();
+    expect(detectClimbs(route).climbs).toHaveLength(1);
+    expect(detectClimbs(route, { config: { CLIMB_START_GRADE_PCT: 6 } }).climbs).toHaveLength(0);
+  });
+
+  it('MERGE_MAX_GAP_M collapses two candidates into one', () => {
+    // A second, independent key on a different branch of the pipeline: threading
+    // that is accidentally correct for identification only would pass the test
+    // above and fail this one.
+    const route = makeTwoRampRoute();
+    expect(detectClimbs(route).climbs).toHaveLength(2);
+    expect(detectClimbs(route, { config: { MERGE_MAX_GAP_M: 6000 } }).climbs).toHaveLength(1);
+  });
+
+  it('does not mutate DEFAULT_CLIMB_CONFIG', () => {
+    // An in-place merge would leak one caller's tuning into every later call in
+    // the same process — invisible in every other test here, and the nastiest
+    // bug this change can introduce.
+    const before = DEFAULT_CLIMB_CONFIG.CLIMB_START_GRADE_PCT;
+    detectClimbs(makeGentleRampRoute(), { config: { CLIMB_START_GRADE_PCT: 6 } });
+    expect(DEFAULT_CLIMB_CONFIG.CLIMB_START_GRADE_PCT).toBe(before);
+    expect(detectClimbs(makeGentleRampRoute()).climbs).toHaveLength(1);
+  });
+
+  it('does not re-derive SPIKE_MAX_SEGMENT_M from RESAMPLE_MIN_INTERVAL_M', () => {
+    // The merged config is flat: the × 2 derivation produced the default and
+    // stops there. Re-deriving it would make one key's value depend on which
+    // *other* keys the caller happened to pass.
+    expect(DEFAULT_CLIMB_CONFIG.SPIKE_MAX_SEGMENT_M).toBe(24);
+
+    const route = makeSpikyRampRoute();
+    const widened = detectClimbs(route, { config: { RESAMPLE_MIN_INTERVAL_M: 30 } });
+    const pinnedAt24 = detectClimbs(route, {
+      config: { RESAMPLE_MIN_INTERVAL_M: 30, SPIKE_MAX_SEGMENT_M: 24 },
+    });
+    const reDerived = detectClimbs(route, {
+      config: { RESAMPLE_MIN_INTERVAL_M: 30, SPIKE_MAX_SEGMENT_M: 60 },
+    });
+
+    expect(widened).toEqual(pinnedAt24);
+    expect(widened).not.toEqual(reDerived);
   });
 });

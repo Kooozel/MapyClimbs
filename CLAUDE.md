@@ -66,7 +66,7 @@ Because content scripts cannot access page JS directly, `interceptor.content.ts`
 
 ### Tuning climb detection
 
-All numeric pipeline constants (resample interval, interpolation gap, smoothing window, spike thresholds, merge gaps, trim thresholds) live in `src/climb-engine.config.ts`. The climb-detection logic itself is in `src/climb-engine.ts` (pure module, no Chrome APIs). Scoring models (`ASO`, `GARMIN`, `HIKING`) and category thresholds are in `src/scoring.ts` — a view over a detection result, not a pipeline step; `src/scoring-view.ts` is where the extension applies one and filters. Gradient zone colours and the full profile → zone pipeline live in `src/gradient-zones.ts`.
+All numeric pipeline constants (resample interval, interpolation gap, smoothing window, spike thresholds, merge gaps, trim thresholds, summit-snap lookahead) live in `src/climb-engine.config.ts` as one exported object, `DEFAULT_CLIMB_CONFIG`. Editing it changes the built-in behaviour; a consumer that must not fork the file overrides any subset at the call site instead — `detectClimbs(data, { config: { CLIMB_START_GRADE_PCT: 4 } })` — which is shallow-merged over the defaults once, at the top of `detectClimbs`, and threaded through the pipeline as `cfg` (#76). Two keys, `SPIKE_MAX_SEGMENT_M` and `TRIM_START_GRADE_PCT`, are *computed* from another key to produce their default and are then plain keys: overriding what they derive from does not move them, so set both. Nothing is validated — a wrong number produces wrong climbs, which is the consumer's business. The climb-detection logic itself is in `src/climb-engine.ts` (pure module, no Chrome APIs). Scoring models (`ASO`, `GARMIN`, `HIKING`) and category thresholds are in `src/scoring.ts` — a view over a detection result, not a pipeline step; `src/scoring-view.ts` is where the extension applies one and filters. Gradient zone colours and the full profile → zone pipeline live in `src/gradient-zones.ts`.
 
 Two different figures are called a "max gradient", and both come from the single scan in
 `src/max-gradient.ts` so they cannot drift apart again: `MeasuredClimb.maxSustainedGradient`
@@ -101,7 +101,9 @@ treated as a closed set: `climb-engine.ts`, `climb-engine.config.ts`, `climb-typ
   `detectClimbs` and `emptyDetectionResult` (`climb-engine.ts`); `score` plus `ASO` / `GARMIN` /
   `HIKING` and the `ScoringConfig` type (`scoring.ts`); `parseGpx` (`gpx.ts`);
   `maxGradientOverWindow` and `GradientPoint` (`max-gradient.ts`, for `gradient-zones.ts`, which
-  stays in the extension and so calls it from outside once the engine moves). Everything else
+  stays in the extension and so calls it from outside once the engine moves); and
+  `DEFAULT_CLIMB_CONFIG` plus the `ClimbConfig` type (`climb-engine.config.ts`, re-exported from
+  `climb-engine.ts` because the entry point *is* the surface). Everything else
   carries an `_` prefix and exists for tests, which is the marker that it carries no semver
   promise. `computeMaxSustainedGradient` left the surface in #77: every climb carries
   `maxSustainedGradient` as a field, so the CLI reads it instead of calling a function.

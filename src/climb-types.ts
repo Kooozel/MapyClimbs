@@ -6,7 +6,14 @@
  * global augmentation. Two checks keep that true: tsconfig.engine.json compiles
  * the closure with no DOM lib and no ambient types, and scripts/build-cli.mjs
  * asserts the module graph esbuild walks stays inside it.
+ *
+ * One exception to "vocabulary only": DetectClimbsOptions imports ClimbConfig
+ * from climb-engine.config.ts, so the tuning keys keep a single home and a
+ * single set of doc comments. That file imports nothing, and both are inside
+ * the engine closure, so there is no cycle and no boundary crossed.
  */
+
+import type { ClimbConfig } from "./climb-engine.config";
 
 /**
  * Climb difficulty category — enum-like const so callers can reference values
@@ -223,4 +230,8 @@ export type ClimbDebugSink = (event: ClimbDebugEvent) => void;
 export interface DetectClimbsOptions {
   /** Optional structured trace sink. Production callers omit this. */
   debug?: ClimbDebugSink;
+  /** Pipeline thresholds to override. Shallow-merged over DEFAULT_CLIMB_CONFIG,
+   *  which is complete — so a partial here is exactly the keys you want moved.
+   *  Omitting it is identical to passing {}. */
+  config?: Partial<ClimbConfig>;
 }
