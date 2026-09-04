@@ -74,7 +74,13 @@ class RoutePlannerController {
    */
   private analysisErrors = new Map<string, string>();
   private popupOpen = false;
-  private lastGPXLength = 0;
+  /**
+   * Capture time of the last GPX handed to analyzeGPX. Deduplicated by *when*
+   * the export happened, not by its content length: retry re-exports the route
+   * that just failed, so a byte-identical GPX still has to count as a new
+   * capture or the analysis never re-runs and the loader never comes down (#60).
+   */
+  private lastGpxCaptureTime = 0;
   private lastURL = "";
   private lastRoutePlannerVisible = false;
   private lastActiveRoute: string | undefined = undefined;
@@ -364,16 +370,17 @@ class RoutePlannerController {
       if (!data) return;
 
       const { gpxContent, activeRouteClass } = data.pendingGPX || {};
+      const captureTime = data.captureTime ?? 0;
       const lastAnalysisResult = data.lastAnalysisResult;
 
       // SCENARIO A: A new GPX file was intercepted but not yet processed
       if (
         this.isAnalyzing &&
         gpxContent &&
-        gpxContent.length !== this.lastGPXLength &&
+        captureTime > this.lastGpxCaptureTime &&
         activeRouteClass
       ) {
-        this.lastGPXLength = gpxContent.length;
+        this.lastGpxCaptureTime = captureTime;
         this.analyzeGPX(gpxContent, activeRouteClass);
         return;
       }
@@ -566,7 +573,7 @@ class RoutePlannerController {
   private async clearRoutePlannerState(): Promise<void> {
     this.clearUI();
     this.analysisErrors.clear();
-    this.lastGPXLength = 0;
+    this.lastGpxCaptureTime = 0;
     document.getElementById(ElementId.Button)?.remove();
     const tabId = await getTabId();
     const message: ClearTabStateMessage = { type: "CLEAR_TAB_STATE", tabId };
