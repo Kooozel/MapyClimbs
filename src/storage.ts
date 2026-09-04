@@ -1,5 +1,5 @@
 import { GpxInfo, RouteMode, StorageKey, StoredAnalysisResult, TabStateResponse } from "./types";
-import type { AnalysisResult } from "./climb-types";
+import type { DetectionResult } from "./climb-types";
 
 interface TabStorageKeys {
   pendingGPX: string;
@@ -71,10 +71,10 @@ export function getTabState(
  * Decorate an engine result with the two fields the extension owns. The engine
  * is deterministic and clock-free (#68), so the stamp belongs at the storage
  * boundary — here. One factory so both the success and the error path of
- * runDetection produce the same shape, mirroring emptyAnalysisResult() on the
+ * runDetection produce the same shape, mirroring emptyDetectionResult() on the
  * engine side.
  */
-export function stampResult(result: AnalysisResult, routeMode?: RouteMode): StoredAnalysisResult {
+export function stampResult(result: DetectionResult, routeMode?: RouteMode): StoredAnalysisResult {
   return { ...result, timestamp: Date.now(), ...(routeMode ? { routeMode } : {}) };
 }
 

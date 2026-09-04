@@ -31,6 +31,9 @@ Options:
   --min-speed <m/s>            Moving-time speed floor  (default: ${DEFAULT_MOVING.minSpeedMps})
   --max-gap <s>                Sample gaps at or above this are not moving time
                                (default: ${DEFAULT_MOVING.maxGapSec})
+  --include-uncategorized      Emit every candidate, including the ones this
+                               model gave no category. Their category and
+                               difficulty are null.
   --debug                      Write the climb-detection pipeline trace to
                                stderr as NDJSON (one JSON event per line)
   --pretty                     Indent the JSON
@@ -47,6 +50,7 @@ function main(argv: string[]): number {
       zones: { type: "string" },
       "min-speed": { type: "string" },
       "max-gap": { type: "string" },
+      "include-uncategorized": { type: "boolean", default: false },
       debug: { type: "boolean", default: false },
       pretty: { type: "boolean", default: false },
       help: { type: "boolean", short: "h", default: false },
@@ -75,6 +79,7 @@ function main(argv: string[]): number {
   const analysis = analyzeRide(readFileSync(file, "utf-8"), {
     source: basename(file),
     model,
+    includeUncategorized: values["include-uncategorized"],
     zones: values.zones === undefined ? null : parseZones(values.zones),
     moving: {
       minSpeedMps: positiveNumber(values["min-speed"], DEFAULT_MOVING.minSpeedMps, "--min-speed"),

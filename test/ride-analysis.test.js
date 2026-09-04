@@ -35,6 +35,7 @@ const analyze = (overrides = {}) =>
   analyzeRide(RIDE, {
     source: 'ride-synthetic.gpx',
     model: 'aso',
+    includeUncategorized: false,
     zones: ZONES,
     moving: DEFAULT_MOVING,
     ...overrides,
@@ -125,7 +126,7 @@ describe('analyzeRide — detection', () => {
   });
 
   it('agrees with detectClimbs run directly on route totals', () => {
-    const direct = detectClimbs(parseGpx(RIDE).tuples, 'aso');
+    const direct = detectClimbs(parseGpx(RIDE).tuples);
 
     expect(result.route.total_distance_m).toBeCloseTo(direct.totalDistance, 0);
     expect(result.route.total_elevation_gain_m).toBeCloseTo(direct.totalElevationGain, 0);
@@ -242,7 +243,7 @@ describe('analyzeRide — route totals', () => {
   });
 });
 
-/** The seven ClimbDebugEvent discriminants declared in src/types.ts. */
+/** The seven ClimbDebugEvent discriminants declared in src/climb-types.ts. */
 const DEBUG_STAGES = [
   'pipeline',
   'identify-candidate',
@@ -250,7 +251,9 @@ const DEBUG_STAGES = [
   'identify-reject',
   'merge-pair',
   'trim',
-  'categorize',
+  // Was 'categorize', with a difficulty and a category on it. Scoring left the
+  // pipeline in #77, so the last decision point emits the measurement alone.
+  'measure',
 ];
 
 describe('analyzeRide — debug sink', () => {
@@ -331,6 +334,7 @@ describe('analyzeRide — degenerate input', () => {
     const result = analyzeRide(minimal, {
       source: 'minimal.gpx',
       model: 'aso',
+      includeUncategorized: false,
       zones: ZONES,
       moving: DEFAULT_MOVING,
     });
@@ -348,6 +352,7 @@ describe('analyzeRide — degenerate input', () => {
       analyzeRide('<gpx></gpx>', {
         source: 'empty.gpx',
         model: 'aso',
+        includeUncategorized: false,
         zones: null,
         moving: DEFAULT_MOVING,
       })

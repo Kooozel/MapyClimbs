@@ -60,18 +60,18 @@ Because content scripts cannot access page JS directly, `interceptor.content.ts`
 
 2. **Alternative routes**: `button-injector.ts` iterates every `h3.alt-*` heading in the route-summary panel, clicks each one, waits for a fresh GPX export, and stores results per `lastAnalysisResult:<tabId>:<routeClass>`. A fullscreen loader is shown during this automation. Switching between alternatives instantly loads the cached result from storage.
 
-3. **Climb detection**: `inject.content.ts` (`RoutePlannerController`) sends `PROCESS_CLIMBS` to background → `background.ts` runs `detectClimbs()` from `climb-engine.ts` (5-step pipeline) → returns `AnalysisResult` (climbs + route-level stats). The active route mode is stored with the GPX and forwarded so the correct scoring model is selected automatically.
+3. **Climb detection**: `inject.content.ts` (`RoutePlannerController`) sends `PROCESS_CLIMBS` to background → `background.ts` runs `detectClimbs()` from `climb-engine.ts` (5-step pipeline) → returns `DetectionResult` (every measured candidate + route-level stats). The active route mode is stored with the GPX and forwarded, so `scoring-view.ts` can force a hiking route to the hiking model when it scores the result for display.
 
 4. **Display**: `RoutePlannerController` calls `buildPanel()` (`content/panel.ts`) and `renderMapOverlay()` (`content/map-overlay.ts`). The SVG overlay re-projects colour-coded polylines on every pan/zoom with a 350 ms debounce.
 
 ### Tuning climb detection
 
-All numeric pipeline constants (resample interval, interpolation gap, smoothing window, spike thresholds, merge gaps, trim thresholds) live in `src/climb-engine.config.ts`. The climb-detection logic itself is in `src/climb-engine.ts` (pure module, no Chrome APIs). Scoring models (ASO, Garmin, hiking) and category thresholds are in `src/scoring.ts`. Gradient zone colours and the full profile → zone pipeline live in `src/gradient-zones.ts`.
+All numeric pipeline constants (resample interval, interpolation gap, smoothing window, spike thresholds, merge gaps, trim thresholds) live in `src/climb-engine.config.ts`. The climb-detection logic itself is in `src/climb-engine.ts` (pure module, no Chrome APIs). Scoring models (`ASO`, `GARMIN`, `HIKING`) and category thresholds are in `src/scoring.ts` — a view over a detection result, not a pipeline step; `src/scoring-view.ts` is where the extension applies one and filters. Gradient zone colours and the full profile → zone pipeline live in `src/gradient-zones.ts`.
 
 Two different figures are called a "max gradient", and both come from the single scan in
-`src/max-gradient.ts` so they cannot drift apart again: `computeMaxSustainedGradient`
-(`climb-engine.ts`) reads the dense smoothed segments over a 200 m window and feeds the hiking
-score and the CLI's `max_grade` column, while `maxPitchGradient` (`gradient-zones.ts`) reads the
+`src/max-gradient.ts` so they cannot drift apart again: `MeasuredClimb.maxSustainedGradient`
+(measured in `climb-engine.ts`) reads the dense smoothed segments over a 200 m window and feeds
+the hiking score and the CLI's `max_grade` column, while `maxPitchGradient` (`gradient-zones.ts`) reads the
 simplified chart profile and is the card's "Max grade" stat, which must never contradict the
 steepest colour band drawn above it.
 
@@ -89,12 +89,22 @@ treated as a closed set: `climb-engine.ts`, `climb-engine.config.ts`, `climb-typ
   the only file that uses it, because a `declare global` in a published `.d.ts` would land in
   every consumer's type environment.
 - **`detectClimbs` is deterministic.** No clock, no ambient state: same input, same output, so
-  snapshot tests and byte-comparing consumers work. `AnalysisResult` therefore has no `timestamp`
+  snapshot tests and byte-comparing consumers work. `DetectionResult` therefore has no `timestamp`
   and no `routeMode`; the extension adds both at the storage boundary via `stampResult()`
   (`src/storage.ts`), producing a `StoredAnalysisResult`.
-- **Only four functions are public API** — `detectClimbs`, `recategorizeResult`,
-  `emptyAnalysisResult`, `computeMaxSustainedGradient`. Everything else the engine exports carries
-  an `_` prefix and exists for tests, which is the marker that it carries no semver promise.
+- **The core measures; it does not judge.** `detectClimbs` takes no scoring model and returns
+  every candidate as a `MeasuredClimb` — geometry only. Whether a climb counts is the consumer's
+  question, and the models disagree substantially about it, so `score(result, model)` is a
+  separate, pluggable view returning `ScoredClimb`s whose `category` is `null` when nothing was
+  cleared. The consumer filters (#77).
+- **The public surface is exactly this**, and it is meant to stay small:
+  `detectClimbs` and `emptyDetectionResult` (`climb-engine.ts`); `score` plus `ASO` / `GARMIN` /
+  `HIKING` and the `ScoringConfig` type (`scoring.ts`); `parseGpx` (`gpx.ts`);
+  `maxGradientOverWindow` and `GradientPoint` (`max-gradient.ts`, for `gradient-zones.ts`, which
+  stays in the extension and so calls it from outside once the engine moves). Everything else
+  carries an `_` prefix and exists for tests, which is the marker that it carries no semver
+  promise. `computeMaxSustainedGradient` left the surface in #77: every climb carries
+  `maxSustainedGradient` as a field, so the CLI reads it instead of calling a function.
 
 `npm run typecheck` compiles the closure a second time through `tsconfig.engine.json` with no DOM
 lib and no ambient types, so a stray `document.` or `chrome.` fails there — and that is the check
@@ -106,7 +116,7 @@ checked by nothing. A file joining the engine must be added to both lists. Neith
 
 ### Hiking mode
 
-Hiking mode is auto-detected: `injected/gpx-interceptors.ts` reads the active transport-icon class from the Mapy.cz DOM and sets `routeMode = "hiking"` in the stored `GpxInfo`. The background then applies the TRAILS-GPX hiking formula (summit elevation + max gradient + distance) instead of the ASO/Garmin cycling formula. Grade colour bands are wider (5 / 10 / 20 / 30 / 40 %) to match walking pace. Hiking routes always keep the hiking model regardless of the user's scoring preference.
+Hiking mode is auto-detected: `injected/gpx-interceptors.ts` reads the active transport-icon class from the Mapy.cz DOM and sets `routeMode = "hiking"` in the stored `GpxInfo`. The render path then applies the TRAILS-GPX hiking formula (summit elevation + max gradient + distance) instead of the ASO/Garmin cycling formula — see `effectiveModel` in `src/scoring-view.ts`. Grade colour bands are wider (5 / 10 / 20 / 30 / 40 %) to match walking pace. Hiking routes always keep the hiking model regardless of the user's scoring preference.
 
 ### Map overlay
 
@@ -187,7 +197,7 @@ the drawn curve and the measured numbers come from the same points.
 
 ### Storage
 
-All state lives in `chrome.storage.local` using typed keys from `StorageKey` in `src/types.ts`. Tab-scoped helpers (`getTabStorageKeys`, `getTabState`, `saveTabGpx`, `clearTabState`, `getTabId`, `stampResult`) are in `src/storage.ts`. A stored result is a `StoredAnalysisResult` — the engine's clock-free `AnalysisResult` plus the `timestamp` and `routeMode` this side stamps on.
+All state lives in `chrome.storage.local` using typed keys from `StorageKey` in `src/types.ts`. Tab-scoped helpers (`getTabStorageKeys`, `getTabState`, `saveTabGpx`, `clearTabState`, `getTabId`, `stampResult`) are in `src/storage.ts`. A stored result is a `StoredAnalysisResult` — the engine's clock-free `DetectionResult` plus the `timestamp` and `routeMode` this side stamps on. It holds *measurements*: every candidate the pipeline found, with no difficulty and no category (#77).
 
 Key layout:
 - `pendingGPX:<tabId>` — latest intercepted GPX + metadata for a tab (no route-class suffix; one per tab)
@@ -196,7 +206,7 @@ Key layout:
 - `mapLayerVisible` — overlay toggle state
 
 A result key always carries a route class, so anything working across a whole tab (clearing
-its state, re-categorising after a scoring-model switch) must match on
+its state) must match on
 `getTabStorageKeys(tabId).lastAnalysisResultPrefix` — the `:`-terminated prefix — and never
 build one from the exact-key field. Without the trailing colon, tab `1`'s prefix matches
 tab `12`'s keys.
@@ -204,15 +214,23 @@ tab `12`'s keys.
 A stored result is large — one `Segment` per ~12 m, so a 100 km route is ~1.3 MB of JSON,
 almost all of it `climbs[].segments` — and the manifest asks for `storage` without
 `unlimitedStorage`, so the default 10 MB quota applies across every tab and alternative.
-The result is therefore stored **split**: `climbs[]` carries the geometry of the candidates
-the current model scored, and `droppedCandidates[]` carries only the ones it rejected
-(101 of `b7.gpx`'s 3904 segments). Together they are the full candidate set
-`recategorizeResult` re-partitions on a scoring-model switch, which is why the rejects have
-to be kept at all — a strict model must be able to give them back. Storing the whole set
-separately, as the pre-split `candidates` field did, wrote every scored climb's segments
-twice: 2.55 MB for `b7.gpx` against 1.29 MB now, and over quota at four alternatives
-(issue #49). `candidates` is still read once for results written before the split, and
-never written again.
+Each segment is written exactly once, in the one `climbs[]` array. That array used to be
+only the climbs the current model had kept, with the rejects beside it in
+`droppedCandidates[]` so a model switch could give them back; the pair existed because
+detection dropped what it would not score, and encoding it as a partition was what kept
+the geometry from being serialised twice (issue #49). Detection keeps everything now, so
+the partition and its deprecated predecessor `candidates` are both gone, at a cost of a
+few scalars per previously-rejected candidate.
+
+**A scoring-model switch performs no storage write.** The popup's `RECATEGORIZE_CLIMBS`
+message makes the background broadcast the new preference; each content script re-scores
+the result it already holds (`scoring-view.ts`) and repaints. It used to read every result
+key across every open tab, re-partition each one and write them all back — a storage sweep
+to change a display choice.
+
+`STORAGE_VERSION` is `2`. The version guard clears everything on a mismatch, but re-writes
+`scoringModel`, `mapLayerVisible` and `lastSeenVersion` afterwards: analysis results
+regenerate on the next GPX export, those three have no such source.
 
 ### i18n
 
@@ -247,15 +265,20 @@ so a broken CLI bundle cannot block an extension release.
 - `cli/index.ts` — the only impure file: arg parsing, file reads, printing. Stdout is JSON
   and nothing else; diagnostics go to stderr.
 
+`analyze-ride.ts` scores the measured result and emits only the categorised climbs, so the
+default output is unchanged by #77 — a `climbs` table should not receive non-climbs.
+`--include-uncategorized` emits the full candidate set instead, with `category` and
+`difficulty` null on the ones no threshold was cleared for.
+
 HR zone boundaries are personal data and are never committed — they come in via `--zones`.
 When absent, `pct_z4z5` is null but HR avg/max are still emitted.
 
 ### Tests
 
 Tests are plain JS in `test/` using Vitest + happy-dom. Covered modules: `climb-engine.ts`,
-`chart.ts` / `gradient-zones.ts`, `chart-selection.ts`, `map-geometry.ts`, `max-gradient.ts`,
-`gpx.ts`, `geo.ts`, `storage.ts`, `gpx-integration` (full GPX fixture round-trip
-including hiking), plus the CLI layer: `ride-metrics`, `ride-analysis`.
+`scoring.ts`, `chart.ts` / `gradient-zones.ts`, `chart-selection.ts`, `map-geometry.ts`,
+`max-gradient.ts`, `gpx.ts`, `geo.ts`, `storage.ts`, `gpx-integration` (full GPX fixture
+round-trip including hiking), plus the CLI layer: `ride-metrics`, `ride-analysis`.
 
 Fixtures in `test/fixtures/` are real Mapy.cz route exports, except
 `ride-synthetic.gpx` — a generated ride-shaped track (1 Hz noise, stops, recording gaps,

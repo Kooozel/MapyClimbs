@@ -3,7 +3,7 @@
  * Chrome messaging + storage glue only. All detection logic lives in climb-engine.ts.
  */
 
-import { detectClimbs, emptyAnalysisResult, recategorizeResult } from "../climb-engine";
+import { detectClimbs, emptyDetectionResult } from "../climb-engine";
 import {
   StorageKey,
   type ExtensionMessage,
@@ -12,7 +12,6 @@ import {
   type TabStateResponse,
   type RouteMode,
   type CategorizationUpdatedMessage,
-  type StoredAnalysisResult,
   type GpxInfo,
   type TabIdResponse,
 } from "../types";
@@ -23,16 +22,37 @@ import { clearTabState, getTabState, getTabStorageKeys, saveTabGpx, stampResult 
 export default defineBackground(() => {
   // ── Storage version guard ─────────────────────────────────────────────────
 
-  const STORAGE_VERSION = 1;
+  // Bumped to 2 for #77: a stored result is now a measured DetectionResult, and
+  // the droppedCandidates/candidates read path that made the old shape legible
+  // is gone.
+  const STORAGE_VERSION = 2;
 
-  chrome.storage.local.get(StorageKey.StorageVersion, (result) => {
+  /**
+   * Keys the version clear must not take with it. Analysis results regenerate
+   * on the next GPX export — the route planner does one every time it is used —
+   * so losing them costs a user nothing. These three have no such source: the
+   * clear would silently reset the scoring model and the overlay toggle, and
+   * re-open the What's New tab on a version the user has already seen.
+   */
+  const PRESERVED_KEYS: StorageKey[] = [
+    StorageKey.ScoringModel,
+    StorageKey.MapLayerVisible,
+    StorageKey.LastSeenVersion,
+  ];
+
+  chrome.storage.local.get([StorageKey.StorageVersion, ...PRESERVED_KEYS], (result) => {
     if (chrome.runtime.lastError) return;
-    if (result[StorageKey.StorageVersion] !== STORAGE_VERSION) {
-      chrome.storage.local.clear(() => {
-        if (chrome.runtime.lastError) return;
-        chrome.storage.local.set({ [StorageKey.StorageVersion]: STORAGE_VERSION });
-      });
+    if (result[StorageKey.StorageVersion] === STORAGE_VERSION) return;
+
+    const preserved: Record<string, unknown> = {};
+    for (const key of PRESERVED_KEYS) {
+      if (result[key] !== undefined) preserved[key] = result[key];
     }
+
+    chrome.storage.local.clear(() => {
+      if (chrome.runtime.lastError) return;
+      chrome.storage.local.set({ ...preserved, [StorageKey.StorageVersion]: STORAGE_VERSION });
+    });
   });
 
   // ── What's New tab on install / update ───────────────────────────────────
@@ -62,14 +82,13 @@ export default defineBackground(() => {
    */
   function runDetection(
     elevation: ElevationTuple[],
-    model: ScoringModel,
     sendResponse: (r: ClimbsResponse) => void,
     activeRouteClass: string,
     tabId?: number,
     routeMode?: RouteMode
   ): void {
     try {
-      const analysisResult = stampResult(detectClimbs(elevation, model), routeMode);
+      const analysisResult = stampResult(detectClimbs(elevation), routeMode);
       if (tabId != null) {
         const keys = getTabStorageKeys(tabId, activeRouteClass);
         chrome.storage.local.set({ [keys.lastAnalysisResult]: analysisResult });
@@ -84,57 +103,27 @@ export default defineBackground(() => {
     }
   }
 
-  function updateClimbCategorization(
+  /**
+   * Tell every open mapy tab which scoring model to render with.
+   *
+   * That is the entire operation now. It used to read every stored result
+   * across every tab and alternative, re-partition each one under the new model
+   * and write them all back — a storage sweep to change a display choice.
+   * Results are measured, not scored (#77), so nothing in storage depends on
+   * the model and the content script re-scores what it already holds.
+   */
+  function broadcastScoringModel(
     sendResponse: (response: ClimbsResponse) => void,
     model: ScoringModel
   ): void {
-    const EMPTY_RESULT = { result: stampResult(emptyAnalysisResult()), activeRouteClass: "" };
     chrome.tabs.query({ url: [...MAPY_MATCHES] }, (tabs) => {
-      const tabIds = tabs.map((tab) => tab.id).filter((id): id is number => id != null);
-      if (tabIds.length === 0) {
-        sendResponse(EMPTY_RESULT);
-        return;
+      const msg: CategorizationUpdatedMessage = { type: "CATEGORIZATION_UPDATED", model };
+      for (const tab of tabs) {
+        if (tab.id != null) chrome.tabs.sendMessage(tab.id, msg).catch(() => {});
       }
-
-      // Results are stored per-tab per-route-class (e.g. lastAnalysisResult:<tabId>:alt-0).
-      // Read all storage to find every matching key for the open tabs.
-      chrome.storage.local.get(null, (allItems) => {
-        const resultKeys = tabIds.flatMap((tabId) => {
-          const prefix = getTabStorageKeys(tabId).lastAnalysisResultPrefix;
-          return Object.keys(allItems).filter((k) => k.startsWith(prefix));
-        });
-
-        if (resultKeys.length === 0) {
-          sendResponse(EMPTY_RESULT);
-          return;
-        }
-
-        const storageUpdates: Record<string, unknown> = {};
-
-        for (const key of resultKeys) {
-          const stored = allItems[key] as StoredAnalysisResult | undefined;
-          if (!stored) continue;
-          // Not `climbs.length === 0`: a strict model can reject every candidate, and
-          // those rejects are exactly what a switch to a permissive model recovers.
-          const candidateCount =
-            stored.climbs.length + (stored.droppedCandidates ?? stored.candidates ?? []).length;
-          if (candidateCount === 0) continue;
-          const effectiveModel: ScoringModel = stored.routeMode === "hiking" ? "hiking" : model;
-          storageUpdates[key] = recategorizeResult(stored, effectiveModel);
-        }
-
-        if (Object.keys(storageUpdates).length > 0) {
-          chrome.storage.local.set(storageUpdates, () => {
-            const msg: CategorizationUpdatedMessage = { type: "CATEGORIZATION_UPDATED" };
-            tabIds.forEach((tabId) => {
-              chrome.tabs.sendMessage(tabId, msg).catch(() => {});
-            });
-            sendResponse(EMPTY_RESULT);
-          });
-        } else {
-          sendResponse(EMPTY_RESULT);
-        }
-      });
+      // No result to hand back: the panel repaints from the message, not from
+      // this response. The empty shape keeps ClimbsResponse's one-arm contract.
+      sendResponse({ result: stampResult(emptyDetectionResult()), activeRouteClass: "" });
     });
   }
 
@@ -150,20 +139,19 @@ export default defineBackground(() => {
       if (request.type === "GET_TAB_ID") {
         sendResponse({ tabId: sender.tab?.id });
       } else if (request.type === "PROCESS_CLIMBS") {
+        // The scoring model is not read here any more: detection has no opinion
+        // about it (#77). routeMode still is — it is stamped onto the stored
+        // result, and it is what forces a hiking route to the hiking model at
+        // render time.
         const tabKeys = getTabStorageKeys(request.tabId);
-        chrome.storage.local.get([StorageKey.ScoringModel, tabKeys.pendingGPX], (data) => {
-          const model: ScoringModel =
-            (data[StorageKey.ScoringModel] as ScoringModel | undefined) ?? "aso";
+        chrome.storage.local.get(tabKeys.pendingGPX, (data) => {
           const pendingGpx = data[tabKeys.pendingGPX] as GpxInfo | undefined;
-          const routeMode = pendingGpx?.routeMode;
-          const effectiveModel: ScoringModel = routeMode === "hiking" ? "hiking" : model;
           runDetection(
             request.elevation,
-            effectiveModel,
             sendResponse,
             request.activeRouteClass,
             request.tabId,
-            routeMode
+            pendingGpx?.routeMode
           );
         });
       } else if (request.type === "SAVE_TAB_GPX") {
@@ -182,7 +170,7 @@ export default defineBackground(() => {
         chrome.storage.local.get(StorageKey.ScoringModel, (pref) => {
           const model: ScoringModel =
             (pref[StorageKey.ScoringModel] as ScoringModel | undefined) ?? "aso";
-          updateClimbCategorization(sendResponse, model);
+          broadcastScoringModel(sendResponse, model);
         });
       }
       return true; // keep message channel open for async sendResponse

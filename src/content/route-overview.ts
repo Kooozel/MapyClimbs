@@ -6,11 +6,12 @@
 
 import { getCategoryColor } from "./category";
 import { metersToKm, toPercent, ratioToPercent } from "../format";
-import { ClimbCategory, type AnalysisResult } from "../climb-types";
+import { ClimbCategory } from "../climb-types";
+import type { ScoredAnalysisResult } from "../types";
 
 // ── Route overview ────────────────────────────────────────────────────────────
 
-export function buildRouteOverview(analysisResult: AnalysisResult): string {
+export function buildRouteOverview(analysisResult: ScoredAnalysisResult): string {
   const { climbs, totalDistance, totalElevationGain } = analysisResult;
   const distKm = metersToKm(totalDistance);
   const climbingKm = metersToKm(climbs.reduce((s, c) => s + c.distance, 0));

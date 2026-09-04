@@ -24,7 +24,9 @@ export const ClimbCategory = {
 export type ClimbCategory = (typeof ClimbCategory)[keyof typeof ClimbCategory];
 
 /**
- * Scoring model used to classify climbs.
+ * The built-in scoring models, by name — sugar for the ScoringConfig each one
+ * names (scoring.ts). A consumer wanting its own bands passes a config instead
+ * of forking: this union is closed and stays closed.
  * - "aso": ASO/Tour de France formula — score = dist(km) × avgGrade²
  * - "garmin": Garmin ClimbPro formula — score = dist(m) × avgGrade(%)
  * - "hiking": TRAILS-GPX formula — score = H²/(8L) + altitude bonus + G_max term
@@ -67,21 +69,52 @@ export interface Coords {
 }
 
 /**
- * Fully processed and categorized climb — the public output of detectClimbs.
- * Also used as the shape stored in chrome.storage.
+ * A climb as the engine measures it: geometry, and nothing else.
+ *
+ * No difficulty and no category, because "is this a climb" is the consumer's
+ * question and the models disagree substantially about it — over travny.gpx's
+ * eight candidates, ASO keeps three, Garmin five and hiking one. A library that
+ * answers on the consumer's behalf has to be asked twice (#77).
  */
-export interface Climb {
+export interface MeasuredClimb {
+  /** Metres, after the flat lead-in and tail are trimmed. */
   distance: number;
+  /** Metres gained. */
   elevation: number;
+  /** Per cent. */
   avgGrade: number;
-  difficulty: number;
-  category: ClimbCategory;
+  /**
+   * Steepest sustained gradient as a decimal (0.25 = 25 %), over
+   * MAX_SUSTAINED_GRADIENT_WINDOW_M.
+   *
+   * Measured here rather than by whoever scores: the hiking model and the CLI's
+   * `max_grade` column both want it, so one scan in the pipeline leaves every
+   * scorer pure arithmetic over the fields above, with no segment walk of its
+   * own. Deliberately not the card's "Max grade" — that is maxPitchGradient
+   * over the simplified chart profile (gradient-zones.ts), a steeper figure by
+   * construction.
+   */
+  maxSustainedGradient: number;
   segments: Segment[];
   markerCoords: Coords | null;
+  /** Snapped to the raw-profile summit — for every candidate, since the snap
+   *  runs before anything scores. */
   endCoords: Coords | null;
 }
 
-/** Pre-categorization intermediate produced by identifyClimbs / mergeNearbyClimbs. */
+/**
+ * A MeasuredClimb read through one scoring model.
+ *
+ * `null` is data — "clears no threshold under this model" — not a drop. The
+ * consumer filters, with Array.prototype.filter; the engine ships no predicate
+ * DSL and no opinion about where the line sits.
+ */
+export interface ScoredClimb extends MeasuredClimb {
+  difficulty: number | null;
+  category: ClimbCategory | null;
+}
+
+/** Pre-measurement intermediate produced by identifyClimbs / mergeNearbyClimbs. */
 export interface RawClimb {
   segments: Segment[];
   totalDistance: number;
@@ -94,17 +127,12 @@ export interface RawClimb {
  * The extension decorates it with both on the way to storage — see
  * StoredAnalysisResult in types.ts.
  */
-export interface AnalysisResult {
-  climbs: Climb[];
-  /** Candidates this model scored as null. Together with `climbs` — each of which
-   *  carries its own segments — these partition the full trimmed-candidate set that
-   *  recategorizeResult replays on a model switch, so no climb's geometry is stored
-   *  twice. Absent when nothing was rejected. */
-  droppedCandidates?: RawClimb[];
-  /** @deprecated Pre-split encoding: the *whole* candidate set, including a copy of
-   *  every scored climb's segments. Read-only, for results stored before the split;
-   *  never written again, so a stored result self-heals on its next re-analysis. */
-  candidates?: RawClimb[];
+export interface DetectionResult {
+  /** Route-ordered, and *every* candidate the pipeline found — 1 to 24 on the
+   *  real routes in test/fixtures, so returning the lot is not a firehose. The
+   *  set is invariant across scoring models, which is the evidence that scoring
+   *  was never part of detection (#77). */
+  climbs: MeasuredClimb[];
   totalDistance: number;
   totalElevationGain: number;
   totalElevationLoss: number;
@@ -178,13 +206,16 @@ export type ClimbDebugEvent =
       kept: boolean;
     }
   | {
-      stage: "categorize";
+      /** The pipeline's last decision point. It used to be "categorize" and
+       *  carried a difficulty and a category; scoring left the pipeline in #77,
+       *  so what remains is the measurement. `maxSustainedGradient` is
+       *  deliberately absent: it is only final after the summit snap, and a
+       *  figure printed one step before it settles is worse than none. */
+      stage: "measure";
       startKm: number;
       endKm: number;
       distanceM: number;
       avgGradePct: number;
-      difficulty: number | null;
-      category: ClimbCategory | null;
     };
 
 export type ClimbDebugSink = (event: ClimbDebugEvent) => void;

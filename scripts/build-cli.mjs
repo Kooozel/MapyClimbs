@@ -61,19 +61,20 @@ const engine = await build({
   metafile: true,
 });
 
-// The GPX reader ships as its own entry point (#77) and the engine never imports
-// it, so the check above walks right past it. Built for the metafile alone —
-// `write: false` — since the CLI bundle already inlines the reader and the
-// extension imports it from source.
-const gpx = await build({
-  ...shared,
-  entryPoints: ["src/gpx.ts"],
-  write: false,
-  metafile: true,
-});
+// Published surface the engine entry point does not reach: the GPX reader
+// (#77) and the scorer, which stopped being a pipeline step in the same change.
+// `climb-engine.ts` imports neither, so without these the closure check would
+// walk right past both. Built for the metafile alone — the CLI bundle already
+// inlines them, and how they are finally packaged as entry points is #68's
+// fourth decision, not this script's.
+const surface = await Promise.all(
+  ["src/gpx.ts", "src/scoring.ts"].map((entry) =>
+    build({ ...shared, entryPoints: [entry], write: false, metafile: true })
+  )
+);
 
 const strays = [
-  ...new Set([...Object.keys(engine.metafile.inputs), ...Object.keys(gpx.metafile.inputs)]),
+  ...new Set([engine, ...surface].flatMap((result) => Object.keys(result.metafile.inputs))),
 ].filter((file) => !ENGINE_CLOSURE.has(file));
 if (strays.length > 0) {
   console.error(

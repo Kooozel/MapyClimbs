@@ -12,8 +12,10 @@
  *
  * FIELDS per entry:
  *   file        — filename only (must exist in test/fixtures/)
- *   climbCount  — total climbs detectClimbs() returns
- *   climbs      — asserted climbs in order (index matches climbs[] array)
+ *   climbCount  — climbs the scoring model keeps. detectClimbs() returns every
+ *                 candidate now (#77); the test scores and filters first, so
+ *                 these entries mean what they always meant.
+ *   climbs      — asserted climbs in order (index matches the filtered array)
  *     .distanceKm — { value, tolerance } in kilometres (e.g. 0.5 km)
  *     .elevationM — { value, tolerance } in metres (e.g. 50 m)
  *     .category   — 'HC' | '1' | '2' | '3' | '4' | 'uncategorized'
@@ -109,7 +111,13 @@ export const fixtures = [
       {
         distanceKm: { value: 0.66, tolerance: 0.1 },
         elevationM: { value: 40, tolerance: 8 },
-        category: '4',
+        // Cat 4 until #77. Its ASO score was computed before snapAllEndCoords
+        // extended it to the summit, so 25.19 was scored against geometry the
+        // card then contradicted; against the geometry actually displayed it is
+        // 23.69, under Cat 4's threshold of 25. The old code documented this
+        // discrepancy and lived with it — a scoring-model switch already
+        // produced the value below, so the two agree now.
+        category: 'uncategorized',
       },
       {
         distanceKm: { value: 0.68, tolerance: 0.1 },

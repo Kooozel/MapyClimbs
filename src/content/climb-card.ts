@@ -9,8 +9,8 @@ import { generateElevationChart } from "./chart";
 import { attachChartSelection } from "./chart-selection";
 import { getCategoryClass } from "./category";
 import { metersToKm, metersToKmNum, toPercent, formatMinutes } from "../format";
-import { ClimbCategory, type Climb } from "../climb-types";
-import type { RouteMode } from "../types";
+import { ClimbCategory } from "../climb-types";
+import type { CategorizedClimb, RouteMode } from "../types";
 import {
   CYCLING_GRADE_COLORS,
   HIKING_GRADE_COLORS,
@@ -25,15 +25,15 @@ function estimatedSpeedKmh(avgGrade: number): number {
   return 12 / (1 + avgGrade / 5);
 }
 
-function calcVAM(climb: Climb): number {
+function calcVAM(climb: CategorizedClimb): number {
   return Math.round(estimatedSpeedKmh(climb.avgGrade) * climb.avgGrade * 10);
 }
 
-function estimateClimbTime(climb: Climb): number {
+function estimateClimbTime(climb: CategorizedClimb): number {
   return (metersToKmNum(climb.distance) / estimatedSpeedKmh(climb.avgGrade)) * 60;
 }
 
-function calcFiets(climb: Climb): string {
+function calcFiets(climb: CategorizedClimb): string {
   const distKm = metersToKmNum(climb.distance);
   if (distKm === 0) return "0.0";
   return ((climb.elevation * climb.elevation) / distKm / 1000).toFixed(1);
@@ -44,7 +44,7 @@ interface SummitInfo {
   dist: number;
 }
 
-function findSummit(climb: Climb): SummitInfo {
+function findSummit(climb: CategorizedClimb): SummitInfo {
   let elev = -Infinity,
     dist = 0;
   for (const seg of climb.segments) {
@@ -68,7 +68,11 @@ const PEAK_SVG =
 
 // ── Climb card ────────────────────────────────────────────────────────────────
 
-export function buildClimbCard(climb: Climb, index: number, routeMode?: RouteMode): HTMLElement {
+export function buildClimbCard(
+  climb: CategorizedClimb,
+  index: number,
+  routeMode?: RouteMode
+): HTMLElement {
   const catClass = getCategoryClass(climb.category);
   const simplifiedProfile = simplifyProfile(buildProfilePoints(climb.segments));
   const maxGrad = maxPitchGradient(simplifiedProfile);
