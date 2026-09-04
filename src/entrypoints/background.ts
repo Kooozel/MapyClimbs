@@ -56,8 +56,9 @@ export default defineBackground(() => {
 
   /**
    * Run climb detection on a pre-parsed elevation array, persist the result to
-   * storage, and call `sendResponse`. Errors are caught and forwarded as an
-   * empty-climbs response so the caller never hangs.
+   * storage, and call `sendResponse`. A throw is forwarded as an error response
+   * so the caller never hangs — and never as an empty result, which the panel
+   * cannot tell apart from a genuinely flat route (#60).
    */
   function runDetection(
     elevation: ElevationTuple[],
@@ -75,10 +76,10 @@ export default defineBackground(() => {
       }
       sendResponse({ result: analysisResult, activeRouteClass });
     } catch (error) {
+      // No result: the panel must be able to tell a crash from a flat route (#60).
       sendResponse({
-        result: stampResult(emptyAnalysisResult()),
         error: error instanceof Error ? error.message : String(error),
-        activeRouteClass: "",
+        activeRouteClass,
       });
     }
   }

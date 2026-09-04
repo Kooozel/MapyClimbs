@@ -198,6 +198,34 @@
   margin: 0;
 }
 
+/* The failure state (#60). Deliberately as quiet as .cip-empty rather than
+   alarm-coloured — a category colour here would read as a climb grade. The
+   help cursor is the only hint that the exception text is on the tooltip. */
+#climb-inject-panel .cip-error {
+  padding: 12px 14px 4px;
+  color: var(--text2);
+  font-size: 12px;
+  margin: 0;
+  cursor: help;
+}
+
+#climb-inject-panel .cip-retry {
+  display: block;
+  margin: 0 0 8px;
+  padding: 6px 14px;
+  background: transparent;
+  border: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+#climb-inject-panel .cip-retry:hover {
+  background: var(--bg1);
+}
+
 /* ── Fullscreen loader overlay ─────────────────────────────────────────── */
 
 #cip-loader {

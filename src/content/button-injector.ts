@@ -25,11 +25,17 @@ function buildButton(
 
   btn
     .querySelector("button")!
-    .addEventListener("click", () => runAutomatedClimb(onRouteActive, onDone));
+    .addEventListener("click", () => runClimbAnalysis(onRouteActive, onDone));
   return btn;
 }
 
-async function runAutomatedClimb(
+/**
+ * Walk every alternative route, exporting and analysing each, then restore the
+ * one that was active. Exported because the panel's retry (#60) runs the exact
+ * same operation as the toolbar button — re-analysing the cached GPX instead
+ * would use the wrong route's export, since pendingGPX is one key per tab.
+ */
+export async function runClimbAnalysis(
   onRouteActive: (routeClass: string) => void,
   onDone: () => void
 ): Promise<void> {
