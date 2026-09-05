@@ -2,8 +2,9 @@
  * types.ts — the extension's own vocabulary: storage keys, the chrome.runtime
  * message/response union, and the shapes those carry.
  *
- * The climb engine's domain types live in climb-types.ts and travel with it
- * when it is extracted (#68). Nothing here may be imported from that side.
+ * The climb engine's domain types come from the `climb-engine` package (#83).
+ * The dependency runs one way — this file imports the domain, never the reverse
+ * — and the package boundary is what enforces it now.
  */
 
 import type {
@@ -12,7 +13,7 @@ import type {
   ElevationTuple,
   ScoredClimb,
   ScoringModel,
-} from "./climb-types";
+} from "climb-engine";
 
 // ── Storage keys ──────────────────────────────────────────────────────────────
 

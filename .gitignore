@@ -32,7 +32,6 @@ yarn-error.log*
 *.zip
 
 .github/prompts/
-dist-cli/
 
 # Local, uncommitted working context
 .context

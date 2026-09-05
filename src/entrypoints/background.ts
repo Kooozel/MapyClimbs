@@ -3,7 +3,7 @@
  * Chrome messaging + storage glue only. All detection logic lives in climb-engine.ts.
  */
 
-import { detectClimbs, emptyDetectionResult } from "../climb-engine";
+import { detectClimbs, emptyDetectionResult } from "climb-engine";
 import {
   StorageKey,
   type ExtensionMessage,
@@ -15,7 +15,7 @@ import {
   type GpxInfo,
   type TabIdResponse,
 } from "../types";
-import type { ElevationTuple, ScoringModel } from "../climb-types";
+import type { ElevationTuple, ScoringModel } from "climb-engine";
 import { MAPY_MATCHES } from "../constants";
 import { clearTabState, getTabState, getTabStorageKeys, saveTabGpx, stampResult } from "../storage";
 
