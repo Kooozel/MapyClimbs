@@ -17,7 +17,7 @@
  * array.  See `ZoneFilterFn` and `mergeShortZones` in ../gradient-zones.
  */
 
-import type { Segment } from "../climb-types";
+import type { Segment } from "climb-engine";
 import type { CategorizedClimb } from "../types";
 import { ElementId, CssClass } from "../constants";
 import { mercatorToPixel } from "../map-geometry";

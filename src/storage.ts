@@ -1,5 +1,5 @@
 import { GpxInfo, RouteMode, StorageKey, StoredAnalysisResult, TabStateResponse } from "./types";
-import type { DetectionResult } from "./climb-types";
+import type { DetectionResult } from "climb-engine";
 
 interface TabStorageKeys {
   pendingGPX: string;

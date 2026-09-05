@@ -1,9 +1,13 @@
 /**
  * test/max-gradient.test.js
  *
- * Unit tests for the one max-gradient scan (`src/max-gradient.ts`) and the two
- * named figures built on it: `maxPitchGradient` (gradient-zones.ts, chart
- * resolution) and `computeMaxSustainedGradient` (climb-engine.ts, 200 m window).
+ * Unit tests for the one max-gradient scan and the two named figures built on
+ * it: `maxPitchGradient` (gradient-zones.ts, chart resolution) and the engine's
+ * `computeMaxSustainedGradient` (`climb-engine`, 200 m window).
+ *
+ * The scan itself now lives in the `climb-engine` package; what is tested here
+ * is that the two sides still agree on the same climb, which is consumer-side
+ * work by definition.
  *
  * The pinning test below is the regression guard for issue #44: the two used to
  * be separate implementations and drifted until the card and the CLI reported
@@ -14,7 +18,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { buildProfilePoints, maxPitchGradient } from '../src/gradient-zones.ts';
-import { _computeMaxSustainedGradient as computeMaxSustainedGradient } from '../src/climb-engine.ts';
+import { _computeMaxSustainedGradient as computeMaxSustainedGradient } from 'climb-engine';
 
 /** Build a minimal ProfilePoint for maxPitchGradient tests. */
 function pt(distance, elevation) {
