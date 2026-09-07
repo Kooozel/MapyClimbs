@@ -71,7 +71,7 @@ Every file under `src/` is listed in [ARCHITECTURE.md](ARCHITECTURE.md).
 
 `gpx-interceptor-injected.ts` monkey-patches `XMLHttpRequest` in page context (`window.fetch` is deliberately left alone — Mapy.cz issues the export over XHR). When a `/tplannerexport?export=gpx` response completes, the GPX is posted to `interceptor.content.ts` via `postMessage`, which stores it in `chrome.storage.local` and notifies the background worker.
 
-### Climb Detection (`climb-engine.ts`) — 5-step pipeline
+### Climb Detection (the `climb-engine` package) — 5-step pipeline
 
 1. **Profile** — raw `[distance, elevation, lat, lon]` tuples → structured points
 2. **Condition** — resample away GPS micro-jitter, interpolate wide gaps, smooth, compute per-segment gradients
@@ -79,7 +79,9 @@ Every file under `src/` is listed in [ARCHITECTURE.md](ARCHITECTURE.md).
 4. **Merge** — collapse adjacent candidates across short valleys, with the permitted gap scaling with combined elevation gain
 5. **Trim, score, snap** — strip flat lead-in and tail, categorise, then snap each summit to the raw-profile peak
 
-Every threshold the pipeline uses lives in `src/climb-engine.config.ts`.
+Detection lives in the [`climb-engine`](https://github.com/Kooozel/climb-engine) package, pinned
+to an exact version in `package.json`. Every threshold it uses is one exported object,
+`DEFAULT_CLIMB_CONFIG`, overridable per call via `detectClimbs(data, { config: … })`.
 
 ### Sidebar & Map
 
@@ -87,7 +89,8 @@ Every threshold the pipeline uses lives in `src/climb-engine.config.ts`.
 
 ## Climb Categories
 
-Categorisation uses a pluggable scoring model (see `src/scoring.ts`). Default thresholds:
+Categorisation uses a pluggable scoring model (`score()` from `climb-engine`, applied in
+`src/scoring-view.ts`). Default thresholds:
 
 | Category | Score    |
 | -------- | -------- |

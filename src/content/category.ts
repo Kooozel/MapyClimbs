@@ -4,7 +4,7 @@
  * Exports: getCategoryClass, getCategoryColor
  */
 
-import type { ClimbCategory } from "../climb-types";
+import type { ClimbCategory } from "climb-engine";
 
 export const CATEGORY_CLASS: Record<ClimbCategory, string> = {
   HC: "hc",

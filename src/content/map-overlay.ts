@@ -1,6 +1,6 @@
 import { metersToKm } from "../format";
 import { StorageKey, type ScoredAnalysisResult } from "../types";
-import { ClimbCategory } from "../climb-types";
+import { ClimbCategory } from "climb-engine";
 import { CATEGORY_COLOR } from "./category";
 import { ElementId, CssClass } from "../constants";
 import { getMapContainer, mercatorToPixel, viewportFromURL } from "../map-geometry";

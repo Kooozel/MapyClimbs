@@ -12,8 +12,8 @@
  * array already in memory. No write, no round trip, nothing to keep consistent.
  */
 
-import { score } from "./scoring";
-import type { ScoringModel } from "./climb-types";
+import { score } from "climb-engine";
+import type { ScoringModel } from "climb-engine";
 import type { CategorizedClimb, ScoredAnalysisResult, StoredAnalysisResult } from "./types";
 
 /**

@@ -7,7 +7,7 @@ directory, and every entry in it is one line.
 
 ## Execution model
 
-Five layers inside the browser, and one consumer outside it.
+Five layers inside the browser, over a detection engine that is no longer part of this repo.
 
 ```
 Mapy.cz / Mapy.com website
@@ -17,9 +17,9 @@ Mapy.cz / Mapy.com website
   → Popup (entrypoints/popup/)            — scoring model toggle, layer visibility
   → What's New page (entrypoints/whats-new/) — opened on install/update
 
-                    src/climb-engine.ts
+                    climb-engine (npm dependency, pinned to a tag)
                           ↑
-  Node CLI (src/cli/) ────┘   — same pure engine, no browser; ships from `npm run build:cli`
+  background.ts ──────────┘   — detection, scoring and GPX parsing all live in the package
 ```
 
 Content scripts run in an isolated world and cannot touch page JavaScript, so
@@ -40,9 +40,8 @@ for a fresh export per alternative, and stores one result per
 `lastAnalysisResult:<tabId>:<routeClass>`; switching alternatives afterwards reads from storage.
 → `CLAUDE.md` § Key data flow, § Storage.
 
-The detection pipeline itself is five steps, labelled `Step 1` … `Step 5` in `src/climb-engine.ts`
-and summarised in `CLAUDE.md`. It is not restated here — a third copy is a third thing to keep in
-sync.
+The detection pipeline itself is five steps and lives in the `climb-engine` package (#83); its
+own repo documents them. It is not restated here — a third copy is a third thing to keep in sync.
 
 ## File index
 
@@ -50,18 +49,11 @@ sync.
 
 | File | What it is |
 | --- | --- |
-| `climb-engine.ts` | The detection pipeline. Pure — no Chrome APIs, no DOM. Five steps. Measures every candidate and scores none of them. |
-| `climb-engine.config.ts` | Every numeric threshold the pipeline uses. Tune here, not in the logic. |
-| `scoring.ts` | `score()` plus the `ASO` / `GARMIN` / `HIKING` configs. A view over a detection result, not a pipeline step. |
 | `scoring-view.ts` | Where the extension applies a model and filters to the categorised climbs. A scoring-model switch is this and nothing else. |
 | `gradient-zones.ts` | Profile → colour-zone pipeline shared by the chart and the map polylines. |
-| `max-gradient.ts` | The one definition of "max gradient over a window" — both product figures. |
-| `geo.ts` | The one haversine. `gpx.ts` accumulates the distance axis with it. |
-| `gpx.ts` | The one GPX reader, for both environments. Scans the XML itself — no DOM, no Node API — and keeps `<time>` and heart rate for the CLI. |
 | `map-geometry.ts` | Web Mercator projection and viewport helpers. Pure except `getMapContainer` / `viewportFromURL`. |
 | `storage.ts` | Tab-scoped `chrome.storage.local` helpers. Result keys always carry a route class. |
-| `climb-types.ts` | The engine's domain vocabulary. Travels with it when extracted (#68) — no extension types, no globals. |
-| `types.ts` | The extension's own: `StorageKey`, the `chrome.runtime` message/response union, `RouteMode`, `StoredAnalysisResult` (measured, as stored) and `ScoredAnalysisResult` / `CategorizedClimb` (scored and filtered, as rendered). |
+| `types.ts` | The extension's own vocabulary, importing the domain from `climb-engine` and never the reverse: `StorageKey`, the `chrome.runtime` message/response union, `RouteMode`, `StoredAnalysisResult` (measured, as stored) and `ScoredAnalysisResult` / `CategorizedClimb` (scored and filtered, as rendered). |
 | `constants.ts` | `MAPY_MATCHES`, `MAP_CONTAINER_SELECTORS`, `PageMessage`, `ElementId`, `CssClass`, route-class helpers. |
 | `format.ts` | Display formatting (km, percent, minutes). No Chrome APIs. |
 | `map-inject.css` | Injected panel and overlay styles. |
@@ -101,47 +93,45 @@ sync.
 | `map-center.ts` | Content-script half of click-to-centre: works out the target coordinate, posts it to page context. |
 | `category.ts` | `ClimbCategory` → CSS class and colour. |
 
-### `src/cli/` — the engine's second consumer
+### `climb-engine` — the detection engine, as a dependency
 
-A Node CLI that takes a Garmin Connect ride GPX and prints enriched climb JSON on stdout, for a
-downstream `sync.py --insert-climbs` importer. It reuses `climb-engine.ts` unchanged and ships
-from `npm run build:cli` as two dependency-free ESM files in `dist-cli/`.
+Detection, scoring and GPX parsing are the `climb-engine` package (`Kooozel/climb-engine`), pinned
+in `package.json` to an exact tag and imported by package name (#83). Nothing in this repo
+implements them.
 
-| File | What it is |
+| Import | What it gives |
 | --- | --- |
-| `index.ts` | The only impure file: argument parsing, file reads, printing. Stdout is JSON and nothing else. |
-| `analyze-ride.ts` | The output contract. `climbs[]` keys are snake_case because they map 1:1 onto the consumer's table columns; the camelCase↔snake_case conversion happens here and nowhere else. |
-| `ride-metrics.ts` | Moving-time and heart-rate aggregation. VAM must be computed on moving time, not elapsed. |
+| `climb-engine` | `detectClimbs`, `emptyDetectionResult`, `score` + `ASO` / `GARMIN` / `HIKING` / `SCORING_CONFIGS`, `maxGradientOverWindow`, `DEFAULT_CLIMB_CONFIG`, `ClimbCategory`, and every domain type. |
+| `climb-engine/gpx` | `parseGpx` — one reader for the browser and for Node. |
 
-The GPX reader used to live here too. It moved to `src/gpx.ts`: it needs no Node API, so one file
-serves the CLI and the extension (#77).
+The ride CLI moved out with it and ships from the package's own `bin`, `climb-cli`: a Node CLI
+that takes a Garmin Connect ride GPX and prints enriched climb JSON on stdout for a downstream
+`sync.py --insert-climbs` importer. `npm run build:cli` and `dist-cli/` no longer exist here.
+
+The version pin is deliberate and must stay exact — never a range. See `CLAUDE.md`
+§ The climb engine is a dependency.
 
 ### `test/`
 
-Plain JS with Vitest + happy-dom. Fixtures in `test/fixtures/` are real Mapy.cz route exports,
-except `ride-synthetic.gpx`, which is generated by `scripts/generate-ride-fixture.mjs`.
+Plain JS with Vitest + happy-dom. Detection, scoring and GPX parsing are tested in `climb-engine`
+and not re-tested here. `test/fixtures/` holds one file, `travny.gpx`, a real Mapy.cz route export
+read only by `engine-smoke.test.js`.
 
 | File | Covers |
 | --- | --- |
-| `climb-engine.test.js` | The detection pipeline. |
-| `scoring.test.js` | The scoring configs and `score()`. |
-| `gpx-integration.test.js` | Full GPX fixture round-trip, cycling and hiking. |
+| `engine-smoke.test.js` | One real route through the *installed* package, pinned exactly — the guard on a bad version bump. |
 | `chart.test.js` | The chart renderer and `gradient-zones.ts`. |
 | `chart-selection.test.js`, `chart-selection-dom.test.js` | Drag-to-measure: range maths, then pointer wiring. |
 | `map-geometry.test.js`, `map-center.test.js` | Projection, and click-to-centre's target coordinate. |
-| `max-gradient.test.js` | The one max-gradient scan and both figures read off it. |
-| `geo.test.js`, `storage.test.js`, `route-class.test.js` | Haversine, tab-scoped keys, route-class parsing. |
-| `gpx.test.js` | The one GPX reader. |
-| `ride-metrics.test.js`, `ride-analysis.test.js` | The CLI layer. |
+| `max-gradient.test.js` | That the card's `maxPitchGradient` and the engine's sustained figure cannot contradict each other (#44). |
+| `panel.test.js` | Panel rendering. |
+| `storage.test.js`, `route-class.test.js` | Tab-scoped keys and route-class parsing. |
 
 ### `scripts/` and `public/`
 
 | File | What it is |
 | --- | --- |
 | `scripts/generate-whats-new.mjs` | Validates and bundles `public/whats-new-data.json`; runs as part of `npm run build`. |
-| `scripts/build-cli.mjs` | esbuild bundle of the engine + CLI into `dist-cli/`, kept out of `dist/`. Also asserts the engine's module graph stays inside its closure. |
-| `tsconfig.engine.json` | Type-checks the engine closure with no DOM lib and no ambient types. Runs as the second half of `npm run typecheck`. |
-| `scripts/generate-ride-fixture.mjs` | Regenerates `test/fixtures/ride-synthetic.gpx`. |
 | `public/whats-new-data.json` | Hand-authored user-facing release bullets. Its `version` must match `package.json`. |
 | `public/_locales/en/messages.json`, `public/_locales/cs/messages.json` | UI strings behind the `__MSG_*__` manifest keys. |
 | `public/images/` | Extension icons, copied as-is. |

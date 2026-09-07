@@ -12,7 +12,7 @@
     "zip": "wxt zip",
     "zip:firefox": "wxt zip -b firefox --mv3",
     "postinstall": "wxt prepare",
-    "typecheck": "tsc --noEmit && tsc -p tsconfig.engine.json",
+    "typecheck": "tsc --noEmit",
     "lint": "eslint src/ wxt.config.ts eslint.config.js",
     "lint:fix": "eslint src/ wxt.config.ts --fix",
     "format": "prettier --write src/",
@@ -20,9 +20,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:trace": "DEBUG_PIPELINE=1 vitest run --reporter=verbose test/gpx-integration.test.js",
-    "prepare": "husky",
-    "build:cli": "node scripts/build-cli.mjs"
+    "prepare": "husky"
   },
   "lint-staged": {
     "src/**/*.{ts,css}": "prettier --write",
@@ -30,6 +28,9 @@
   },
   "engines": {
     "node": ">=20.17"
+  },
+  "dependencies": {
+    "climb-engine": "github:Kooozel/climb-engine#v0.1.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",

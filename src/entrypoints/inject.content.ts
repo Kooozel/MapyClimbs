@@ -4,11 +4,11 @@
  */
 
 import "../map-inject.css";
-import { parseGpx } from "../gpx";
+import { parseGpx } from "climb-engine/gpx";
 import { buildPanel, buildErrorPanel } from "../content/panel";
 import { renderMapOverlay, setOverlayVisible, flashPin } from "../content/map-overlay";
 import { tryInjectButton, runClimbAnalysis } from "../content/button-injector";
-import type { ElevationTuple, ScoringModel } from "../climb-types";
+import type { ElevationTuple, ScoringModel } from "climb-engine";
 import {
   type ProcessClimbsMessage,
   type ClimbsResponse,

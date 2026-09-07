@@ -11,7 +11,6 @@ npm run build           # validate whats-new-data.json, then WXT build → dist/
 npm run build:firefox   # same for Firefox (MV3)
 npm run zip             # package for Chrome Web Store
 npm run zip:firefox     # package for Firefox Add-ons
-npm run build:cli       # esbuild-bundle the climb engine + CLI → dist-cli/
 npm run typecheck       # tsc --noEmit
 npm run lint            # eslint src/ wxt.config.ts eslint.config.js
 npm run lint:fix        # eslint --fix
@@ -19,17 +18,11 @@ npm run format          # prettier --write src/
 npm run test            # vitest run (all tests in test/)
 npm run test:watch      # vitest (interactive)
 npm run test:coverage   # vitest run --coverage (report-only, no threshold)
-npm run test:trace      # DEBUG_PIPELINE=1 + --reporter=verbose on the GPX fixtures
 ```
 
 Run a single test file:
 ```sh
-npx vitest run test/climb-engine.test.js
-```
-
-Regenerate the synthetic ride fixture (only when its shape must change):
-```sh
-node scripts/generate-ride-fixture.mjs   # → test/fixtures/ride-synthetic.gpx
+npx vitest run test/engine-smoke.test.js
 ```
 
 The pre-commit hook runs `lint-staged`: Prettier on `*.{ts,css}` then ESLint `--fix` on `*.ts`.
@@ -49,8 +42,9 @@ Mapy.cz website
   → What's New page (whats-new/)      — opened on install/update
 ```
 
-A sixth, non-browser consumer sits outside this stack: the Node CLI in `src/cli/`
-(see [Climb-engine CLI](#climb-engine-cli)) reuses `climb-engine.ts` directly.
+Climb detection itself sits outside this stack entirely: it is the `climb-engine`
+package (see [The climb engine is a dependency](#the-climb-engine-is-a-dependency)),
+which `background.ts` imports like any other dependency.
 
 Because content scripts cannot access page JS directly, `interceptor.content.ts` injects `gpx-interceptor-injected.ts` into page context at `document_start`. GPX data travels back via `postMessage` → `interceptor.content.ts` → `chrome.storage.local` → background service worker.
 
@@ -66,55 +60,73 @@ Because content scripts cannot access page JS directly, `interceptor.content.ts`
 
 ### Tuning climb detection
 
-All numeric pipeline constants (resample interval, interpolation gap, smoothing window, spike thresholds, merge gaps, trim thresholds, summit-snap lookahead) live in `src/climb-engine.config.ts` as one exported object, `DEFAULT_CLIMB_CONFIG`. Editing it changes the built-in behaviour; a consumer that must not fork the file overrides any subset at the call site instead — `detectClimbs(data, { config: { CLIMB_START_GRADE_PCT: 4 } })` — which is shallow-merged over the defaults once, at the top of `detectClimbs`, and threaded through the pipeline as `cfg` (#76). Two keys, `SPIKE_MAX_SEGMENT_M` and `TRIM_START_GRADE_PCT`, are *computed* from another key to produce their default and are then plain keys: overriding what they derive from does not move them, so set both. Nothing is validated — a wrong number produces wrong climbs, which is the consumer's business. The climb-detection logic itself is in `src/climb-engine.ts` (pure module, no Chrome APIs). Scoring models (`ASO`, `GARMIN`, `HIKING`) and category thresholds are in `src/scoring.ts` — a view over a detection result, not a pipeline step; `src/scoring-view.ts` is where the extension applies one and filters. Gradient zone colours and the full profile → zone pipeline live in `src/gradient-zones.ts`.
+Detection is not tuned in this repo any more — the pipeline and its constants live in the
+`climb-engine` package. All numeric constants (resample interval, interpolation gap, smoothing
+window, spike thresholds, merge gaps, trim thresholds, summit-snap lookahead) are one exported
+object, `DEFAULT_CLIMB_CONFIG`, and the *only* way to move them from here is to override a subset
+at the call site — `detectClimbs(data, { config: { CLIMB_START_GRADE_PCT: 4 } })` — which the
+engine shallow-merges over the defaults once, at the top of `detectClimbs` (#76). Two keys,
+`SPIKE_MAX_SEGMENT_M` and `TRIM_START_GRADE_PCT`, are *computed* from another key to produce their
+default and are then plain keys: overriding what they derive from does not move them, so set both.
+Nothing is validated — a wrong number produces wrong climbs, which is the consumer's business.
+A change the default should carry belongs in `climb-engine` and arrives here as a version bump.
 
-Two different figures are called a "max gradient", and both come from the single scan in
-`src/max-gradient.ts` so they cannot drift apart again: `MeasuredClimb.maxSustainedGradient`
-(measured in `climb-engine.ts`) reads the dense smoothed segments over a 200 m window and feeds
-the hiking score and the CLI's `max_grade` column, while `maxPitchGradient` (`gradient-zones.ts`) reads the
-simplified chart profile and is the card's "Max grade" stat, which must never contradict the
-steepest colour band drawn above it.
+Scoring models (`ASO`, `GARMIN`, `HIKING`) and category thresholds come from the same package —
+a view over a detection result, not a pipeline step; `src/scoring-view.ts` is where the extension
+applies one and filters. Gradient zone colours and the full profile → zone pipeline stay here, in
+`src/gradient-zones.ts`.
 
-### The engine's library boundary
+Two different figures are called a "max gradient", and both come from the engine's single
+`maxGradientOverWindow` scan so they cannot drift apart again: `MeasuredClimb.maxSustainedGradient`
+(measured inside the engine) reads the dense smoothed segments over a 200 m window and feeds the
+hiking score, while `maxPitchGradient` (`src/gradient-zones.ts`, on this side) reads the simplified
+chart profile and is the card's "Max grade" stat, which must never contradict the steepest colour
+band drawn above it. `test/max-gradient.test.js` is the guard on that agreement and is the reason
+the engine re-exports `_computeMaxSustainedGradient`.
 
-The climb engine is being extracted into its own repo and published (#68), so seven files are
-treated as a closed set: `climb-engine.ts`, `climb-engine.config.ts`, `climb-types.ts`,
-`max-gradient.ts`, `scoring.ts`, and — behind the reader's own entry point — `gpx.ts` and
-`geo.ts`. Three rules follow, and two checks enforce them.
+### The climb engine is a dependency
 
-- **Its domain types live in `src/climb-types.ts`, not `src/types.ts`.** `types.ts` is
-  extension-only now — `StorageKey`, the `chrome.runtime` message union, `RouteMode`,
-  `StoredAnalysisResult` — and the dependency runs one way: `types.ts` imports the domain, never
-  the reverse. The `XMLHttpRequest` global augmentation lives in `injected/gpx-interceptors.ts`,
-  the only file that uses it, because a `declare global` in a published `.d.ts` would land in
-  every consumer's type environment.
-- **`detectClimbs` is deterministic.** No clock, no ambient state: same input, same output, so
-  snapshot tests and byte-comparing consumers work. `DetectionResult` therefore has no `timestamp`
-  and no `routeMode`; the extension adds both at the storage boundary via `stampResult()`
-  (`src/storage.ts`), producing a `StoredAnalysisResult`.
+Climb detection is the `climb-engine` package (`Kooozel/climb-engine`), consumed here as a git
+dependency and imported by package name. No file in this repo implements detection (#83).
+
+**The version is pinned to an exact tag, and it must stay that way:**
+
+```json
+"climb-engine": "github:Kooozel/climb-engine#v0.1.0"
+```
+
+Never widen this to `#semver:^0.1.0` or a branch. A retune changes what every card on the map
+says, so it must arrive as a deliberate act — a tag bump in one line of `package.json`, with the
+lockfile's resolved commit as the provenance. `test/engine-smoke.test.js` pins the *installed*
+package's output on a real route, so a bump that moves detection fails there loudly instead of
+surfacing as a wrong panel in the browser; when a bump is intended, re-pin those numbers in the
+same commit.
+
+What to import from where:
+
+- **`climb-engine`** — `detectClimbs`, `emptyDetectionResult`, `score` plus `ASO` / `GARMIN` /
+  `HIKING` / `SCORING_CONFIGS`, `maxGradientOverWindow`, `DEFAULT_CLIMB_CONFIG`, `ClimbCategory`,
+  and every domain type (`MeasuredClimb`, `ScoredClimb`, `DetectionResult`, `Segment`, `Coords`,
+  `ElevationTuple`, `ScoringModel`, `ClimbConfig`).
+- **`climb-engine/gpx`** — `parseGpx`. One reader, running in the browser and in Node.
+- Anything `_`-prefixed carries no semver promise and exists for tests.
+
+Two properties of the engine the extension depends on, and must not paper over:
+
+- **`detectClimbs` is deterministic.** No clock, no ambient state: same input, same output.
+  `DetectionResult` therefore has no `timestamp` and no `routeMode`; the extension adds both at
+  the storage boundary via `stampResult()` (`src/storage.ts`), producing a `StoredAnalysisResult`.
 - **The core measures; it does not judge.** `detectClimbs` takes no scoring model and returns
-  every candidate as a `MeasuredClimb` — geometry only. Whether a climb counts is the consumer's
-  question, and the models disagree substantially about it, so `score(result, model)` is a
-  separate, pluggable view returning `ScoredClimb`s whose `category` is `null` when nothing was
-  cleared. The consumer filters (#77).
-- **The public surface is exactly this**, and it is meant to stay small:
-  `detectClimbs` and `emptyDetectionResult` (`climb-engine.ts`); `score` plus `ASO` / `GARMIN` /
-  `HIKING` and the `ScoringConfig` type (`scoring.ts`); `parseGpx` (`gpx.ts`);
-  `maxGradientOverWindow` and `GradientPoint` (`max-gradient.ts`, for `gradient-zones.ts`, which
-  stays in the extension and so calls it from outside once the engine moves); and
-  `DEFAULT_CLIMB_CONFIG` plus the `ClimbConfig` type (`climb-engine.config.ts`, re-exported from
-  `climb-engine.ts` because the entry point *is* the surface). Everything else
-  carries an `_` prefix and exists for tests, which is the marker that it carries no semver
-  promise. `computeMaxSustainedGradient` left the surface in #77: every climb carries
-  `maxSustainedGradient` as a field, so the CLI reads it instead of calling a function.
+  every candidate as a `MeasuredClimb` — geometry only. Whether a climb counts is this side's
+  question, so `score(result, model)` is a separate view returning `ScoredClimb`s whose `category`
+  is `null` when nothing was cleared, and the consumer filters (#77). The hiking model in
+  particular is chosen here, in `src/scoring-view.ts`, not in the engine.
 
-`npm run typecheck` compiles the closure a second time through `tsconfig.engine.json` with no DOM
-lib and no ambient types, so a stray `document.` or `chrome.` fails there — and that is the check
-standing behind the claim that one `gpx.ts` runs in a browser as well as in Node.
-`npm run build:cli` asserts the module graph esbuild actually walks stays inside `ENGINE_CLOSURE`;
-it walks **two** entry points, since `climb-engine.ts` never imports the reader and would leave it
-checked by nothing. A file joining the engine must be added to both lists. Neither check catches a
-*type-only* import of an extension type — that one is on review.
+`src/types.ts` stays extension-only — `StorageKey`, the `chrome.runtime` message union,
+`RouteMode`, `StoredAnalysisResult` — and the dependency runs one way: it imports the domain from
+the package, never the reverse. That used to be a hand-maintained rule policed by
+`tsconfig.engine.json` and an `ENGINE_CLOSURE` walk in `scripts/build-cli.mjs`; both are gone,
+because the package boundary enforces it now.
 
 ### Hiking mode
 
@@ -244,54 +256,36 @@ UI strings use `__MSG_*__` manifest keys. Locale files: `public/_locales/en/mess
 
 ### Climb-engine CLI
 
-`src/cli/` is a second consumer of the same pure engine — a Node CLI that takes a
-**Garmin Connect ride GPX** and prints enriched climb JSON on stdout, for a downstream
-`sync.py --insert-climbs` importer. It ships from `npm run build:cli`
-(`scripts/build-cli.mjs`, esbuild) as two dependency-free ESM files in `dist-cli/`:
-`climb-engine.mjs` (library) and `climb-cli.mjs` (executable). `dist-cli/` is kept
-separate from `dist/` so `wxt build` never touches it, and CI builds it in its own step
-so a broken CLI bundle cannot block an extension release.
+The ride CLI moved out with the engine (#83). It ships from the `climb-engine` package as its
+`bin`, `climb-cli` — a Node CLI that takes a **Garmin Connect ride GPX** and prints enriched climb
+JSON on stdout for a downstream `sync.py --insert-climbs` importer. Nothing in this repo builds or
+tests it; `npm run build:cli` and `dist-cli/` are gone. Its consumers (`~/sport`, krpaly) take the
+standalone `climb-cli.mjs` / `climb-engine.mjs` assets from the library's own releases.
 
-- `src/gpx.ts` — the GPX reader, shared with the extension rather than owned by the CLI.
-  It scans the XML itself (no `DOMParser`, no Node API) and keeps `<time>` and heart rate,
-  which ride analysis needs and the extension ignores. It replaced a second, DOM-based
-  reader in #77; the parity suite that had pinned the two together is gone with it, and
-  `test/gpx-integration.test.js` — every real route fixture through this reader into
-  detection — is the regression net. One consequence to know: malformed XML and a
-  well-formed empty track now raise the same error, which the panel never renders anyway.
-- `cli/ride-metrics.ts` — pure moving-time and HR-zone aggregation. VAM must be computed
-  on moving time, not elapsed.
-- `cli/analyze-ride.ts` — the output contract: every `climbs[]` key maps 1:1 onto a column
-  of the consumer's `climbs` table, so keys are **snake_case** here and camelCase↔snake_case
-  conversion happens in this file and nowhere else.
-- `cli/index.ts` — the only impure file: arg parsing, file reads, printing. Stdout is JSON
-  and nothing else; diagnostics go to stderr.
-
-`analyze-ride.ts` scores the measured result and emits only the categorised climbs, so the
-default output is unchanged by #77 — a `climbs` table should not receive non-climbs.
-`--include-uncategorized` emits the full candidate set instead, with `category` and
-`difficulty` null on the ones no threshold was cleared for.
-
-HR zone boundaries are personal data and are never committed — they come in via `--zones`.
-When absent, `pct_z4z5` is null but HR avg/max are still emitted.
+Two things worth knowing from this side, because they explain the shape of the shared reader:
+`parseGpx` (`climb-engine/gpx`) scans the XML itself — no `DOMParser`, no Node API, which is what
+lets one reader serve the browser and the CLI — and it keeps `<time>` and heart rate, which ride
+analysis needs and the extension ignores. Malformed XML and a well-formed empty track raise the
+same error, which the panel never renders anyway.
 
 ### Tests
 
-Tests are plain JS in `test/` using Vitest + happy-dom. Covered modules: `climb-engine.ts`,
-`scoring.ts`, `chart.ts` / `gradient-zones.ts`, `chart-selection.ts`, `map-geometry.ts`,
-`max-gradient.ts`, `gpx.ts`, `geo.ts`, `storage.ts`, `gpx-integration` (full GPX fixture
-round-trip including hiking), plus the CLI layer: `ride-metrics`, `ride-analysis`.
+Tests are plain JS in `test/` using Vitest + happy-dom. Detection, scoring and GPX parsing are
+tested in `climb-engine` and not re-tested here; what remains is consumer-side: `chart.ts` /
+`gradient-zones.ts`, `chart-selection.ts`, `map-geometry.ts`, `map-center.ts`, `panel.ts`,
+`route-class.ts`, `storage.ts`, `max-gradient` (the two-sides-agree guard, see
+[Tuning climb detection](#tuning-climb-detection)), and `engine-smoke` — one real route through
+the *installed* package, pinned exactly, so a bad version bump fails here rather than in the
+browser.
 
-Fixtures in `test/fixtures/` are real Mapy.cz route exports, except
-`ride-synthetic.gpx` — a generated ride-shaped track (1 Hz noise, stops, recording gaps,
-heart rate) so CLI behaviour can be tested without committing a real ride.
+`test/fixtures/` holds one file, `travny.gpx`, a real Mapy.cz route export, and
+`engine-smoke.test.js` is its only reader. The other seven fixtures and `expected.js` went to
+`climb-engine` with the tests that read them.
 
-**Tracing the detection pipeline.** `detectClimbs` takes an optional `ClimbDebugSink`
-(`src/climb-types.ts`) that emits one structured event per decision point. Two consumers render it:
-`npm run test:trace` (`DEBUG_PIPELINE=1` in `test/gpx-integration.test.js`) prints human-readable
-lines for the route fixtures, and `climb-cli --debug` writes NDJSON to stderr for a ride GPX.
-Both need their flag — vitest's default reporter hides `console.log` from passing tests, so a
-plain `npm test` makes `DEBUG_PIPELINE` / `DEBUG_OUTPUT` look broken when they are not.
+**Tracing the detection pipeline.** `detectClimbs` still takes an optional `ClimbDebugSink` that
+emits one structured event per decision point, but both renderers of that stream now live in the
+library: its own trace script, and `climb-cli --debug`, which writes NDJSON to stderr for a ride
+GPX. Trace a suspect route by running it through the CLI, or in the engine's repo.
 
 ### Branching and release
 

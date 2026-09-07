@@ -4,8 +4,8 @@
  */
 
 import { StorageKey, type RecategorizeMessage, type MapLayerVisibilityMessage } from "../../types";
-import type { ClimbCategory, ScoringModel } from "../../climb-types";
-import { SCORING_CONFIGS } from "../../scoring";
+import type { ClimbCategory, ScoringModel } from "climb-engine";
+import { SCORING_CONFIGS } from "climb-engine";
 import { CATEGORY_COLOR } from "../../content/category";
 
 // ── DOM refs ─────────────────────────────────────────────────────────────────

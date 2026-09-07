@@ -6,11 +6,9 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       include: [
-        'src/climb-engine.ts',
         'src/content/chart.ts',
         'src/map-geometry.ts',
         'src/content/climb-card.ts',
-        'src/gpx-parser.ts',
       ],
       reporter: ['text', 'html'],
     },
